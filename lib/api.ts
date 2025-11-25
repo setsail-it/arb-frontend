@@ -44,6 +44,10 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ name }),
     }),
+  deleteClient: (clientId: string) =>
+    fetchJson(`/clients/${clientId}`, {
+      method: "DELETE",
+    }),
 
   // Context
   getContext: async (clientId: string) => {

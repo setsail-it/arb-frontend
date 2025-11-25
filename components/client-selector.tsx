@@ -3,23 +3,36 @@
 import { useState, useEffect } from "react"
 import type { Client } from "@/types"
 import { api } from "@/lib/api"
-import { Plus, ChevronDown, AlertCircle } from "lucide-react"
+import { Plus, ChevronDown, AlertCircle, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 
 interface ClientSelectorProps {
   selectedClient: Client | null
   onSelectClient: (client: Client) => void
+  onClientDeleted?: () => void
 }
 
-export function ClientSelector({ selectedClient, onSelectClient }: ClientSelectorProps) {
+export function ClientSelector({ selectedClient, onSelectClient, onClientDeleted }: ClientSelectorProps) {
   const [clients, setClients] = useState<Client[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [newClientName, setNewClientName] = useState("")
   const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [clientToDelete, setClientToDelete] = useState<Client | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   const fetchClients = async () => {
     setError(null)
@@ -54,6 +67,38 @@ export function ClientSelector({ selectedClient, onSelectClient }: ClientSelecto
     }
   }
 
+  const handleDeleteClient = async () => {
+    if (!clientToDelete) return
+
+    setIsDeleting(true)
+    setError(null)
+    try {
+      await api.deleteClient(clientToDelete.id)
+      // Remove from clients list
+      const updatedClients = clients.filter((c) => c.id !== clientToDelete.id)
+      setClients(updatedClients)
+
+      // If the deleted client was selected, clear selection
+      if (selectedClient?.id === clientToDelete.id) {
+        if (updatedClients.length > 0) {
+          onSelectClient(updatedClients[0])
+        } else {
+          // No clients left, clear selection
+          if (onClientDeleted) {
+            onClientDeleted()
+          }
+        }
+      }
+
+      setClientToDelete(null)
+    } catch (e) {
+      console.error("Failed to delete client", e)
+      setError(e instanceof Error ? e.message : "Failed to delete client. Check backend connection.")
+    } finally {
+      setIsDeleting(false)
+    }
+  }
+
   return (
     <div className="space-y-4">
       <div className="text-sm font-medium text-muted-foreground px-1">Select Client</div>
@@ -72,8 +117,23 @@ export function ClientSelector({ selectedClient, onSelectClient }: ClientSelecto
         </DropdownMenuTrigger>
         <DropdownMenuContent className="w-[240px]">
           {clients.map((client) => (
-            <DropdownMenuItem key={client.id} onSelect={() => onSelectClient(client)}>
-              {client.name}
+            <DropdownMenuItem
+              key={client.id}
+              onSelect={() => onSelectClient(client)}
+              className="flex items-center justify-between group"
+            >
+              <span className="flex-1">{client.name}</span>
+              <button
+                onClick={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  setClientToDelete(client)
+                }}
+                className="opacity-0 group-hover:opacity-100 p-1 hover:bg-destructive/10 rounded text-destructive transition-opacity"
+                title="Delete client"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
             </DropdownMenuItem>
           ))}
         </DropdownMenuContent>
@@ -102,6 +162,25 @@ export function ClientSelector({ selectedClient, onSelectClient }: ClientSelecto
           </div>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={clientToDelete !== null} onOpenChange={(open) => !open && setClientToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Client</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{clientToDelete?.name}"? This will permanently delete the client and all
+              associated data including keyword ideas, clusters, sets, blog ideas, and context. This action cannot be
+              undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteClient} disabled={isDeleting} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              {isDeleting ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

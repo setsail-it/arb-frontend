@@ -18,7 +18,11 @@ export default function ABSControlPanel() {
       <div className="w-64 border-r bg-muted/10 flex flex-col p-4 space-y-6">
         <div className="font-bold text-xl tracking-tight">ABS Control Panel</div>
 
-        <ClientSelector selectedClient={selectedClient} onSelectClient={setSelectedClient} />
+        <ClientSelector
+          selectedClient={selectedClient}
+          onSelectClient={setSelectedClient}
+          onClientDeleted={() => setSelectedClient(null)}
+        />
 
         <div className="space-y-1">
           <NavButton label="Client Context" active={activeTab === "context"} onClick={() => setActiveTab("context")} />
