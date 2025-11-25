@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { flushSync } from "react-dom"
-import type { Client, KeywordIdea, KeywordCluster, KeywordSet } from "@/types"
+import type { Client, KeywordIdea, KeywordCluster, KeywordSet, BestAlternateResult } from "@/types"
 import { api } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -29,11 +29,16 @@ export function KeywordExplorerView({ client }: Props) {
   const [ideas, setIdeas] = useState<KeywordIdea[]>([])
   const [clusters, setClusters] = useState<KeywordCluster[]>([])
   const [sets, setSets] = useState<KeywordSet[]>([])
+  const [bestAlternates, setBestAlternates] = useState<Map<number, BestAlternateResult>>(new Map())
+
+  // Selection state
+  const [selectedKeywordIds, setSelectedKeywordIds] = useState<Set<number>>(new Set())
 
   // Loading state
   const [loadingIdeas, setLoadingIdeas] = useState(false)
   const [loadingClusters, setLoadingClusters] = useState(false)
   const [loadingSets, setLoadingSets] = useState(false)
+  const [loadingBestAlternates, setLoadingBestAlternates] = useState(false)
 
   // Streaming progress state
   const [generatingIdeas, setGeneratingIdeas] = useState(false)
@@ -60,6 +65,47 @@ export function KeywordExplorerView({ client }: Props) {
     refreshClusters()
     refreshSets()
   }, [client.id])
+
+  const handleToggleKeywordSelection = (keywordId: number) => {
+    setSelectedKeywordIds((prev) => {
+      const newSet = new Set(prev)
+      if (newSet.has(keywordId)) {
+        newSet.delete(keywordId)
+      } else {
+        newSet.add(keywordId)
+      }
+      return newSet
+    })
+  }
+
+  const handleFindBestAlternates = async () => {
+    if (selectedKeywordIds.size === 0) return
+
+    setLoadingBestAlternates(true)
+    try {
+      const results = new Map<number, BestAlternateResult>()
+
+      // Call API for each selected keyword in parallel
+      const promises = Array.from(selectedKeywordIds).map(async (keywordId) => {
+        try {
+          const result = await api.bestAlternate(client.id, keywordId, {
+            sim_threshold: config.sim_threshold,
+            limit_per_seed: config.max_num_kws_per_seed,
+          })
+          results.set(keywordId, result)
+        } catch (error) {
+          console.error(`Failed to find best alternate for keyword ${keywordId}:`, error)
+        }
+      })
+
+      await Promise.all(promises)
+      setBestAlternates(results)
+    } catch (error) {
+      console.error("Failed to find best alternates:", error)
+    } finally {
+      setLoadingBestAlternates(false)
+    }
+  }
 
   const handleGenerateIdeas = async () => {
     setGeneratingIdeas(true)
@@ -193,6 +239,20 @@ export function KeywordExplorerView({ client }: Props) {
               <table className="w-full text-sm text-left">
                 <thead className="text-xs text-muted-foreground bg-muted/50 sticky top-0">
                   <tr>
+                    <th className="px-4 py-2 w-12">
+                      <input
+                        type="checkbox"
+                        checked={selectedKeywordIds.size === ideas.length && ideas.length > 0}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedKeywordIds(new Set(ideas.map((idea) => idea.id)))
+                          } else {
+                            setSelectedKeywordIds(new Set())
+                          }
+                        }}
+                        className="cursor-pointer"
+                      />
+                    </th>
                     <th className="px-4 py-2">Keyword</th>
                     <th className="px-4 py-2">Source</th>
                     <th className="px-4 py-2 text-right">Volume</th>
@@ -201,7 +261,15 @@ export function KeywordExplorerView({ client }: Props) {
                 </thead>
                 <tbody className="divide-y">
                   {ideas.map((idea) => (
-                    <tr key={idea.id}>
+                    <tr key={idea.id} className={selectedKeywordIds.has(idea.id) ? "bg-muted/30" : ""}>
+                      <td className="px-4 py-2">
+                        <input
+                          type="checkbox"
+                          checked={selectedKeywordIds.has(idea.id)}
+                          onChange={() => handleToggleKeywordSelection(idea.id)}
+                          className="cursor-pointer"
+                        />
+                      </td>
                       <td className="px-4 py-2">{idea.keyword}</td>
                       <td className="px-4 py-2 text-muted-foreground text-xs">{idea.source}</td>
                       <td className="px-4 py-2 text-right text-muted-foreground">
@@ -222,19 +290,50 @@ export function KeywordExplorerView({ client }: Props) {
           </CardContent>
         </Card>
 
-        {/* Column 2: Clusters */}
+        {/* Column 2: Best Alternate */}
         <Card className="flex flex-col h-full">
           <CardHeader className="pb-3 flex flex-row items-center justify-between space-y-0">
-            <CardTitle className="text-base">Clusters ({clusters.length})</CardTitle>
-            <Button size="sm" onClick={handleDevelopClusters} disabled={loadingClusters}>
-              {loadingClusters && <Spinner className="mr-2" />}
-              Develop
+            <CardTitle className="text-base">Best Alternate</CardTitle>
+            <Button
+              size="sm"
+              onClick={handleFindBestAlternates}
+              disabled={loadingBestAlternates || selectedKeywordIds.size === 0}
+            >
+              {loadingBestAlternates && <Spinner className="mr-2" />}
+              Find({selectedKeywordIds.size})
             </Button>
           </CardHeader>
-          <CardContent className="flex-1 overflow-auto p-4 space-y-2">
-            {clusters.map((cluster, i) => (
-              <ClusterItem key={i} cluster={cluster} />
-            ))}
+          <CardContent className="flex-1 overflow-auto p-4 space-y-3">
+            {bestAlternates.size === 0 ? (
+              <div className="text-sm text-muted-foreground text-center py-8">
+                Select keywords from the Ideas column and click Find to get best alternates
+              </div>
+            ) : (
+              Array.from(bestAlternates.entries()).map(([keywordId, result]) => {
+                const originalIdea = ideas.find((idea) => idea.id === keywordId)
+                return (
+                  <div key={keywordId} className="border rounded-md p-3 space-y-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1">
+                        <div className="font-medium text-sm">{result.keyword}</div>
+                        {originalIdea && originalIdea.keyword !== result.keyword && (
+                          <div className="text-xs text-muted-foreground mt-1">
+                            Original: {originalIdea.keyword}
+                          </div>
+                        )}
+                      </div>
+                      <div className="text-xs text-muted-foreground text-right">
+                        <div>Vol: {result.search_volume.toLocaleString()}</div>
+                        <div>KD: {result.keyword_difficulty}</div>
+                        {result.is_original && (
+                          <div className="text-xs text-blue-500 mt-1">(Original)</div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )
+              })
+            )}
           </CardContent>
         </Card>
 

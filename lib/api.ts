@@ -1,5 +1,5 @@
 import { BACKEND_BASE_URL } from "./config"
-import type { Client, ClientContext, KeywordIdea, KeywordCluster, KeywordSet, BlogIdea, BlogIdeaDebug } from "@/types"
+import type { Client, ClientContext, KeywordIdea, KeywordCluster, KeywordSet, BlogIdea, BlogIdeaDebug, BestAlternateResult } from "@/types"
 
 class ApiError extends Error {
   status: number
@@ -274,6 +274,23 @@ export const api = {
       body: JSON.stringify({}),
     }),
   getSets: (clientId: string) => fetchJson<KeywordSet[]>(`/clients/${clientId}/keywords/sets`),
+
+  bestAlternate: (
+    clientId: string,
+    keywordId: number,
+    params: {
+      sim_threshold?: number
+      limit_per_seed?: number
+    },
+  ) =>
+    fetchJson<BestAlternateResult>(`/clients/${clientId}/keywords/best-alternate`, {
+      method: "POST",
+      body: JSON.stringify({
+        keyword_id: keywordId,
+        sim_threshold: params.sim_threshold,
+        limit_per_seed: params.limit_per_seed,
+      }),
+    }),
 
   // Blog Ideas
   getBlogIdeas: (clientId: string) => fetchJson<BlogIdea[]>(`/clients/${clientId}/blog-ideas`),

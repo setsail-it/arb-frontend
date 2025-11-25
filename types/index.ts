@@ -96,3 +96,10 @@ export interface BlogIdeaDebug {
   client_id: string
   debug_info?: any
 }
+
+export interface BestAlternateResult {
+  keyword: string
+  search_volume: number
+  keyword_difficulty: number
+  is_original: boolean
+}
