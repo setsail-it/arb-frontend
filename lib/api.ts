@@ -268,10 +268,19 @@ export const api = {
     }),
   getClusters: (clientId: string) => fetchJson<KeywordCluster[]>(`/clients/${clientId}/keywords/clusters`),
 
-  developSets: (clientId: string) =>
-    fetchJson(`/clients/${clientId}/keywords/develop-sets`, {
+  developSets: (
+    clientId: string,
+    params: {
+      keyword_ids: number[]
+      min_sv?: number
+    },
+  ) =>
+    fetchJson<KeywordSet[]>(`/clients/${clientId}/keywords/develop-sets`, {
       method: "POST",
-      body: JSON.stringify({}),
+      body: JSON.stringify({
+        keyword_ids: params.keyword_ids,
+        min_sv: params.min_sv,
+      }),
     }),
   getSets: (clientId: string) => fetchJson<KeywordSet[]>(`/clients/${clientId}/keywords/sets`),
 

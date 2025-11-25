@@ -33,6 +33,7 @@ export function KeywordExplorerView({ client }: Props) {
 
   // Selection state
   const [selectedKeywordIds, setSelectedKeywordIds] = useState<Set<number>>(new Set())
+  const [selectedBestAlternateIds, setSelectedBestAlternateIds] = useState<Set<number>>(new Set())
 
   // Loading state
   const [loadingIdeas, setLoadingIdeas] = useState(false)
@@ -64,6 +65,7 @@ export function KeywordExplorerView({ client }: Props) {
     // Clear state when client changes
     setBestAlternates(new Map())
     setSelectedKeywordIds(new Set())
+    setSelectedBestAlternateIds(new Set())
     // Refresh data for new client
     refreshIdeas()
     refreshClusters()
@@ -148,10 +150,27 @@ export function KeywordExplorerView({ client }: Props) {
     }
   }
 
+  const handleToggleBestAlternateSelection = (keywordId: number) => {
+    setSelectedBestAlternateIds((prev) => {
+      const newSet = new Set(prev)
+      if (newSet.has(keywordId)) {
+        newSet.delete(keywordId)
+      } else {
+        newSet.add(keywordId)
+      }
+      return newSet
+    })
+  }
+
   const handleDevelopSets = async () => {
+    if (selectedBestAlternateIds.size === 0) return
+
     setLoadingSets(true)
     try {
-      await api.developSets(client.id)
+      await api.developSets(client.id, {
+        keyword_ids: Array.from(selectedBestAlternateIds),
+        min_sv: config.sv_min,
+      })
       await refreshSets()
     } finally {
       setLoadingSets(false)
@@ -315,16 +334,32 @@ export function KeywordExplorerView({ client }: Props) {
             ) : (
               Array.from(bestAlternates.entries()).map(([keywordId, result]) => {
                 const originalIdea = ideas.find((idea) => idea.id === keywordId)
+                const isSelected = selectedBestAlternateIds.has(keywordId)
                 return (
-                  <div key={keywordId} className="border rounded-md p-3 space-y-2">
+                  <div
+                    key={keywordId}
+                    className={`border rounded-md p-3 space-y-2 cursor-pointer transition-colors ${
+                      isSelected ? "bg-muted/30 border-primary" : "hover:bg-muted/10"
+                    }`}
+                    onClick={() => handleToggleBestAlternateSelection(keywordId)}
+                  >
                     <div className="flex items-start justify-between gap-2">
-                      <div className="flex-1">
-                        <div className="font-medium text-sm">{result.keyword}</div>
-                        {originalIdea && originalIdea.keyword !== result.keyword && (
-                          <div className="text-xs text-muted-foreground mt-1">
-                            Original: {originalIdea.keyword}
-                          </div>
-                        )}
+                      <div className="flex items-start gap-2 flex-1">
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => handleToggleBestAlternateSelection(keywordId)}
+                          onClick={(e) => e.stopPropagation()}
+                          className="mt-0.5 cursor-pointer"
+                        />
+                        <div className="flex-1">
+                          <div className="font-medium text-sm">{result.keyword}</div>
+                          {originalIdea && originalIdea.keyword !== result.keyword && (
+                            <div className="text-xs text-muted-foreground mt-1">
+                              Original: {originalIdea.keyword}
+                            </div>
+                          )}
+                        </div>
                       </div>
                       <div className="text-xs text-muted-foreground text-right">
                         <div>Vol: {result.search_volume.toLocaleString()}</div>
@@ -345,9 +380,13 @@ export function KeywordExplorerView({ client }: Props) {
         <Card className="flex flex-col h-full">
           <CardHeader className="pb-3 flex flex-row items-center justify-between space-y-0">
             <CardTitle className="text-base">Sets ({sets.length})</CardTitle>
-            <Button size="sm" onClick={handleDevelopSets} disabled={loadingSets}>
+            <Button
+              size="sm"
+              onClick={handleDevelopSets}
+              disabled={loadingSets || selectedBestAlternateIds.size === 0}
+            >
               {loadingSets && <Spinner className="mr-2" />}
-              Develop
+              Develop({selectedBestAlternateIds.size})
             </Button>
           </CardHeader>
           <CardContent className="flex-1 overflow-auto p-4 space-y-4">
