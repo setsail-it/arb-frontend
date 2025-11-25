@@ -3,7 +3,7 @@ import { type NextRequest, NextResponse } from "next/server"
 // The actual backend URL
 const BACKEND_URL = "https://arb-production-8438.up.railway.app"
 
-async function handleRequest(request: NextRequest, { params }: { params: { path: string[] } }) {
+async function handleRequest(request: NextRequest, params: { path: string[] }) {
   // Reconstruct the path (e.g., /clients, /clients/123)
   // params.path is an array, so we join it.
   const path = params.path.join("/")
@@ -57,22 +57,42 @@ async function handleRequest(request: NextRequest, { params }: { params: { path:
   }
 }
 
-export async function GET(request: NextRequest, context: any) {
-  return handleRequest(request, context)
+export async function GET(
+  request: NextRequest,
+  context: { params: Promise<{ path: string[] }> }
+) {
+  const params = await context.params
+  return handleRequest(request, params)
 }
 
-export async function POST(request: NextRequest, context: any) {
-  return handleRequest(request, context)
+export async function POST(
+  request: NextRequest,
+  context: { params: Promise<{ path: string[] }> }
+) {
+  const params = await context.params
+  return handleRequest(request, params)
 }
 
-export async function PUT(request: NextRequest, context: any) {
-  return handleRequest(request, context)
+export async function PUT(
+  request: NextRequest,
+  context: { params: Promise<{ path: string[] }> }
+) {
+  const params = await context.params
+  return handleRequest(request, params)
 }
 
-export async function DELETE(request: NextRequest, context: any) {
-  return handleRequest(request, context)
+export async function DELETE(
+  request: NextRequest,
+  context: { params: Promise<{ path: string[] }> }
+) {
+  const params = await context.params
+  return handleRequest(request, params)
 }
 
-export async function PATCH(request: NextRequest, context: any) {
-  return handleRequest(request, context)
+export async function PATCH(
+  request: NextRequest,
+  context: { params: Promise<{ path: string[] }> }
+) {
+  const params = await context.params
+  return handleRequest(request, params)
 }
