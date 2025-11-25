@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import type { Client } from "@/types"
 import { api } from "@/lib/api"
-import { Plus, ChevronDown, AlertCircle, Trash2 } from "lucide-react"
+import { Plus, ChevronDown, AlertCircle, Trash2, Pencil } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
@@ -33,6 +33,9 @@ export function ClientSelector({ selectedClient, onSelectClient, onClientDeleted
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [clientToDelete, setClientToDelete] = useState<Client | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [clientToRename, setClientToRename] = useState<Client | null>(null)
+  const [renameClientName, setRenameClientName] = useState("")
+  const [isRenaming, setIsRenaming] = useState(false)
 
   const fetchClients = async () => {
     setError(null)
@@ -99,6 +102,32 @@ export function ClientSelector({ selectedClient, onSelectClient, onClientDeleted
     }
   }
 
+  const handleRenameClient = async () => {
+    if (!clientToRename || !renameClientName.trim()) return
+
+    setIsRenaming(true)
+    setError(null)
+    try {
+      const updatedClient = await api.renameClient(clientToRename.id, renameClientName.trim())
+      // Update clients list
+      const updatedClients = clients.map((c) => (c.id === updatedClient.id ? updatedClient : c))
+      setClients(updatedClients)
+
+      // If the renamed client was selected, update selection
+      if (selectedClient?.id === updatedClient.id) {
+        onSelectClient(updatedClient)
+      }
+
+      setClientToRename(null)
+      setRenameClientName("")
+    } catch (e) {
+      console.error("Failed to rename client", e)
+      setError(e instanceof Error ? e.message : "Failed to rename client. Check backend connection.")
+    } finally {
+      setIsRenaming(false)
+    }
+  }
+
   return (
     <div className="space-y-4">
       <div className="text-sm font-medium text-muted-foreground px-1">Select Client</div>
@@ -123,17 +152,31 @@ export function ClientSelector({ selectedClient, onSelectClient, onClientDeleted
               className="flex items-center justify-between group"
             >
               <span className="flex-1">{client.name}</span>
-              <button
-                onClick={(e) => {
-                  e.preventDefault()
-                  e.stopPropagation()
-                  setClientToDelete(client)
-                }}
-                className="opacity-0 group-hover:opacity-100 p-1 hover:bg-destructive/10 rounded text-destructive transition-opacity"
-                title="Delete client"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </button>
+              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <button
+                  onClick={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    setClientToRename(client)
+                    setRenameClientName(client.name)
+                  }}
+                  className="p-1 hover:bg-muted rounded text-foreground transition-colors"
+                  title="Rename client"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    setClientToDelete(client)
+                  }}
+                  className="p-1 hover:bg-destructive/10 rounded text-destructive transition-colors"
+                  title="Delete client"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </div>
             </DropdownMenuItem>
           ))}
         </DropdownMenuContent>
@@ -158,6 +201,29 @@ export function ClientSelector({ selectedClient, onSelectClient, onClientDeleted
             <Input placeholder="Client Name" value={newClientName} onChange={(e) => setNewClientName(e.target.value)} />
             <Button onClick={handleAddClient} disabled={isLoading}>
               {isLoading ? "Adding..." : "Add"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={clientToRename !== null} onOpenChange={(open) => !open && setClientToRename(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Rename Client</DialogTitle>
+          </DialogHeader>
+          <div className="flex gap-2 mt-4">
+            <Input
+              placeholder="Client Name"
+              value={renameClientName}
+              onChange={(e) => setRenameClientName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && renameClientName.trim()) {
+                  handleRenameClient()
+                }
+              }}
+            />
+            <Button onClick={handleRenameClient} disabled={isRenaming || !renameClientName.trim()}>
+              {isRenaming ? "Renaming..." : "Rename"}
             </Button>
           </div>
         </DialogContent>

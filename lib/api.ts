@@ -48,6 +48,11 @@ export const api = {
     fetchJson(`/clients/${clientId}`, {
       method: "DELETE",
     }),
+  renameClient: (clientId: string, name: string) =>
+    fetchJson<Client>(`/clients/${clientId}/rename`, {
+      method: "PATCH",
+      body: JSON.stringify({ name }),
+    }),
 
   // Context
   getContext: async (clientId: string) => {
