@@ -98,8 +98,13 @@ export interface BlogIdeaDebug {
 }
 
 export interface BestAlternateResult {
+  id: number
+  client_id: number
+  original_keyword_id: number
   keyword: string
-  search_volume: number
-  keyword_difficulty: number
+  search_volume: number | null
+  keyword_difficulty: number | null
   is_original: boolean
+  created_at: string
+  updated_at: string
 }

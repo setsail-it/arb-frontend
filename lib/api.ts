@@ -284,6 +284,9 @@ export const api = {
     }),
   getSets: (clientId: string) => fetchJson<KeywordSet[]>(`/clients/${clientId}/keywords/sets`),
 
+  getBestAlternates: (clientId: string) =>
+    fetchJson<BestAlternateResult[]>(`/clients/${clientId}/keywords/best-alternates`),
+
   bestAlternate: (
     clientId: string,
     keywordId: number,

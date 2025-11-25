@@ -60,6 +60,20 @@ export function KeywordExplorerView({ client }: Props) {
     setSets(data || [])
   }
 
+  const refreshBestAlternates = async () => {
+    try {
+      const data = await api.getBestAlternates(client.id)
+      // Convert array to Map keyed by original_keyword_id
+      const alternatesMap = new Map<number, BestAlternateResult>()
+      data.forEach((alt) => {
+        alternatesMap.set(alt.original_keyword_id, alt)
+      })
+      setBestAlternates(alternatesMap)
+    } catch (error) {
+      console.error("Failed to fetch best alternates:", error)
+    }
+  }
+
   // Initial load
   useEffect(() => {
     // Clear state when client changes
@@ -70,6 +84,7 @@ export function KeywordExplorerView({ client }: Props) {
     refreshIdeas()
     refreshClusters()
     refreshSets()
+    refreshBestAlternates()
   }, [client.id])
 
   const handleToggleKeywordSelection = (keywordId: number) => {
@@ -106,6 +121,8 @@ export function KeywordExplorerView({ client }: Props) {
 
       await Promise.all(promises)
       setBestAlternates(results)
+      // Refresh the list to get persisted results
+      await refreshBestAlternates()
     } catch (error) {
       console.error("Failed to find best alternates:", error)
     } finally {
@@ -362,8 +379,18 @@ export function KeywordExplorerView({ client }: Props) {
                         </div>
                       </div>
                       <div className="text-xs text-muted-foreground text-right">
-                        <div>Vol: {result.search_volume.toLocaleString()}</div>
-                        <div>KD: {result.keyword_difficulty}</div>
+                        <div>
+                          Vol:{" "}
+                          {result.search_volume !== null && result.search_volume !== undefined
+                            ? result.search_volume.toLocaleString()
+                            : "-"}
+                        </div>
+                        <div>
+                          KD:{" "}
+                          {result.keyword_difficulty !== null && result.keyword_difficulty !== undefined
+                            ? result.keyword_difficulty
+                            : "-"}
+                        </div>
                         {result.is_original && (
                           <div className="text-xs text-blue-500 mt-1">(Original)</div>
                         )}
