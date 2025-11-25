@@ -61,6 +61,10 @@ export function KeywordExplorerView({ client }: Props) {
 
   // Initial load
   useEffect(() => {
+    // Clear state when client changes
+    setBestAlternates(new Map())
+    setSelectedKeywordIds(new Set())
+    // Refresh data for new client
     refreshIdeas()
     refreshClusters()
     refreshSets()
