@@ -39,22 +39,23 @@ export function BlogIdeasView({ client }: Props) {
   const handleGenerate = async () => {
     setGenerating(true)
     try {
-      await api.generateBlogIdeas(client.id)
-      const ideasData = await api.getBlogIdeas(client.id)
+      const ideasData = await api.generateBlogIdeas(client.id)
       setBlogIdeas(ideasData || [])
+    } catch (e) {
+      console.error("Failed to generate blog ideas", e)
     } finally {
       setGenerating(false)
     }
   }
 
-  const handleQueue = async (ideaId: string) => {
-    await api.queueBlogIdea(client.id, ideaId)
+  const handleQueue = async (ideaId: number) => {
+    await api.queueBlogIdea(client.id, String(ideaId))
     const ideasData = await api.getBlogIdeas(client.id)
     setBlogIdeas(ideasData || [])
   }
 
-  const handleTopicUpdate = async (ideaId: string, newTopic: string) => {
-    await api.updateBlogIdeaTopic(client.id, ideaId, newTopic)
+  const handleTopicUpdate = async (ideaId: number, newTopic: string) => {
+    await api.updateBlogIdeaTopic(client.id, String(ideaId), newTopic)
     // Optimistic update locally if needed, or just refresh silently
   }
 
@@ -161,7 +162,7 @@ function BlogIdeaRow({
         </Badge>
       </div>
       <div className="flex justify-between items-center text-xs text-muted-foreground">
-        <span>Set: {String(idea.keyword_set_id || "").substring(0, 8)}...</span>
+        <span>{idea.keyword_set_id ? `Set: ${idea.keyword_set_id}` : "No set"}</span>
         {idea.state === "unqueued" && (
           <Button
             size="sm"

@@ -23,7 +23,7 @@ export function DebugPanel({ client, idea, onClose }: Props) {
     if (idea && client) {
       setLoading(true)
       api
-        .getBlogIdeaDebug(client.id, idea.id)
+        .getBlogIdeaDebug(client.id, String(idea.id))
         .then(setDetails)
         .catch(console.error)
         .finally(() => setLoading(false))

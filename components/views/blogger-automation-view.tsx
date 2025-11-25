@@ -41,8 +41,8 @@ export function BloggerAutomationView({ client }: Props) {
     return () => clearInterval(interval)
   }, [client.id])
 
-  const handleQueue = async (id: string) => {
-    await api.queueBlogIdea(client.id, id)
+  const handleQueue = async (id: number) => {
+    await api.queueBlogIdea(client.id, String(id))
     refresh()
   }
 

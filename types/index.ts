@@ -84,11 +84,26 @@ export interface KeywordSet {
 }
 
 export interface BlogIdea {
-  id: string
-  client_id: string
+  id: number
+  client_id: number
   topic: string
+  keyword_set_id: number | null
   state: "unqueued" | "queued" | "in_progress" | "complete" | "failed"
-  created_at?: string
+  error_message: string | null
+  brief_json: {
+    primary_keyword: string
+    secondary_keywords: string[]
+    author_tone: string
+    domain: string
+    about: string
+    target_market: string
+    b1_title: string
+  } | null
+  latest_sq_report: any | null
+  iteration_count: number | null
+  draft_html: string | null
+  created_at: string
+  updated_at: string
 }
 
 export interface BlogIdeaDebug {

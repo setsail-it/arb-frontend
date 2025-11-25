@@ -315,7 +315,10 @@ export const api = {
 
   // Blog Ideas
   getBlogIdeas: (clientId: string) => fetchJson<BlogIdea[]>(`/clients/${clientId}/blog-ideas`),
-  generateBlogIdeas: (clientId: string) => fetchJson(`/clients/${clientId}/blog-ideas/generate`, { method: "POST" }),
+  generateBlogIdeas: (clientId: string) =>
+    fetchJson<BlogIdea[]>(`/clients/${clientId}/blog-ideas/generate`, {
+      method: "POST",
+    }),
   updateBlogIdeaTopic: (clientId: string, ideaId: string, topic: string) =>
     fetchJson(`/clients/${clientId}/blog-ideas/${ideaId}`, {
       method: "PUT",
