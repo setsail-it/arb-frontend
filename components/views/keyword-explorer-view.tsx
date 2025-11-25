@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { flushSync } from "react-dom"
 import type { Client, KeywordIdea, KeywordCluster, KeywordSet } from "@/types"
 import { api } from "@/lib/api"
 import { Button } from "@/components/ui/button"
@@ -68,7 +69,10 @@ export function KeywordExplorerView({ client }: Props) {
       client.id,
       { min_sv: config.sv_min, max_kd: config.kd_max },
       (message, step) => {
-        setGenerationProgress({ message, step })
+        // Use flushSync to ensure immediate UI updates for progress events
+        flushSync(() => {
+          setGenerationProgress({ message, step })
+        })
       },
       async (data) => {
         // Complete - refresh data and close progress
@@ -191,6 +195,8 @@ export function KeywordExplorerView({ client }: Props) {
                   <tr>
                     <th className="px-4 py-2">Keyword</th>
                     <th className="px-4 py-2">Source</th>
+                    <th className="px-4 py-2 text-right">Volume</th>
+                    <th className="px-4 py-2 text-right">KD</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
@@ -198,6 +204,16 @@ export function KeywordExplorerView({ client }: Props) {
                     <tr key={idea.id}>
                       <td className="px-4 py-2">{idea.keyword}</td>
                       <td className="px-4 py-2 text-muted-foreground text-xs">{idea.source}</td>
+                      <td className="px-4 py-2 text-right text-muted-foreground">
+                        {idea.search_volume !== null && idea.search_volume !== undefined
+                          ? idea.search_volume.toLocaleString()
+                          : "-"}
+                      </td>
+                      <td className="px-4 py-2 text-right text-muted-foreground">
+                        {idea.keyword_difficulty !== null && idea.keyword_difficulty !== undefined
+                          ? idea.keyword_difficulty
+                          : "-"}
+                      </td>
                     </tr>
                   ))}
                 </tbody>

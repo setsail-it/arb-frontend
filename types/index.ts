@@ -1,3 +1,9 @@
+export interface Client {
+  id: string
+  name: string
+  created_at?: string
+}
+
 export interface ClientContext {
   domain?: string
   about?: string
@@ -33,4 +39,60 @@ export interface ClientContext {
   existing_blog_titles?: string[]
   questionnaire?: Array<{ question: string; answer: string }>
   ready?: boolean
+}
+
+export interface KeywordIdea {
+  id: number
+  client_id: number
+  keyword: string
+  source: string | null
+  search_volume: number | null
+  keyword_difficulty: number | null
+  created_at?: string
+}
+
+export interface KeywordClusterKeyword {
+  keyword: string
+  search_volume: number | null
+  keyword_difficulty: number | null
+  intent?: number | null
+  quality?: number | null
+}
+
+export interface KeywordCluster {
+  id: number
+  client_id: number
+  label: string
+  keywords: KeywordClusterKeyword[]
+  created_at?: string
+}
+
+export interface KeywordSet {
+  id: number
+  client_id: number
+  primary_keyword: string
+  primary_search_volume: number | null
+  primary_keyword_difficulty: number | null
+  primary_intent?: number | null
+  primary_quality?: number | null
+  secondaries: Array<{
+    keyword: string
+    search_volume: number | null
+    keyword_difficulty?: number | null
+  }>
+  created_at?: string
+}
+
+export interface BlogIdea {
+  id: string
+  client_id: string
+  topic: string
+  state: "unqueued" | "queued" | "in_progress" | "complete" | "failed"
+  created_at?: string
+}
+
+export interface BlogIdeaDebug {
+  idea_id: string
+  client_id: string
+  debug_info?: any
 }
