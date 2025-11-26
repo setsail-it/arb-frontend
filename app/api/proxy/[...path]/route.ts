@@ -38,19 +38,30 @@ async function handleRequest(request: NextRequest, params: { path: string[] }) {
 
     console.log(`[Proxy] Received response status: ${response.status}`)
 
-    // Forward the response back to the client
-    // We need to create a new response with the data from the backend
-    const responseBody = await response.blob()
+    // Check if this is a streaming response (text/event-stream)
+    const contentType = response.headers.get("content-type") || ""
+    const isStreaming = contentType.includes("text/event-stream") || contentType.includes("stream")
 
     const responseHeaders = new Headers(response.headers)
     // Ensure CORS headers are handled by the proxy if needed, or just forward everything
     // Usually Next.js handles the client-side CORS for the /api route automatically (same origin).
 
-    return new NextResponse(responseBody, {
-      status: response.status,
-      statusText: response.statusText,
-      headers: responseHeaders,
-    })
+    if (isStreaming && response.body) {
+      // For streaming responses, pipe the stream directly
+      return new NextResponse(response.body, {
+        status: response.status,
+        statusText: response.statusText,
+        headers: responseHeaders,
+      })
+    } else {
+      // For non-streaming responses, buffer and return
+      const responseBody = await response.blob()
+      return new NextResponse(responseBody, {
+        status: response.status,
+        statusText: response.statusText,
+        headers: responseHeaders,
+      })
+    }
   } catch (error) {
     console.error("[Proxy] Error forwarding request:", error)
     return NextResponse.json({ error: "Failed to proxy request" }, { status: 500 })

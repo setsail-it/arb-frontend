@@ -426,12 +426,16 @@ export function KeywordExplorerView({ client }: Props) {
                   </span>
                 </div>
                 <div className="pl-2 border-l-2 border-muted">
-                  {set.secondaries.map((sec, j) => (
-                    <div key={j} className="text-xs text-muted-foreground py-0.5 flex justify-between">
-                      <span>{sec.keyword}</span>
-                      <span>{sec.search_volume}</span>
-                    </div>
-                  ))}
+                  {set.secondaries && set.secondaries.length > 0 ? (
+                    set.secondaries.map((sec, j) => (
+                      <div key={j} className="text-xs text-muted-foreground py-0.5 flex justify-between">
+                        <span>{sec.keyword}</span>
+                        <span>{sec.search_volume}</span>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-xs text-muted-foreground py-0.5 italic">No secondaries</div>
+                  )}
                 </div>
               </div>
             ))}

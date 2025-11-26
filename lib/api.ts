@@ -349,6 +349,8 @@ export const api = {
     const baseUrl = BACKEND_BASE_URL.replace(/\/$/, "")
     const endpoint = `/clients/${clientId}/blog-ideas/${blogIdeaId}/process-stream`
 
+    console.log(`[Process Stream] Starting stream for blog idea ${blogIdeaId}`)
+
     try {
       const response = await fetch(`${baseUrl}${endpoint}`, {
         method: "GET",
@@ -358,7 +360,11 @@ export const api = {
         signal: abortSignal,
       })
 
+      console.log(`[Process Stream] Response status: ${response.status}, Content-Type: ${response.headers.get("content-type")}`)
+
       if (!response.ok) {
+        const errorText = await response.text()
+        console.error(`[Process Stream] Error response: ${errorText}`)
         throw new Error(`HTTP ${response.status}: ${response.statusText}`)
       }
 
@@ -414,20 +420,24 @@ export const api = {
 
             try {
               const event = JSON.parse(data)
+              console.log(`[Process Stream] Received event:`, event.type, event)
               if (event.type === "progress") {
                 onProgress(event.message, event.step || 0)
               } else if (event.type === "complete") {
+                console.log(`[Process Stream] Complete event received`)
                 onComplete(event.data)
               } else if (event.type === "error") {
+                console.error(`[Process Stream] Error event received:`, event.data)
                 onError(event.data)
               }
             } catch (e) {
-              // ignore parse errors
+              console.error(`[Process Stream] Failed to parse event:`, e, "Raw data:", data)
             }
           }
         }
       }
     } catch (e: any) {
+      console.error(`[Process Stream] Stream error:`, e)
       // Don't call onError if aborted
       if (!abortSignal?.aborted) {
         onError({

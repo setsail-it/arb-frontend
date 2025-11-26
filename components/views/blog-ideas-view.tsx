@@ -264,10 +264,10 @@ function BlogIdeaRow({
               </span>
             )}
           </div>
-          {keywordSet.secondaries && keywordSet.secondaries.length > 0 && (
-            <div className="text-xs text-muted-foreground">
-              <div className="font-medium mb-1">Secondaries:</div>
-              {keywordSet.secondaries.map((sec, i) => (
+          <div className="text-xs text-muted-foreground">
+            <div className="font-medium mb-1">Secondaries:</div>
+            {keywordSet.secondaries && keywordSet.secondaries.length > 0 ? (
+              keywordSet.secondaries.map((sec, i) => (
                 <div key={i} className="pl-2">
                   • {sec.keyword}
                   {sec.search_volume !== null && (
@@ -276,9 +276,11 @@ function BlogIdeaRow({
                     </span>
                   )}
                 </div>
-              ))}
-            </div>
-          )}
+              ))
+            ) : (
+              <div className="pl-2 italic">No secondaries</div>
+            )}
+          </div>
         </div>
       )}
 
