@@ -326,6 +326,10 @@ export const api = {
     }),
   queueBlogIdea: (clientId: string, ideaId: string) =>
     fetchJson(`/clients/${clientId}/blog-ideas/${ideaId}/queue`, { method: "POST" }),
+  deleteBlogIdea: (clientId: string, blogIdeaId: number) =>
+    fetchJson(`/clients/${clientId}/blog-ideas/${blogIdeaId}`, {
+      method: "DELETE",
+    }),
 
   // Automation
   processQueued: (clientId: string) => fetchJson(`/clients/${clientId}/blog-ideas/process-queued`, { method: "POST" }),

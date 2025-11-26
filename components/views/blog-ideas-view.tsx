@@ -8,7 +8,17 @@ import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Spinner } from "@/components/ui/spinner"
-import { ChevronDown, ChevronRight } from "lucide-react"
+import { ChevronDown, ChevronRight, Trash2 } from "lucide-react"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 interface Props {
   client: Client
@@ -66,6 +76,18 @@ export function BlogIdeasView({ client }: Props) {
     // Optimistic update locally if needed, or just refresh silently
   }
 
+  const handleDelete = async (ideaId: number) => {
+    try {
+      await api.deleteBlogIdea(client.id, ideaId)
+      // Remove from local state
+      setBlogIdeas(blogIdeas.filter((idea) => idea.id !== ideaId))
+    } catch (e) {
+      console.error("Failed to delete blog idea", e)
+      // Refresh to get latest state
+      await refresh()
+    }
+  }
+
   return (
     <div className="grid grid-cols-2 gap-6 h-full">
       {/* Left Column: Existing Titles */}
@@ -109,6 +131,7 @@ export function BlogIdeasView({ client }: Props) {
                   keywordSet={keywordSet}
                   onQueue={() => handleQueue(idea.id)}
                   onUpdateTopic={(topic) => handleTopicUpdate(idea.id, topic)}
+                  onDelete={() => handleDelete(idea.id)}
                 />
               )
             })}
@@ -124,16 +147,20 @@ function BlogIdeaRow({
   keywordSet,
   onQueue,
   onUpdateTopic,
+  onDelete,
 }: {
   idea: BlogIdea
   keywordSet: KeywordSet | null | undefined
   onQueue: () => Promise<void>
   onUpdateTopic: (t: string) => void
+  onDelete: () => Promise<void>
 }) {
   const [topic, setTopic] = useState(idea.topic)
   const [isDirty, setIsDirty] = useState(false)
   const [isQueueing, setIsQueueing] = useState(false)
   const [isSetExpanded, setIsSetExpanded] = useState(false)
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   const handleBlur = () => {
     if (isDirty) {
@@ -151,6 +178,18 @@ function BlogIdeaRow({
     }
   }
 
+  const handleDeleteClick = async () => {
+    setIsDeleting(true)
+    try {
+      await onDelete()
+      setShowDeleteDialog(false)
+    } catch (e) {
+      console.error("Failed to delete blog idea", e)
+    } finally {
+      setIsDeleting(false)
+    }
+  }
+
   return (
     <div className="p-3 flex flex-col gap-2 hover:bg-muted/20">
       <div className="flex justify-between items-start gap-2">
@@ -161,21 +200,30 @@ function BlogIdeaRow({
             setIsDirty(true)
           }}
           onBlur={handleBlur}
-          className="h-8 font-medium"
+          className="h-8 font-medium flex-1"
         />
-        <Badge
-          variant={
-            idea.state === "complete"
-              ? "default"
-              : idea.state === "failed"
-                ? "destructive"
-                : idea.state === "in_progress"
-                  ? "secondary"
-                  : "outline"
-          }
-        >
-          {idea.state}
-        </Badge>
+        <div className="flex items-center gap-2">
+          <Badge
+            variant={
+              idea.state === "complete"
+                ? "default"
+                : idea.state === "failed"
+                  ? "destructive"
+                  : idea.state === "in_progress"
+                    ? "secondary"
+                    : "outline"
+            }
+          >
+            {idea.state}
+          </Badge>
+          <button
+            onClick={() => setShowDeleteDialog(true)}
+            className="p-1 hover:bg-destructive/10 rounded text-destructive transition-colors"
+            title="Delete blog idea"
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        </div>
       </div>
       <div className="flex justify-between items-center text-xs text-muted-foreground">
         <div className="flex items-center gap-2">
@@ -235,6 +283,28 @@ function BlogIdeaRow({
           )}
         </div>
       )}
+
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Blog Idea</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{idea.topic}"? This will permanently delete the blog idea and all
+              associated artifacts (HTML versions, blog post artifacts). This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteClick}
+              disabled={isDeleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isDeleting ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
