@@ -253,11 +253,9 @@ function BlogIdeaRow({
       </div>
       {isSetExpanded && keywordSet && (
         <div className="mt-2 pl-4 border-l-2 border-muted space-y-1">
-          {idea.future_idea_id !== null && (
-            <div className="text-xs text-muted-foreground mb-1">
-              Future Idea ID: <span className="font-medium text-foreground">{idea.future_idea_id}</span>
-            </div>
-          )}
+          <div className="text-xs text-muted-foreground mb-1">
+            Blog Idea ID: <span className="font-medium text-foreground">{idea.id}</span>
+          </div>
           <div className="text-xs font-medium text-foreground">
             Primary: {keywordSet.primary_keyword}
             {keywordSet.primary_search_volume !== null && (
