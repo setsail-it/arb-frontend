@@ -3,11 +3,13 @@
 import type React from "react"
 
 import { useState, useEffect } from "react"
+import { flushSync } from "react-dom"
 import type { Client, BlogIdea } from "@/types"
 import { api } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Spinner } from "@/components/ui/spinner"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { DebugPanel } from "@/components/debug-panel"
 
 interface Props {
@@ -21,6 +23,16 @@ export function BloggerAutomationView({ client }: Props) {
 
   // Debugging state
   const [selectedIdea, setSelectedIdea] = useState<BlogIdea | null>(null)
+
+  // Process streaming state
+  const [streamingIdea, setStreamingIdea] = useState<BlogIdea | null>(null)
+  const [streamProgress, setStreamProgress] = useState<Array<{ message: string; step: number }>>([])
+  const [streamAbortController, setStreamAbortController] = useState<AbortController | null>(null)
+
+  // HTML viewer state
+  const [htmlViewerIdea, setHtmlViewerIdea] = useState<BlogIdea | null>(null)
+  const [htmlContent, setHtmlContent] = useState<string>("")
+  const [loadingHtml, setLoadingHtml] = useState(false)
 
   const refresh = async () => {
     setLoading(true)
@@ -50,9 +62,78 @@ export function BloggerAutomationView({ client }: Props) {
     setProcessing(true)
     try {
       await api.processQueued(client.id)
-      refresh()
+      // Refresh to see items move to "In Progress"
+      await refresh()
     } finally {
       setProcessing(false)
+    }
+  }
+
+  const handleViewProcess = (idea: BlogIdea) => {
+    setStreamingIdea(idea)
+    setStreamProgress([])
+
+    // Create abort controller for this stream
+    const abortController = new AbortController()
+    setStreamAbortController(abortController)
+
+    // Start streaming
+    api.getBlogIdeaProcessStream(
+      client.id,
+      idea.id,
+      (message, step) => {
+        // Use flushSync to ensure immediate UI updates
+        flushSync(() => {
+          setStreamProgress((prev) => [...prev, { message, step }])
+        })
+      },
+      (data) => {
+        // Pipeline completed successfully
+        setStreamingIdea(null)
+        setStreamProgress([])
+        setStreamAbortController(null)
+        // Refresh to move item to "Done"
+        refresh()
+      },
+      (data) => {
+        // Pipeline failed
+        setStreamProgress((prev) => [
+          ...prev,
+          { message: `Error: ${data.message}`, step: prev.length + 1 },
+        ])
+        // Refresh to show failed state
+        setTimeout(() => {
+          setStreamingIdea(null)
+          setStreamProgress([])
+          setStreamAbortController(null)
+          refresh()
+        }, 2000)
+      },
+      abortController.signal,
+    )
+  }
+
+  const handleCloseStream = () => {
+    if (streamAbortController) {
+      streamAbortController.abort()
+      setStreamAbortController(null)
+    }
+    setStreamingIdea(null)
+    setStreamProgress([])
+  }
+
+  const handleViewPost = async (idea: BlogIdea) => {
+    setHtmlViewerIdea(idea)
+    setLoadingHtml(true)
+    setHtmlContent("")
+    try {
+      const result = await api.getBlogIdeaHtml(client.id, idea.id)
+      setHtmlContent(result.html)
+    } catch (e) {
+      console.error("Failed to load HTML", e)
+      setHtmlContent("<p>Failed to load HTML content</p>")
+    } finally {
+      setLoadingHtml(false)
     }
   }
 
@@ -103,19 +184,73 @@ export function BloggerAutomationView({ client }: Props) {
         {/* Column 3: In Progress */}
         <KanbanColumn title={`In Progress (${inProgress.length})`}>
           {inProgress.map((idea) => (
-            <KanbanCard key={idea.id} idea={idea} onView={() => setSelectedIdea(idea)} />
+            <KanbanCard
+              key={idea.id}
+              idea={idea}
+              onView={() => setSelectedIdea(idea)}
+              onViewProcess={() => handleViewProcess(idea)}
+              isInProgress={true}
+            />
           ))}
         </KanbanColumn>
 
         {/* Column 4: Complete/Failed */}
         <KanbanColumn title={`Done (${done.length})`}>
           {done.map((idea) => (
-            <KanbanCard key={idea.id} idea={idea} onView={() => setSelectedIdea(idea)} />
+            <KanbanCard
+              key={idea.id}
+              idea={idea}
+              onView={() => setSelectedIdea(idea)}
+              onViewPost={() => handleViewPost(idea)}
+            />
           ))}
         </KanbanColumn>
       </div>
 
       <DebugPanel client={client} idea={selectedIdea} onClose={() => setSelectedIdea(null)} />
+
+      {/* Process Stream Dialog */}
+      <Dialog open={streamingIdea !== null} onOpenChange={(open) => !open && handleCloseStream()}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle>Processing: {streamingIdea?.topic}</DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 overflow-auto space-y-2 p-4 bg-muted/30 rounded-md">
+            {streamProgress.length === 0 ? (
+              <div className="text-sm text-muted-foreground">Waiting for progress updates...</div>
+            ) : (
+              streamProgress.map((progress, idx) => (
+                <div key={idx} className="text-sm font-mono">
+                  <span className="text-muted-foreground">[{progress.step}]</span> {progress.message}
+                </div>
+              ))
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* HTML Viewer Dialog */}
+      <Dialog open={htmlViewerIdea !== null} onOpenChange={(open) => !open && setHtmlViewerIdea(null)}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle>View Post: {htmlViewerIdea?.topic}</DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 overflow-auto border rounded-md">
+            {loadingHtml ? (
+              <div className="flex items-center justify-center p-8">
+                <Spinner className="mr-2" />
+                Loading HTML...
+              </div>
+            ) : (
+              <iframe
+                srcDoc={htmlContent}
+                className="w-full h-full min-h-[600px] border-0"
+                title="Blog Post HTML"
+              />
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
@@ -136,9 +271,27 @@ function KanbanColumn({
   )
 }
 
-function KanbanCard({ idea, children, onView }: { idea: BlogIdea; children?: React.ReactNode; onView: () => void }) {
+function KanbanCard({
+  idea,
+  children,
+  onView,
+  onViewProcess,
+  onViewPost,
+  isInProgress,
+}: {
+  idea: BlogIdea
+  children?: React.ReactNode
+  onView: () => void
+  onViewProcess?: () => void
+  onViewPost?: () => void
+  isInProgress?: boolean
+}) {
   return (
-    <div className="bg-background p-3 rounded border shadow-sm text-sm space-y-2">
+    <div
+      className={`p-3 rounded border shadow-sm text-sm space-y-2 ${
+        isInProgress ? "bg-cyan-50 dark:bg-cyan-950/20 border-cyan-200 dark:border-cyan-800" : "bg-background"
+      }`}
+    >
       <div className="font-medium leading-tight">{idea.topic}</div>
       <div className="flex justify-between items-center text-xs text-muted-foreground">
         <Badge variant={idea.state === "failed" ? "destructive" : "outline"} className="text-[10px] h-5 px-1">
@@ -148,6 +301,16 @@ function KanbanCard({ idea, children, onView }: { idea: BlogIdea; children?: Rea
           View details
         </button>
       </div>
+      {isInProgress && onViewProcess && (
+        <Button size="sm" variant="outline" className="w-full h-7 text-xs" onClick={onViewProcess}>
+          View process
+        </Button>
+      )}
+      {idea.state === "complete" && onViewPost && (
+        <Button size="sm" variant="default" className="w-full h-7 text-xs" onClick={onViewPost}>
+          View post
+        </Button>
+      )}
       {children}
     </div>
   )

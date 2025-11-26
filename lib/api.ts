@@ -332,9 +332,118 @@ export const api = {
     }),
 
   // Automation
-  processQueued: (clientId: string) => fetchJson(`/clients/${clientId}/blog-ideas/process-queued`, { method: "POST" }),
+  processQueued: (clientId: string) =>
+    fetchJson<Array<{ blog_idea_id: number; state: string }>>(`/clients/${clientId}/blog-ideas/process-queued`, {
+      method: "POST",
+    }),
   getBlogIdeaDebug: (clientId: string, ideaId: string) =>
     fetchJson<BlogIdeaDebug>(`/clients/${clientId}/blog-ideas/${ideaId}/debug`),
+  getBlogIdeaProcessStream: async (
+    clientId: string,
+    blogIdeaId: number,
+    onProgress: (message: string, step: number) => void,
+    onComplete: (data: { blog_idea_id: number; state: string; final_version_number?: number }) => void,
+    onError: (data: { blog_idea_id: number; state: string; message: string }) => void,
+    abortSignal?: AbortSignal,
+  ) => {
+    const baseUrl = BACKEND_BASE_URL.replace(/\/$/, "")
+    const endpoint = `/clients/${clientId}/blog-ideas/${blogIdeaId}/process-stream`
+
+    try {
+      const response = await fetch(`${baseUrl}${endpoint}`, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        signal: abortSignal,
+      })
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+      }
+
+      const reader = response.body?.getReader()
+      const decoder = new TextDecoder()
+
+      if (!reader) {
+        throw new Error("No response body")
+      }
+
+      let buffer = ""
+
+      while (true) {
+        // Check if aborted
+        if (abortSignal?.aborted) {
+          reader.cancel()
+          break
+        }
+
+        const { done, value } = await reader.read()
+        if (done) {
+          if (buffer.trim()) {
+            const lines = buffer.split("\n")
+            for (const line of lines) {
+              if (line.startsWith("data: ")) {
+                const data = line.slice(6).trim()
+                if (data && data !== "[DONE]") {
+                  try {
+                    const event = JSON.parse(data)
+                    if (event.type === "complete") {
+                      onComplete(event.data)
+                    } else if (event.type === "error") {
+                      onError(event.data)
+                    }
+                  } catch (e) {
+                    // ignore parse errors
+                  }
+                }
+              }
+            }
+          }
+          break
+        }
+
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split("\n")
+        buffer = lines.pop() || ""
+
+        for (const line of lines) {
+          if (line.startsWith("data: ")) {
+            const data = line.slice(6).trim()
+            if (data === "[DONE]") continue
+
+            try {
+              const event = JSON.parse(data)
+              if (event.type === "progress") {
+                onProgress(event.message, event.step || 0)
+              } else if (event.type === "complete") {
+                onComplete(event.data)
+              } else if (event.type === "error") {
+                onError(event.data)
+              }
+            } catch (e) {
+              // ignore parse errors
+            }
+          }
+        }
+      }
+    } catch (e: any) {
+      // Don't call onError if aborted
+      if (!abortSignal?.aborted) {
+        onError({
+          blog_idea_id: blogIdeaId,
+          state: "failed",
+          message: e.message || "Failed to stream process events",
+        })
+      }
+    }
+  },
+  getBlogIdeaHtml: (clientId: string, blogIdeaId: number, versionNumber?: number) => {
+    const params = versionNumber ? `?version_number=${versionNumber}` : ""
+    return fetchJson<{ blog_idea_id: number; version_number: number; html: string }>(
+      `/clients/${clientId}/blog-ideas/${blogIdeaId}/html${params}`,
+    )
+  },
 
   getXmlUrl: (blogPostId: string) => `${BACKEND_BASE_URL}/blog-posts/${blogPostId}/xml`,
 }
