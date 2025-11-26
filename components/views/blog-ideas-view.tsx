@@ -1,13 +1,14 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import type { Client, BlogIdea } from "@/types"
+import type { Client, BlogIdea, KeywordSet } from "@/types"
 import { api } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Spinner } from "@/components/ui/spinner"
+import { ChevronDown, ChevronRight } from "lucide-react"
 
 interface Props {
   client: Client
@@ -16,15 +17,21 @@ interface Props {
 export function BlogIdeasView({ client }: Props) {
   const [existingTitles, setExistingTitles] = useState<string[]>([])
   const [blogIdeas, setBlogIdeas] = useState<BlogIdea[]>([])
+  const [keywordSets, setKeywordSets] = useState<KeywordSet[]>([])
   const [loadingIdeas, setLoadingIdeas] = useState(false)
   const [generating, setGenerating] = useState(false)
 
   const refresh = async () => {
     setLoadingIdeas(true)
     try {
-      const [contextData, ideasData] = await Promise.all([api.getContext(client.id), api.getBlogIdeas(client.id)])
+      const [contextData, ideasData, setsData] = await Promise.all([
+        api.getContext(client.id),
+        api.getBlogIdeas(client.id),
+        api.getSets(client.id),
+      ])
       setExistingTitles(contextData.existing_blog_titles || [])
       setBlogIdeas(ideasData || [])
+      setKeywordSets(setsData || [])
     } catch (e) {
       console.error(e)
     } finally {
@@ -91,14 +98,20 @@ export function BlogIdeasView({ client }: Props) {
         </CardHeader>
         <CardContent className="flex-1 overflow-auto p-0">
           <div className="border-t divide-y">
-            {blogIdeas.map((idea) => (
-              <BlogIdeaRow
-                key={idea.id}
-                idea={idea}
-                onQueue={() => handleQueue(idea.id)}
-                onUpdateTopic={(topic) => handleTopicUpdate(idea.id, topic)}
-              />
-            ))}
+            {blogIdeas.map((idea) => {
+              const keywordSet = idea.keyword_set_id
+                ? keywordSets.find((set) => set.id === idea.keyword_set_id)
+                : null
+              return (
+                <BlogIdeaRow
+                  key={idea.id}
+                  idea={idea}
+                  keywordSet={keywordSet}
+                  onQueue={() => handleQueue(idea.id)}
+                  onUpdateTopic={(topic) => handleTopicUpdate(idea.id, topic)}
+                />
+              )
+            })}
           </div>
         </CardContent>
       </Card>
@@ -108,16 +121,19 @@ export function BlogIdeasView({ client }: Props) {
 
 function BlogIdeaRow({
   idea,
+  keywordSet,
   onQueue,
   onUpdateTopic,
 }: {
   idea: BlogIdea
+  keywordSet: KeywordSet | null | undefined
   onQueue: () => Promise<void>
   onUpdateTopic: (t: string) => void
 }) {
   const [topic, setTopic] = useState(idea.topic)
   const [isDirty, setIsDirty] = useState(false)
   const [isQueueing, setIsQueueing] = useState(false)
+  const [isSetExpanded, setIsSetExpanded] = useState(false)
 
   const handleBlur = () => {
     if (isDirty) {
@@ -162,7 +178,19 @@ function BlogIdeaRow({
         </Badge>
       </div>
       <div className="flex justify-between items-center text-xs text-muted-foreground">
-        <span>{idea.keyword_set_id ? `Set: ${idea.keyword_set_id}` : "No set"}</span>
+        <div className="flex items-center gap-2">
+          {keywordSet ? (
+            <button
+              onClick={() => setIsSetExpanded(!isSetExpanded)}
+              className="flex items-center gap-1 hover:text-foreground transition-colors"
+            >
+              {isSetExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+              <span>Set: {keywordSet.primary_keyword}</span>
+            </button>
+          ) : (
+            <span>{idea.keyword_set_id ? `Set ID: ${idea.keyword_set_id}` : "No set"}</span>
+          )}
+        </div>
         {idea.state === "unqueued" && (
           <Button
             size="sm"
@@ -175,6 +203,33 @@ function BlogIdeaRow({
           </Button>
         )}
       </div>
+      {isSetExpanded && keywordSet && (
+        <div className="mt-2 pl-4 border-l-2 border-muted space-y-1">
+          <div className="text-xs font-medium text-foreground">
+            Primary: {keywordSet.primary_keyword}
+            {keywordSet.primary_search_volume !== null && (
+              <span className="text-muted-foreground ml-2">
+                (Vol: {keywordSet.primary_search_volume?.toLocaleString()}, KD: {keywordSet.primary_keyword_difficulty})
+              </span>
+            )}
+          </div>
+          {keywordSet.secondaries && keywordSet.secondaries.length > 0 && (
+            <div className="text-xs text-muted-foreground">
+              <div className="font-medium mb-1">Secondaries:</div>
+              {keywordSet.secondaries.map((sec, i) => (
+                <div key={i} className="pl-2">
+                  • {sec.keyword}
+                  {sec.search_volume !== null && (
+                    <span className="ml-2">
+                      (Vol: {sec.search_volume?.toLocaleString()}, KD: {sec.keyword_difficulty || "N/A"})
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }
