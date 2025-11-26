@@ -88,6 +88,7 @@ export interface BlogIdea {
   client_id: number
   topic: string
   keyword_set_id: number | null
+  future_idea_id: number | null
   state: "unqueued" | "queued" | "in_progress" | "complete" | "failed"
   error_message: string | null
   brief_json: {
