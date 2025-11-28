@@ -333,7 +333,7 @@ export const api = {
 
   // Automation
   processQueued: (clientId: string) =>
-    fetchJson<Array<{ blog_idea_id: number; state: string }>>(`/clients/${clientId}/blog-ideas/process-queued`, {
+    fetchJson<{ blog_idea_id: number; state: string }>(`/clients/${clientId}/blog-ideas/process-queued`, {
       method: "POST",
     }),
   getBlogIdeaDebug: (clientId: string, ideaId: string) =>

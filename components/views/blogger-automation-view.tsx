@@ -61,8 +61,22 @@ export function BloggerAutomationView({ client }: Props) {
   const handleProcessQueued = async () => {
     setProcessing(true)
     try {
-      await api.processQueued(client.id)
-      // Refresh to see items move to "In Progress"
+      // Process the first queued item and get its blog_idea_id
+      const result = await api.processQueued(client.id)
+      
+      // Refresh to see item move to "In Progress"
+      const refreshedIdeas = await api.getBlogIdeas(client.id)
+      setIdeas(refreshedIdeas || [])
+      
+      // Find the blog idea that was just processed
+      const processedIdea = refreshedIdeas?.find((i) => i.id === result.blog_idea_id)
+      
+      if (processedIdea) {
+        // Immediately start streaming the pipeline for this blog idea
+        handleViewProcess(processedIdea)
+      }
+    } catch (error) {
+      console.error("Failed to process queued item:", error)
       await refresh()
     } finally {
       setProcessing(false)
