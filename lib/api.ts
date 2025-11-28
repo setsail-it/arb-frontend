@@ -336,6 +336,13 @@ export const api = {
     fetchJson<{ blog_idea_id: number; state: string }>(`/clients/${clientId}/blog-ideas/process-queued`, {
       method: "POST",
     }),
+  abortBlogIdeaProcessing: (clientId: string, blogIdeaId: number) =>
+    fetchJson<{ blog_idea_id: number; state: string; message: string }>(
+      `/clients/${clientId}/blog-ideas/${blogIdeaId}/abort`,
+      {
+        method: "POST",
+      },
+    ),
   getBlogIdeaDebug: (clientId: string, ideaId: string) =>
     fetchJson<BlogIdeaDebug>(`/clients/${clientId}/blog-ideas/${ideaId}/debug`),
   getBlogIdeaProcessStream: async (

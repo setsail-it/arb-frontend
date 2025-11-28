@@ -136,6 +136,19 @@ export function BloggerAutomationView({ client }: Props) {
     setStreamProgress([])
   }
 
+  const handleAbortPipeline = async (idea: BlogIdea) => {
+    try {
+      await api.abortBlogIdeaProcessing(client.id, idea.id)
+      // Close the stream view
+      handleCloseStream()
+      // Refresh to update state
+      await refresh()
+    } catch (e) {
+      console.error("Failed to abort pipeline", e)
+      alert("Failed to abort pipeline. It may have already completed or failed.")
+    }
+  }
+
   const handleViewPost = async (idea: BlogIdea) => {
     setHtmlViewerIdea(idea)
     setLoadingHtml(true)
@@ -215,6 +228,7 @@ export function BloggerAutomationView({ client }: Props) {
               onView={() => setSelectedIdea(idea)}
               onViewProcess={() => handleViewProcess(idea)}
               onViewMonitor={() => handleViewMonitor(idea)}
+              onAbort={() => handleAbortPipeline(idea)}
               isInProgress={true}
             />
           ))}
@@ -239,7 +253,18 @@ export function BloggerAutomationView({ client }: Props) {
       <Dialog open={streamingIdea !== null} onOpenChange={(open) => !open && handleCloseStream()}>
         <DialogContent className="max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
           <DialogHeader>
-            <DialogTitle>Processing: {streamingIdea?.topic}</DialogTitle>
+            <div className="flex items-center justify-between">
+              <DialogTitle>Processing: {streamingIdea?.topic}</DialogTitle>
+              {streamingIdea && (
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => handleAbortPipeline(streamingIdea)}
+                >
+                  Abort
+                </Button>
+              )}
+            </div>
           </DialogHeader>
           <div className="flex-1 overflow-auto space-y-2 p-4 bg-muted/30 rounded-md">
             {streamProgress.length === 0 ? (
@@ -304,6 +329,7 @@ function KanbanCard({
   onViewProcess,
   onViewPost,
   onViewMonitor,
+  onAbort,
   isInProgress,
 }: {
   idea: BlogIdea
@@ -312,6 +338,7 @@ function KanbanCard({
   onViewProcess?: () => void
   onViewPost?: () => void
   onViewMonitor?: () => void
+  onAbort?: () => void
   isInProgress?: boolean
 }) {
   return (
@@ -337,6 +364,11 @@ function KanbanCard({
       {isInProgress && onViewMonitor && (
         <Button size="sm" variant="default" className="w-full h-7 text-xs mt-1" onClick={onViewMonitor}>
           Open Monitor
+        </Button>
+      )}
+      {isInProgress && onAbort && (
+        <Button size="sm" variant="destructive" className="w-full h-7 text-xs mt-1" onClick={onAbort}>
+          Abort
         </Button>
       )}
       {idea.state === "complete" && onViewPost && (
