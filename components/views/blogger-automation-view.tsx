@@ -137,6 +137,17 @@ export function BloggerAutomationView({ client }: Props) {
     }
   }
 
+  const handleViewMonitor = async (idea: BlogIdea) => {
+    try {
+      const result = await api.getAbsPipelineMonitorUrl(client.id, idea.id)
+      // Open the GUI viewer URL in a new window/tab (relative path, so same origin)
+      window.open(result.gui_url, "_blank")
+    } catch (e) {
+      console.error("Failed to get monitor URL", e)
+      alert("Failed to open pipeline monitor")
+    }
+  }
+
   const unqueued = ideas.filter((i) => i.state === "unqueued")
   const queued = ideas.filter((i) => i.state === "queued")
   const inProgress = ideas.filter((i) => i.state === "in_progress")
@@ -189,6 +200,7 @@ export function BloggerAutomationView({ client }: Props) {
               idea={idea}
               onView={() => setSelectedIdea(idea)}
               onViewProcess={() => handleViewProcess(idea)}
+              onViewMonitor={() => handleViewMonitor(idea)}
               isInProgress={true}
             />
           ))}
@@ -277,6 +289,7 @@ function KanbanCard({
   onView,
   onViewProcess,
   onViewPost,
+  onViewMonitor,
   isInProgress,
 }: {
   idea: BlogIdea
@@ -284,6 +297,7 @@ function KanbanCard({
   onView: () => void
   onViewProcess?: () => void
   onViewPost?: () => void
+  onViewMonitor?: () => void
   isInProgress?: boolean
 }) {
   return (
@@ -304,6 +318,11 @@ function KanbanCard({
       {isInProgress && onViewProcess && (
         <Button size="sm" variant="outline" className="w-full h-7 text-xs" onClick={onViewProcess}>
           View process
+        </Button>
+      )}
+      {isInProgress && onViewMonitor && (
+        <Button size="sm" variant="default" className="w-full h-7 text-xs mt-1" onClick={onViewMonitor}>
+          Open Monitor
         </Button>
       )}
       {idea.state === "complete" && onViewPost && (

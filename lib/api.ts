@@ -454,6 +454,35 @@ export const api = {
       `/clients/${clientId}/blog-ideas/${blogIdeaId}/html${params}`,
     )
   },
+  getAbsPipelineMonitorUrl: (clientId: string, blogIdeaId: number) =>
+    fetchJson<{ gui_url: string; client_id: number; blog_id: number }>(
+      `/clients/${clientId}/blog-ideas/${blogIdeaId}/view/abs_pipeline_monitor`,
+    ),
+  getAbsPipelineState: (clientId: number, blogIdeaId: number) =>
+    fetchJson<{
+      client_id: number
+      blog_id: number
+      title: string | null
+      keywords: { primary_keyword: string; secondary_keywords: string[] } | null
+      current_agent: string | null
+      metrics: {
+        iteration: number
+        version: number | null
+        w_calls: number
+        sq_calls: number
+        sq_vampire_calls: number
+      }
+      outputs: {
+        W: string | null
+        SQ: string | null
+        SQ_vampire: string | null
+      }
+      latest_html: {
+        client_id: number | null
+        blog_id: number | null
+        version: number | null
+      }
+    }>(`/clients/${clientId}/blog-ideas/${blogIdeaId}/pipeline-state`),
 
   getXmlUrl: (blogPostId: string) => `${BACKEND_BASE_URL}/blog-posts/${blogPostId}/xml`,
 }

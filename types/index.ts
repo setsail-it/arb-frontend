@@ -79,7 +79,7 @@ export interface KeywordSet {
     keyword: string
     search_volume: number | null
     keyword_difficulty?: number | null
-  }>
+  }> | null
   created_at?: string
 }
 
