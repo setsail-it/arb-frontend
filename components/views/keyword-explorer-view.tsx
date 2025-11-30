@@ -45,9 +45,32 @@ export function KeywordExplorerView({ client }: Props) {
   const [generatingIdeas, setGeneratingIdeas] = useState(false)
   const [generationProgress, setGenerationProgress] = useState({ message: "", step: 0 })
 
+  // Manual keyword addition state
+  const [newKeyword, setNewKeyword] = useState("")
+  const [addingKeyword, setAddingKeyword] = useState(false)
+
   const refreshIdeas = async () => {
     const data = await api.getKeywordIdeas(client.id)
     setIdeas(data || [])
+  }
+
+  const handleAddKeyword = async () => {
+    const keyword = newKeyword.trim()
+    if (!keyword) {
+      return
+    }
+
+    setAddingKeyword(true)
+    try {
+      await api.addKeywordIdea(client.id, keyword)
+      setNewKeyword("")
+      await refreshIdeas()
+    } catch (error: any) {
+      console.error("Failed to add keyword:", error)
+      alert(error.message || "Failed to add keyword. It may already exist.")
+    } finally {
+      setAddingKeyword(false)
+    }
   }
 
   const refreshClusters = async () => {
@@ -267,12 +290,36 @@ export function KeywordExplorerView({ client }: Props) {
       <div className="flex-1 grid grid-cols-3 gap-4 min-h-0">
         {/* Column 1: Ideas */}
         <Card className="flex flex-col h-full">
-          <CardHeader className="pb-3 flex flex-row items-center justify-between space-y-0">
-            <CardTitle className="text-base">Ideas ({ideas.length})</CardTitle>
-            <Button size="sm" onClick={handleGenerateIdeas} disabled={generatingIdeas || loadingIdeas}>
-              {(generatingIdeas || loadingIdeas) && <Spinner className="mr-2" />}
-              {generatingIdeas ? "Generating..." : "Generate"}
-            </Button>
+          <CardHeader className="pb-3 space-y-3">
+            <div className="flex flex-row items-center justify-between space-y-0">
+              <CardTitle className="text-base">Ideas ({ideas.length})</CardTitle>
+              <Button size="sm" onClick={handleGenerateIdeas} disabled={generatingIdeas || loadingIdeas}>
+                {(generatingIdeas || loadingIdeas) && <Spinner className="mr-2" />}
+                {generatingIdeas ? "Generating..." : "Generate"}
+              </Button>
+            </div>
+            <div className="flex gap-2">
+              <Input
+                placeholder="Add keyword manually..."
+                value={newKeyword}
+                onChange={(e) => setNewKeyword(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !addingKeyword && newKeyword.trim()) {
+                    handleAddKeyword()
+                  }
+                }}
+                className="flex-1 h-8 text-sm"
+                disabled={addingKeyword}
+              />
+              <Button
+                size="sm"
+                onClick={handleAddKeyword}
+                disabled={addingKeyword || !newKeyword.trim()}
+                variant="outline"
+              >
+                {addingKeyword ? <Spinner className="h-3 w-3" /> : "Add"}
+              </Button>
+            </div>
           </CardHeader>
           <CardContent className="flex-1 overflow-auto p-0">
             <div className="border-t">

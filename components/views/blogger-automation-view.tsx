@@ -28,6 +28,8 @@ export function BloggerAutomationView({ client }: Props) {
   const [streamingIdea, setStreamingIdea] = useState<BlogIdea | null>(null)
   const [streamProgress, setStreamProgress] = useState<Array<{ message: string; step: number }>>([])
   const [streamAbortController, setStreamAbortController] = useState<AbortController | null>(null)
+  // Track pipelines running in background (without stream view open)
+  const [backgroundPipelines, setBackgroundPipelines] = useState<Set<number>>(new Set())
 
   // HTML viewer state
   const [htmlViewerIdea, setHtmlViewerIdea] = useState<BlogIdea | null>(null)
@@ -58,6 +60,48 @@ export function BloggerAutomationView({ client }: Props) {
     refresh()
   }
 
+  const startPipelineInBackground = (idea: BlogIdea) => {
+    // Start pipeline processing in background without opening stream view
+    // This allows pipelines to run while user can still click "View process" to monitor
+    setBackgroundPipelines((prev) => new Set(prev).add(idea.id))
+    const abortController = new AbortController()
+    
+    api.getBlogIdeaProcessStream(
+      client.id,
+      idea.id,
+      () => {
+        // Progress callback - silently update, don't show in UI
+        // The polling refresh will show updates
+      },
+      (data) => {
+        // Pipeline completed successfully - refresh to move to "Done"
+        setBackgroundPipelines((prev) => {
+          const next = new Set(prev)
+          next.delete(idea.id)
+          return next
+        })
+        refresh()
+      },
+      (data) => {
+        // Pipeline failed - refresh to show failed state
+        setBackgroundPipelines((prev) => {
+          const next = new Set(prev)
+          next.delete(idea.id)
+          return next
+        })
+        refresh()
+      },
+      abortController.signal,
+    ).catch((error) => {
+      // If stream connection fails (e.g., pipeline already running), remove from background set
+      setBackgroundPipelines((prev) => {
+        const next = new Set(prev)
+        next.delete(idea.id)
+        return next
+      })
+    })
+  }
+
   const handleProcessQueued = async () => {
     setProcessing(true)
     try {
@@ -68,8 +112,15 @@ export function BloggerAutomationView({ client }: Props) {
       const refreshedIdeas = await api.getBlogIdeas(client.id)
       setIdeas(refreshedIdeas || [])
       
-      // If only one item was processed, automatically open its stream view
-      // If multiple items, just refresh - user can click "View process" for any they want to monitor
+      // Start all pipelines in the background automatically
+      results.forEach((result) => {
+        const processedIdea = refreshedIdeas?.find((i) => i.id === result.blog_idea_id)
+        if (processedIdea) {
+          startPipelineInBackground(processedIdea)
+        }
+      })
+      
+      // If only one item was processed, also open its stream view for monitoring
       if (results.length === 1) {
         const processedIdea = refreshedIdeas?.find((i) => i.id === results[0].blog_idea_id)
         if (processedIdea) {
@@ -85,6 +136,15 @@ export function BloggerAutomationView({ client }: Props) {
   }
 
   const handleViewProcess = (idea: BlogIdea) => {
+    // If pipeline is already running in background, we can't connect another stream
+    // The backend prevents multiple connections. The pipeline will continue in background.
+    // We'll try to connect anyway - if it fails, the catch block will handle it gracefully.
+    if (backgroundPipelines.has(idea.id)) {
+      // Pipeline is already running in background - backend will reject the connection
+      // Just return silently - the pipeline will continue processing in background
+      return
+    }
+
     setStreamingIdea(idea)
     setStreamProgress([])
 
@@ -107,6 +167,11 @@ export function BloggerAutomationView({ client }: Props) {
         setStreamingIdea(null)
         setStreamProgress([])
         setStreamAbortController(null)
+        setBackgroundPipelines((prev) => {
+          const next = new Set(prev)
+          next.delete(idea.id)
+          return next
+        })
         // Refresh to move item to "Done"
         refresh()
       },
@@ -121,11 +186,22 @@ export function BloggerAutomationView({ client }: Props) {
           setStreamingIdea(null)
           setStreamProgress([])
           setStreamAbortController(null)
+          setBackgroundPipelines((prev) => {
+            const next = new Set(prev)
+            next.delete(idea.id)
+            return next
+          })
           refresh()
         }, 2000)
       },
       abortController.signal,
-    )
+    ).catch((error) => {
+      // Handle case where pipeline might already be running
+      console.error("Failed to start stream:", error)
+      setStreamingIdea(null)
+      setStreamProgress([])
+      setStreamAbortController(null)
+    })
   }
 
   const handleCloseStream = () => {

@@ -259,6 +259,15 @@ export const api = {
     }
   },
   getKeywordIdeas: (clientId: string) => fetchJson<KeywordIdea[]>(`/clients/${clientId}/keywords/ideas`),
+  addKeywordIdea: (clientId: string, keyword: string, searchVolume?: number, keywordDifficulty?: number) =>
+    fetchJson<KeywordIdea>(`/clients/${clientId}/keywords/ideas`, {
+      method: "POST",
+      body: JSON.stringify({
+        keyword,
+        search_volume: searchVolume,
+        keyword_difficulty: keywordDifficulty,
+      }),
+    }),
 
   developClusters: (
     clientId: string,
