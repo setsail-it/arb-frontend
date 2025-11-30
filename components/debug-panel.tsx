@@ -7,7 +7,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Spinner } from "@/components/ui/spinner"
 import { Button } from "@/components/ui/button"
-import { ExternalLink } from "lucide-react"
+import { ExternalLink, FileText } from "lucide-react"
 
 interface Props {
   client: Client
@@ -18,17 +18,34 @@ interface Props {
 export function DebugPanel({ client, idea, onClose }: Props) {
   const [details, setDetails] = useState<BlogIdeaDebug | null>(null)
   const [loading, setLoading] = useState(false)
+  const [htmlContent, setHtmlContent] = useState<string | null>(null)
+  const [loadingHtml, setLoadingHtml] = useState(false)
 
   useEffect(() => {
     if (idea && client) {
       setLoading(true)
+      setHtmlContent(null) // Reset HTML content when idea changes
       api
         .getBlogIdeaDebug(client.id, String(idea.id))
         .then(setDetails)
         .catch(console.error)
         .finally(() => setLoading(false))
+      
+      // Auto-load HTML for completed projects
+      if (idea.state === "complete") {
+        setLoadingHtml(true)
+        api
+          .getBlogIdeaHtml(client.id, idea.id)
+          .then((result) => setHtmlContent(result.html))
+          .catch((e) => {
+            console.error("Failed to load HTML", e)
+            setHtmlContent(null)
+          })
+          .finally(() => setLoadingHtml(false))
+      }
     } else {
       setDetails(null)
+      setHtmlContent(null)
     }
   }, [client, idea])
 
@@ -89,6 +106,74 @@ export function DebugPanel({ client, idea, onClose }: Props) {
                       <ExternalLink className="w-3 h-3 mr-2" /> Open XML
                     </Button>
                   </div>
+                </div>
+              </div>
+            )}
+
+            {/* HTML Content Section - Show for completed items */}
+            {idea && idea.state === "complete" && (
+              <div className="bg-blue-50 dark:bg-blue-950/20 p-4 rounded border border-blue-200 dark:border-blue-900">
+                <h3 className="font-bold text-blue-800 dark:text-blue-400 mb-2">Source HTML</h3>
+                <div className="text-sm space-y-2">
+                  {htmlContent ? (
+                    <div className="space-y-2">
+                      <div className="border rounded bg-white dark:bg-slate-900 p-2 max-h-[400px] overflow-auto">
+                        <iframe
+                          srcDoc={htmlContent}
+                          className="w-full h-full min-h-[300px] border-0"
+                          title="Blog Post HTML Preview"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold uppercase">Raw HTML Source</label>
+                        <textarea
+                          className="w-full h-60 font-mono text-xs p-2 border rounded bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-50"
+                          readOnly
+                          value={htmlContent}
+                        />
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          const blob = new Blob([htmlContent], { type: "text/html" })
+                          const url = URL.createObjectURL(blob)
+                          window.open(url, "_blank")
+                        }}
+                      >
+                        <FileText className="w-3 h-3 mr-2" /> Open HTML in New Tab
+                      </Button>
+                    </div>
+                  ) : (
+                    <div>
+                      {loadingHtml ? (
+                        <div className="flex items-center gap-2">
+                          <Spinner className="h-4 w-4" />
+                          <span>Loading HTML...</span>
+                        </div>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="default"
+                          onClick={async () => {
+                            if (!idea) return
+                            setLoadingHtml(true)
+                            try {
+                              const result = await api.getBlogIdeaHtml(client.id, idea.id)
+                              setHtmlContent(result.html)
+                            } catch (e) {
+                              console.error("Failed to load HTML", e)
+                              setHtmlContent("<p>Failed to load HTML content</p>")
+                            } finally {
+                              setLoadingHtml(false)
+                            }
+                          }}
+                        >
+                          <FileText className="w-3 h-3 mr-2" /> Load HTML Content
+                        </Button>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             )}

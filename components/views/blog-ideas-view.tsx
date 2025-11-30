@@ -120,21 +120,23 @@ export function BlogIdeasView({ client }: Props) {
         </CardHeader>
         <CardContent className="flex-1 overflow-auto p-0">
           <div className="border-t divide-y">
-            {blogIdeas.map((idea) => {
-              const keywordSet = idea.keyword_set_id
-                ? keywordSets.find((set) => set.id === idea.keyword_set_id)
-                : null
-              return (
-                <BlogIdeaRow
-                  key={idea.id}
-                  idea={idea}
-                  keywordSet={keywordSet}
-                  onQueue={() => handleQueue(idea.id)}
-                  onUpdateTopic={(topic) => handleTopicUpdate(idea.id, topic)}
-                  onDelete={() => handleDelete(idea.id)}
-                />
-              )
-            })}
+            {blogIdeas
+              .filter((idea) => idea.state !== "complete" && idea.state !== "failed")
+              .map((idea) => {
+                const keywordSet = idea.keyword_set_id
+                  ? keywordSets.find((set) => set.id === idea.keyword_set_id)
+                  : null
+                return (
+                  <BlogIdeaRow
+                    key={idea.id}
+                    idea={idea}
+                    keywordSet={keywordSet}
+                    onQueue={() => handleQueue(idea.id)}
+                    onUpdateTopic={(topic) => handleTopicUpdate(idea.id, topic)}
+                    onDelete={() => handleDelete(idea.id)}
+                  />
+                )
+              })}
           </div>
         </CardContent>
       </Card>

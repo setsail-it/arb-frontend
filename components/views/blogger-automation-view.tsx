@@ -137,15 +137,26 @@ export function BloggerAutomationView({ client }: Props) {
   }
 
   const handleAbortPipeline = async (idea: BlogIdea) => {
+    // Optimistically update UI: immediately move card to "Done (Failed)"
+    setIdeas((prevIdeas) =>
+      prevIdeas.map((i) =>
+        i.id === idea.id ? { ...i, state: "failed" as const, error_message: "Pipeline aborted by user" } : i
+      )
+    )
+    
+    // Close the stream view
+    handleCloseStream()
+    
+    // Make API call in background
     try {
       await api.abortBlogIdeaProcessing(client.id, idea.id)
-      // Close the stream view
-      handleCloseStream()
-      // Refresh to update state
+      // Refresh to sync with backend
       await refresh()
     } catch (e) {
       console.error("Failed to abort pipeline", e)
-      alert("Failed to abort pipeline. It may have already completed or failed.")
+      // Keep optimistic update - backend will mark it as failed anyway
+      // Still refresh to sync state
+      await refresh()
     }
   }
 
@@ -366,6 +377,7 @@ function KanbanCard({
       }`}
     >
       <div className="font-medium leading-tight">{idea.topic}</div>
+      <div className="text-xs text-muted-foreground">Blog Project ID: {idea.id}</div>
       <div className="flex justify-between items-center text-xs text-muted-foreground">
         <Badge variant={idea.state === "failed" ? "destructive" : "outline"} className="text-[10px] h-5 px-1">
           {idea.state}
