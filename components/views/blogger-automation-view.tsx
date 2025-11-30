@@ -149,6 +149,21 @@ export function BloggerAutomationView({ client }: Props) {
     }
   }
 
+  const handleResetBlogIdea = async (idea: BlogIdea) => {
+    if (!confirm(`Are you sure you want to reset "${idea.topic}"? This will delete all HTML artifacts and reset the blog idea to unqueued state.`)) {
+      return
+    }
+    try {
+      const result = await api.resetBlogIdea(client.id, idea.id)
+      alert(result.message)
+      // Refresh to update state
+      await refresh()
+    } catch (e: any) {
+      console.error("Failed to reset blog idea", e)
+      alert(e.message || "Failed to reset blog idea. It may be currently processing.")
+    }
+  }
+
   const handleViewPost = async (idea: BlogIdea) => {
     setHtmlViewerIdea(idea)
     setLoadingHtml(true)
@@ -242,6 +257,7 @@ export function BloggerAutomationView({ client }: Props) {
               idea={idea}
               onView={() => setSelectedIdea(idea)}
               onViewPost={() => handleViewPost(idea)}
+              onReset={() => handleResetBlogIdea(idea)}
             />
           ))}
         </KanbanColumn>
@@ -330,6 +346,7 @@ function KanbanCard({
   onViewPost,
   onViewMonitor,
   onAbort,
+  onReset,
   isInProgress,
 }: {
   idea: BlogIdea
@@ -339,6 +356,7 @@ function KanbanCard({
   onViewPost?: () => void
   onViewMonitor?: () => void
   onAbort?: () => void
+  onReset?: () => void
   isInProgress?: boolean
 }) {
   return (
@@ -374,6 +392,11 @@ function KanbanCard({
       {idea.state === "complete" && onViewPost && (
         <Button size="sm" variant="default" className="w-full h-7 text-xs" onClick={onViewPost}>
           View post
+        </Button>
+      )}
+      {onReset && (
+        <Button size="sm" variant="outline" className="w-full h-7 text-xs mt-1" onClick={onReset}>
+          Reset
         </Button>
       )}
       {children}

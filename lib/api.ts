@@ -343,6 +343,13 @@ export const api = {
         method: "POST",
       },
     ),
+  resetBlogIdea: (clientId: string, blogIdeaId: number) =>
+    fetchJson<{ blog_idea_id: number; state: string; deleted_artifacts: number; message: string }>(
+      `/clients/${clientId}/blog-ideas/${blogIdeaId}/reset`,
+      {
+        method: "POST",
+      },
+    ),
   getBlogIdeaDebug: (clientId: string, ideaId: string) =>
     fetchJson<BlogIdeaDebug>(`/clients/${clientId}/blog-ideas/${ideaId}/debug`),
   getBlogIdeaProcessStream: async (
