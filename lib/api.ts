@@ -388,6 +388,11 @@ export const api = {
       if (!response.ok) {
         const errorText = await response.text()
         console.error(`[Process Stream] Error response: ${errorText}`)
+        // Handle 409 (Conflict) silently - pipeline is already running
+        if (response.status === 409) {
+          console.log(`[Process Stream] Pipeline already running (409), ignoring...`)
+          return
+        }
         throw new Error(`HTTP ${response.status}: ${response.statusText}`)
       }
 
@@ -461,13 +466,15 @@ export const api = {
       }
     } catch (e: any) {
       console.error(`[Process Stream] Stream error:`, e)
-      // Don't call onError if aborted
-      if (!abortSignal?.aborted) {
+      // Don't call onError if aborted or if it's a 409 conflict (pipeline already running)
+      if (!abortSignal?.aborted && !e.message?.includes("409")) {
         onError({
           blog_idea_id: blogIdeaId,
           state: "failed",
           message: e.message || "Failed to stream process events",
         })
+      } else if (e.message?.includes("409")) {
+        console.log(`[Process Stream] Ignoring 409 conflict error - pipeline already running`)
       }
     }
   },

@@ -176,7 +176,16 @@ export function BloggerAutomationView({ client }: Props) {
         refresh()
       },
       (data) => {
-        // Pipeline failed
+        // Pipeline failed - but don't show popup for 409 errors (pipeline already running)
+        if (data.message?.includes("409")) {
+          // Silently close the dialog for 409 errors
+          setStreamingIdea(null)
+          setStreamProgress([])
+          setStreamAbortController(null)
+          refresh()
+          return
+        }
+        // For other errors, show them briefly then close
         setStreamProgress((prev) => [
           ...prev,
           { message: `Error: ${data.message}`, step: prev.length + 1 },
@@ -196,8 +205,12 @@ export function BloggerAutomationView({ client }: Props) {
       },
       abortController.signal,
     ).catch((error) => {
-      // Handle case where pipeline might already be running
-      console.error("Failed to start stream:", error)
+      // Handle case where pipeline might already be running - silently close for 409 errors
+      if (error.message?.includes("409")) {
+        console.log("Pipeline already running (409), closing dialog silently")
+      } else {
+        console.error("Failed to start stream:", error)
+      }
       setStreamingIdea(null)
       setStreamProgress([])
       setStreamAbortController(null)
