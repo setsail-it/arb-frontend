@@ -24,6 +24,8 @@ interface PipelineState {
     W: string | null
     SQ: string | null
     SQ_vampire: string | null
+    Im: string | null
+    Im_fuser: string | null
   }
   latest_html: {
     client_id: number | null
@@ -166,7 +168,7 @@ function AbsPipelineMonitorContent() {
 
         {/* Agent Orbs */}
         <div className="flex justify-center items-center gap-16 flex-wrap my-12">
-          {["W", "SQ", "SQ_vampire"].map((agent) => (
+          {["W", "SQ", "SQ_vampire", "Im", "Im_fuser"].map((agent) => (
             <div key={agent} className="text-center">
               <button
                 onClick={() => {
@@ -184,12 +186,24 @@ function AbsPipelineMonitorContent() {
                   <>
                     SQ<sub className="text-2xl">V</sub>
                   </>
+                ) : agent === "Im_fuser" ? (
+                  <>
+                    Im<sub className="text-2xl">F</sub>
+                  </>
                 ) : (
                   agent
                 )}
               </button>
               <div className="mt-4 text-lg font-semibold">
-                {agent === "W" ? "Writer" : agent === "SQ" ? "Quality Check" : "Critique"}
+                {agent === "W" 
+                  ? "Writer" 
+                  : agent === "SQ" 
+                  ? "Quality Check" 
+                  : agent === "SQ_vampire"
+                  ? "Critique"
+                  : agent === "Im"
+                  ? "Improvements"
+                  : "Finalize"}
               </div>
             </div>
           ))}
