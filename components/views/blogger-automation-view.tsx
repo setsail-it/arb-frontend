@@ -280,6 +280,10 @@ export function BloggerAutomationView({ client }: Props) {
     }
   }
 
+  const handleDownloadRtf = (idea: BlogIdea) => {
+    api.downloadRtf(client.id, idea.id)
+  }
+
   const handleViewMonitor = async (idea: BlogIdea) => {
     try {
       const result = await api.getAbsPipelineMonitorUrl(client.id, idea.id)
@@ -358,6 +362,7 @@ export function BloggerAutomationView({ client }: Props) {
               idea={idea}
               onView={() => setSelectedIdea(idea)}
               onViewPost={() => handleViewPost(idea)}
+              onDownloadRtf={() => handleDownloadRtf(idea)}
               onReset={() => handleResetBlogIdea(idea)}
             />
           ))}
@@ -370,18 +375,7 @@ export function BloggerAutomationView({ client }: Props) {
       <Dialog open={streamingIdea !== null} onOpenChange={(open) => !open && handleCloseStream()}>
         <DialogContent className="max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
           <DialogHeader>
-            <div className="flex items-center justify-between">
-              <DialogTitle>Processing: {streamingIdea?.topic}</DialogTitle>
-              {streamingIdea && (
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  onClick={() => handleAbortPipeline(streamingIdea)}
-                >
-                  Abort
-                </Button>
-              )}
-            </div>
+            <DialogTitle>Processing: {streamingIdea?.topic}</DialogTitle>
           </DialogHeader>
           <div className="flex-1 overflow-auto space-y-2 p-4 bg-muted/30 rounded-md">
             {streamProgress.length === 0 ? (
@@ -445,6 +439,7 @@ function KanbanCard({
   onView,
   onViewProcess,
   onViewPost,
+  onDownloadRtf,
   onViewMonitor,
   onAbort,
   onReset,
@@ -455,6 +450,7 @@ function KanbanCard({
   onView: () => void
   onViewProcess?: () => void
   onViewPost?: () => void
+  onDownloadRtf?: () => void
   onViewMonitor?: () => void
   onAbort?: () => void
   onReset?: () => void
@@ -494,6 +490,11 @@ function KanbanCard({
       {idea.state === "complete" && onViewPost && (
         <Button size="sm" variant="default" className="w-full h-7 text-xs" onClick={onViewPost}>
           View post
+        </Button>
+      )}
+      {idea.state === "complete" && onDownloadRtf && (
+        <Button size="sm" variant="outline" className="w-full h-7 text-xs mt-1" onClick={onDownloadRtf}>
+          Download RTF
         </Button>
       )}
       {onReset && (
