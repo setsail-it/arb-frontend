@@ -20,6 +20,7 @@ export function BloggerAutomationView({ client }: Props) {
   const [ideas, setIdeas] = useState<BlogIdea[]>([])
   const [loading, setLoading] = useState(false)
   const [processing, setProcessing] = useState(false)
+  const [generating, setGenerating] = useState(false)
 
   // Debugging state
   const [selectedIdea, setSelectedIdea] = useState<BlogIdea | null>(null)
@@ -58,6 +59,18 @@ export function BloggerAutomationView({ client }: Props) {
   const handleQueue = async (id: number) => {
     await api.queueBlogIdea(client.id, String(id))
     refresh()
+  }
+
+  const handleGenerate = async () => {
+    setGenerating(true)
+    try {
+      const ideasData = await api.generateBlogIdeas(client.id)
+      setIdeas(ideasData || [])
+    } catch (e) {
+      console.error("Failed to generate blog ideas", e)
+    } finally {
+      setGenerating(false)
+    }
   }
 
   const startPipelineInBackground = (idea: BlogIdea) => {
@@ -303,8 +316,21 @@ export function BloggerAutomationView({ client }: Props) {
   return (
     <div className="h-full flex flex-col">
       <div className="flex-1 grid grid-cols-4 gap-4 min-h-0">
-        {/* Column 1: Unqueued */}
-        <KanbanColumn title={`Unqueued (${unqueued.length})`}>
+        {/* Column 1: Blog Ideas */}
+        <KanbanColumn
+          title={`Blog Ideas (${unqueued.length})`}
+          action={
+            <Button
+              size="sm"
+              className="w-full mb-2"
+              onClick={handleGenerate}
+              disabled={generating}
+            >
+              {generating && <Spinner className="mr-2" />}
+              Generate
+            </Button>
+          }
+        >
           {unqueued.map((idea) => (
             <KanbanCard key={idea.id} idea={idea} onView={() => setSelectedIdea(idea)}>
               <Button
@@ -494,7 +520,7 @@ function KanbanCard({
       )}
       {idea.state === "complete" && onDownloadRtf && (
         <Button size="sm" variant="outline" className="w-full h-7 text-xs mt-1" onClick={onDownloadRtf}>
-          Download RTF
+          Download
         </Button>
       )}
       {onReset && (

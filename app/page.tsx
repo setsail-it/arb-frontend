@@ -5,7 +5,6 @@ import type { Client } from "@/types"
 import { ClientSelector } from "@/components/client-selector"
 import { ClientContextView } from "@/components/views/client-context-view"
 import { KeywordExplorerView } from "@/components/views/keyword-explorer-view"
-import { BlogIdeasView } from "@/components/views/blog-ideas-view"
 import { BloggerAutomationView } from "@/components/views/blogger-automation-view"
 
 export default function ABSControlPanel() {
@@ -31,7 +30,6 @@ export default function ABSControlPanel() {
             active={activeTab === "keywords"}
             onClick={() => setActiveTab("keywords")}
           />
-          <NavButton label="Past & Future Ideas" active={activeTab === "ideas"} onClick={() => setActiveTab("ideas")} />
           <NavButton
             label="Blogger Automation"
             active={activeTab === "automation"}
@@ -50,7 +48,6 @@ export default function ABSControlPanel() {
           <div className="flex-1 p-6 overflow-y-auto">
             {activeTab === "context" && <ClientContextView client={selectedClient} />}
             {activeTab === "keywords" && <KeywordExplorerView client={selectedClient} />}
-            {activeTab === "ideas" && <BlogIdeasView client={selectedClient} />}
             {activeTab === "automation" && <BloggerAutomationView client={selectedClient} />}
           </div>
         )}
