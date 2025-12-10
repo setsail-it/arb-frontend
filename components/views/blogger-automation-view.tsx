@@ -9,8 +9,20 @@ import { api } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Spinner } from "@/components/ui/spinner"
+import { Input } from "@/components/ui/input"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { DebugPanel } from "@/components/debug-panel"
+import { Trash2 } from "lucide-react"
 
 interface Props {
   client: Client
@@ -70,6 +82,27 @@ export function BloggerAutomationView({ client }: Props) {
       console.error("Failed to generate blog ideas", e)
     } finally {
       setGenerating(false)
+    }
+  }
+
+  const handleTopicUpdate = async (ideaId: number, newTopic: string) => {
+    try {
+      await api.updateBlogIdeaTopic(client.id, String(ideaId), newTopic)
+      // Optimistic update
+      setIdeas((prev) => prev.map((i) => (i.id === ideaId ? { ...i, topic: newTopic } : i)))
+    } catch (e) {
+      console.error("Failed to update topic", e)
+      await refresh()
+    }
+  }
+
+  const handleDeleteIdea = async (ideaId: number) => {
+    try {
+      await api.deleteBlogIdea(client.id, ideaId)
+      setIdeas((prev) => prev.filter((i) => i.id !== ideaId))
+    } catch (e) {
+      console.error("Failed to delete blog idea", e)
+      await refresh()
     }
   }
 
@@ -332,7 +365,14 @@ export function BloggerAutomationView({ client }: Props) {
           }
         >
           {unqueued.map((idea) => (
-            <KanbanCard key={idea.id} idea={idea} onView={() => setSelectedIdea(idea)}>
+            <KanbanCard
+              key={idea.id}
+              idea={idea}
+              onView={() => setSelectedIdea(idea)}
+              onUpdateTopic={(topic) => handleTopicUpdate(idea.id, topic)}
+              onDelete={() => handleDeleteIdea(idea.id)}
+              isEditable={true}
+            >
               <Button
                 size="sm"
                 variant="secondary"
@@ -469,7 +509,10 @@ function KanbanCard({
   onViewMonitor,
   onAbort,
   onReset,
+  onUpdateTopic,
+  onDelete,
   isInProgress,
+  isEditable,
 }: {
   idea: BlogIdea
   children?: React.ReactNode
@@ -480,15 +523,64 @@ function KanbanCard({
   onViewMonitor?: () => void
   onAbort?: () => void
   onReset?: () => void
+  onUpdateTopic?: (topic: string) => void
+  onDelete?: () => void
   isInProgress?: boolean
+  isEditable?: boolean
 }) {
+  const [topic, setTopic] = useState(idea.topic)
+  const [isDirty, setIsDirty] = useState(false)
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
+
+  const handleBlur = () => {
+    if (isDirty && onUpdateTopic) {
+      onUpdateTopic(topic)
+      setIsDirty(false)
+    }
+  }
+
+  const handleDeleteClick = async () => {
+    if (!onDelete) return
+    setIsDeleting(true)
+    try {
+      await onDelete()
+      setShowDeleteDialog(false)
+    } catch (e) {
+      console.error("Failed to delete blog idea", e)
+    } finally {
+      setIsDeleting(false)
+    }
+  }
+
   return (
     <div
       className={`p-3 rounded border shadow-sm text-sm space-y-2 ${
         isInProgress ? "bg-cyan-50 dark:bg-cyan-950/20 border-cyan-200 dark:border-cyan-800" : "bg-background"
       }`}
     >
-      <div className="font-medium leading-tight">{idea.topic}</div>
+      {isEditable ? (
+        <div className="flex gap-2 items-start">
+          <Input
+            value={topic}
+            onChange={(e) => {
+              setTopic(e.target.value)
+              setIsDirty(true)
+            }}
+            onBlur={handleBlur}
+            className="h-8 text-sm font-medium flex-1"
+          />
+          <button
+            onClick={() => setShowDeleteDialog(true)}
+            className="p-1.5 hover:bg-destructive/10 rounded text-destructive transition-colors shrink-0"
+            title="Delete blog idea"
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        </div>
+      ) : (
+        <div className="font-medium leading-tight">{idea.topic}</div>
+      )}
       <div className="text-xs text-muted-foreground">Blog Project ID: {idea.id}</div>
       <div className="flex justify-between items-center text-xs text-muted-foreground">
         <Badge variant={idea.state === "failed" ? "destructive" : "outline"} className="text-[10px] h-5 px-1">
@@ -529,6 +621,28 @@ function KanbanCard({
         </Button>
       )}
       {children}
+
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Blog Idea</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete &quot;{idea.topic}&quot;? This will permanently delete the blog idea and
+              all associated artifacts. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteClick}
+              disabled={isDeleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isDeleting ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
