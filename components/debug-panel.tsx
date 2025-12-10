@@ -84,6 +84,35 @@ export function DebugPanel({ client, idea, onClose }: Props) {
               )}
             </div>
 
+            {/* Keywords Section */}
+            {details.brief && (
+              <div className="bg-purple-50 dark:bg-purple-950/20 p-4 rounded border border-purple-200 dark:border-purple-900">
+                <h3 className="font-bold text-purple-800 dark:text-purple-400 mb-3">Keywords</h3>
+                <div className="space-y-3">
+                  <div>
+                    <span className="text-xs font-semibold uppercase text-purple-600 dark:text-purple-400">Primary Keyword</span>
+                    <div className="mt-1 px-3 py-2 bg-purple-100 dark:bg-purple-900/30 rounded text-sm font-medium">
+                      {details.brief.primary_keyword || "—"}
+                    </div>
+                  </div>
+                  <div>
+                    <span className="text-xs font-semibold uppercase text-purple-600 dark:text-purple-400">Secondary Keywords</span>
+                    <div className="mt-1 space-y-1">
+                      {details.brief.secondary_keywords && details.brief.secondary_keywords.length > 0 ? (
+                        details.brief.secondary_keywords.map((kw: string, i: number) => (
+                          <div key={i} className="px-3 py-1.5 bg-purple-100/50 dark:bg-purple-900/20 rounded text-sm">
+                            {kw}
+                          </div>
+                        ))
+                      ) : (
+                        <div className="text-sm text-muted-foreground italic">No secondary keywords</div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {details.final_post && (
               <div className="bg-green-50 dark:bg-green-950/20 p-4 rounded border border-green-200 dark:border-green-900">
                 <h3 className="font-bold text-green-800 dark:text-green-400 mb-2">Final Post Generated</h3>

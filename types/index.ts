@@ -107,9 +107,27 @@ export interface BlogIdea {
 }
 
 export interface BlogIdeaDebug {
-  idea_id: string
-  client_id: string
-  debug_info?: any
+  id: number
+  state: string
+  created_at: string
+  updated_at: string
+  error_message?: string | null
+  brief?: {
+    primary_keyword: string
+    secondary_keywords: string[]
+    author_tone?: string
+    domain?: string
+    about?: string
+    target_market?: string
+    b1_title?: string
+  } | null
+  latest_sq_report?: any | null
+  draft_html?: string | null
+  final_post?: {
+    title: string
+    slug: string
+    seo_score?: number | null
+  } | null
 }
 
 export interface BestAlternateResult {

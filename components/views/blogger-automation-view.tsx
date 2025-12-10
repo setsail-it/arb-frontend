@@ -22,7 +22,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { DebugPanel } from "@/components/debug-panel"
-import { Trash2 } from "lucide-react"
+import { Trash2, Pencil, Check } from "lucide-react"
 
 interface Props {
   client: Client
@@ -529,15 +529,30 @@ function KanbanCard({
   isEditable?: boolean
 }) {
   const [topic, setTopic] = useState(idea.topic)
-  const [isDirty, setIsDirty] = useState(false)
+  const [isEditing, setIsEditing] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
 
-  const handleBlur = () => {
-    if (isDirty && onUpdateTopic) {
-      onUpdateTopic(topic)
-      setIsDirty(false)
+  const handleSave = async () => {
+    if (!onUpdateTopic || topic === idea.topic) {
+      setIsEditing(false)
+      return
     }
+    setIsSaving(true)
+    try {
+      await onUpdateTopic(topic)
+      setIsEditing(false)
+    } catch (e) {
+      console.error("Failed to update topic", e)
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const handleCancelEdit = () => {
+    setTopic(idea.topic)
+    setIsEditing(false)
   }
 
   const handleDeleteClick = async () => {
@@ -560,24 +575,46 @@ function KanbanCard({
       }`}
     >
       {isEditable ? (
-        <div className="flex gap-2 items-start">
-          <Input
-            value={topic}
-            onChange={(e) => {
-              setTopic(e.target.value)
-              setIsDirty(true)
-            }}
-            onBlur={handleBlur}
-            className="h-8 text-sm font-medium flex-1"
-          />
-          <button
-            onClick={() => setShowDeleteDialog(true)}
-            className="p-1.5 hover:bg-destructive/10 rounded text-destructive transition-colors shrink-0"
-            title="Delete blog idea"
-          >
-            <Trash2 className="h-4 w-4" />
-          </button>
-        </div>
+        isEditing ? (
+          <div className="flex gap-2 items-start">
+            <Input
+              value={topic}
+              onChange={(e) => setTopic(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleSave()
+                if (e.key === "Escape") handleCancelEdit()
+              }}
+              className="h-8 text-sm font-medium flex-1"
+              autoFocus
+            />
+            <button
+              onClick={handleSave}
+              disabled={isSaving}
+              className="p-1.5 hover:bg-green-100 dark:hover:bg-green-900/30 rounded text-green-600 dark:text-green-400 transition-colors shrink-0"
+              title="Save"
+            >
+              <Check className="h-4 w-4" />
+            </button>
+          </div>
+        ) : (
+          <div className="flex gap-2 items-start">
+            <div className="font-medium leading-tight flex-1">{idea.topic}</div>
+            <button
+              onClick={() => setIsEditing(true)}
+              className="p-1.5 hover:bg-muted rounded text-muted-foreground hover:text-foreground transition-colors shrink-0"
+              title="Edit title"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </button>
+            <button
+              onClick={() => setShowDeleteDialog(true)}
+              className="p-1.5 hover:bg-destructive/10 rounded text-destructive transition-colors shrink-0"
+              title="Delete blog idea"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        )
       ) : (
         <div className="font-medium leading-tight">{idea.topic}</div>
       )}
