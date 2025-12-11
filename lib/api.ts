@@ -509,7 +509,6 @@ export const api = {
         SQ_vampire: string | null
         Im: string | null
         Im_fuser: string | null
-        RTF: string | null
       }
       latest_html: {
         client_id: number | null
@@ -520,10 +519,10 @@ export const api = {
 
   getXmlUrl: (blogPostId: string) => `${BACKEND_BASE_URL}/blog-posts/${blogPostId}/xml`,
 
-  // Download RTF file
-  downloadRtf: (clientId: string, blogIdeaId: number) => {
+  // Download HTML file
+  downloadHtml: (clientId: string, blogIdeaId: number) => {
     const baseUrl = BACKEND_BASE_URL.replace(/\/$/, "")
     // Open download in new tab - browser will handle the file download
-    window.open(`${baseUrl}/clients/${clientId}/blog-ideas/${blogIdeaId}/rtf`, "_blank")
+    window.open(`${baseUrl}/clients/${clientId}/blog-ideas/${blogIdeaId}/download`, "_blank")
   },
 }

@@ -326,8 +326,8 @@ export function BloggerAutomationView({ client }: Props) {
     }
   }
 
-  const handleDownloadRtf = (idea: BlogIdea) => {
-    api.downloadRtf(client.id, idea.id)
+  const handleDownloadHtml = (idea: BlogIdea) => {
+    api.downloadHtml(client.id, idea.id)
   }
 
   const handleViewMonitor = async (idea: BlogIdea) => {
@@ -428,7 +428,7 @@ export function BloggerAutomationView({ client }: Props) {
               idea={idea}
               onView={() => setSelectedIdea(idea)}
               onViewPost={() => handleViewPost(idea)}
-              onDownloadRtf={() => handleDownloadRtf(idea)}
+              onDownload={() => handleDownloadHtml(idea)}
               onReset={() => handleResetBlogIdea(idea)}
             />
           ))}
@@ -505,7 +505,7 @@ function KanbanCard({
   onView,
   onViewProcess,
   onViewPost,
-  onDownloadRtf,
+  onDownload,
   onViewMonitor,
   onAbort,
   onReset,
@@ -519,7 +519,7 @@ function KanbanCard({
   onView: () => void
   onViewProcess?: () => void
   onViewPost?: () => void
-  onDownloadRtf?: () => void
+  onDownload?: () => void
   onViewMonitor?: () => void
   onAbort?: () => void
   onReset?: () => void
@@ -647,9 +647,9 @@ function KanbanCard({
           View post
         </Button>
       )}
-      {idea.state === "complete" && onDownloadRtf && (
-        <Button size="sm" variant="outline" className="w-full h-7 text-xs mt-1" onClick={onDownloadRtf}>
-          Download
+      {idea.state === "complete" && onDownload && (
+        <Button size="sm" variant="outline" className="w-full h-7 text-xs mt-1" onClick={onDownload}>
+          Download HTML
         </Button>
       )}
       {onReset && (

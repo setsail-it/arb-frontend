@@ -27,7 +27,6 @@ interface PipelineState {
     SQ_vampire: string | null
     Im: string | null
     Im_fuser: string | null
-    RTF: string | null
   }
   latest_html: {
     client_id: number | null
@@ -170,7 +169,7 @@ function AbsPipelineMonitorContent() {
 
         {/* Agent Orbs */}
         <div className="flex justify-center items-center gap-16 flex-wrap my-12">
-          {["W", "E", "SQ", "SQ_vampire", "Im", "Im_fuser", "RTF"].map((agent) => (
+          {["W", "E", "SQ", "SQ_vampire", "Im", "Im_fuser"].map((agent) => (
             <div key={agent} className="text-center">
               <button
                 onClick={() => {
@@ -207,9 +206,7 @@ function AbsPipelineMonitorContent() {
                   ? "SEO Critique Extraction"
                   : agent === "Im"
                   ? "Image"
-                  : agent === "Im_fuser"
-                  ? "Image Fusion"
-                  : "RTF Converter"}
+                  : "Image Fusion"}
               </div>
             </div>
           ))}
