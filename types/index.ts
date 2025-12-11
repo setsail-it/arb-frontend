@@ -37,6 +37,12 @@ export interface ClientContext {
   fonts?: string[]
   images_used?: string[]
   existing_blog_titles?: string[]
+  staff_bios?: Array<{
+    full_name: string
+    title: string
+    blog_bio: string
+    profile_photo: string
+  }>
   questionnaire?: Array<{ question: string; answer: string }>
   ready?: boolean
 }

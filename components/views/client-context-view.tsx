@@ -660,6 +660,44 @@ export function ClientContextView({ client }: Props) {
         </CardContent>
       </Card>
 
+      {/* Staff Bios */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Staff Bios (Read-only)</CardTitle>
+          <CardDescription>Team members discovered from the website</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {context.staff_bios && context.staff_bios.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {context.staff_bios.map((staff, i) => (
+                <div key={i} className="border rounded-lg p-4 bg-muted/10">
+                  <div className="flex items-start gap-3">
+                    {staff.profile_photo && (
+                      <img
+                        src={staff.profile_photo}
+                        alt={staff.full_name}
+                        className="w-16 h-16 rounded-full object-cover shrink-0"
+                      />
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-semibold text-sm truncate">{staff.full_name}</h4>
+                      <p className="text-xs text-muted-foreground truncate">{staff.title}</p>
+                    </div>
+                  </div>
+                  {staff.blog_bio && (
+                    <p className="mt-3 text-xs text-muted-foreground line-clamp-3">{staff.blog_bio}</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-muted-foreground bg-muted/10 rounded-lg border border-dashed">
+              No staff bios found yet.
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Raw JSON (Collapsible for debugging) */}
       <Accordion type="single" collapsible className="w-full">
         <AccordionItem value="raw-json">
