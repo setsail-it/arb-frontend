@@ -184,7 +184,7 @@ export function ClientContextView({ client }: Props) {
       )}
 
       {fetching && fetchProgress && (
-        <FetchProgressTracker currentStep={fetchProgress.step} message={fetchProgress.message} />
+        <FetchProgressTracker message={fetchProgress.message} />
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

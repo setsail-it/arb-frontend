@@ -2,26 +2,35 @@
 
 import { Check, Loader2 } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
-import { Progress } from "@/components/ui/progress"
 
 interface FetchProgressTrackerProps {
-  currentStep: number
   message: string
 }
 
 const STEPS = [
-  { id: 1, label: "Initialize", key: "start" },
-  { id: 2, label: "Scout-1", key: "scout1" },
-  { id: 3, label: "Site Context", key: "context" },
-  { id: 4, label: "Scout-2", key: "scout2" },
-  { id: 5, label: "Blog Posts", key: "posts" },
-  { id: 6, label: "Brand Assets", key: "assets" },
-  { id: 7, label: "Images", key: "images" },
-  { id: 8, label: "Save", key: "save" },
+  { id: 1, label: "Initialize", patterns: ["Starting", "Initializing"] },
+  { id: 2, label: "Scout-1", patterns: ["Scout-1", "Running Scout-1"] },
+  { id: 3, label: "Site Context", patterns: ["Site context discovery complete"] },
+  { id: 4, label: "Scout-2", patterns: ["Scout-2", "Running Scout-2", "blog posts and brand"] },
+  { id: 5, label: "Blog Posts", patterns: ["Blog posts and brand assets discovery complete"] },
+  { id: 6, label: "Images", patterns: ["Collecting images", "Processing blog post", "Image collection"] },
+  { id: 7, label: "Scout-3", patterns: ["Scout-3", "Running Scout-3", "staff bios"] },
+  { id: 8, label: "Save", patterns: ["Saving", "Save"] },
 ]
 
-export function FetchProgressTracker({ currentStep, message }: FetchProgressTrackerProps) {
-  const progress = (currentStep / 12) * 100
+function getCurrentStepId(message: string): number {
+  // Find the highest step that matches the current message
+  for (let i = STEPS.length - 1; i >= 0; i--) {
+    const step = STEPS[i]
+    if (step.patterns.some(pattern => message.toLowerCase().includes(pattern.toLowerCase()))) {
+      return step.id
+    }
+  }
+  return 1 // Default to first step
+}
+
+export function FetchProgressTracker({ message }: FetchProgressTrackerProps) {
+  const currentStepId = getCurrentStepId(message)
 
   return (
     <Card className="border-2 border-primary bg-gradient-to-br from-primary/10 to-primary/5 shadow-lg">
@@ -30,17 +39,6 @@ export function FetchProgressTracker({ currentStep, message }: FetchProgressTrac
           {/* Header */}
           <div className="text-center space-y-2">
             <h3 className="text-xl font-bold text-foreground">Fetching Client Context</h3>
-            <p className="text-sm text-muted-foreground">Step {currentStep} of 12</p>
-          </div>
-
-          {/* Progress Bar */}
-          <div className="space-y-2">
-            <Progress value={progress} className="h-3" />
-            <div className="flex justify-between text-xs text-muted-foreground">
-              <span>0%</span>
-              <span className="font-medium text-primary">{Math.round(progress)}%</span>
-              <span>100%</span>
-            </div>
           </div>
 
           {/* Current Message */}
@@ -53,12 +51,12 @@ export function FetchProgressTracker({ currentStep, message }: FetchProgressTrac
             </div>
           </div>
 
-          {/* Step Indicators */}
+          {/* Step Indicators - 4x2 grid for 8 steps */}
           <div className="grid grid-cols-4 gap-3">
             {STEPS.map((step) => {
-              const isComplete = currentStep > step.id
-              const isCurrent = currentStep === step.id
-              const isPending = currentStep < step.id
+              const isComplete = currentStepId > step.id
+              const isCurrent = currentStepId === step.id
+              const isPending = currentStepId < step.id
 
               return (
                 <div
