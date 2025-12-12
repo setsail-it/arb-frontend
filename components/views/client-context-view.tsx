@@ -32,10 +32,13 @@ export function ClientContextView({ client }: Props) {
   const [context, setContext] = useState<ClientContext>({})
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [fetching, setFetching] = useState(false)
+  const [fetchingClientId, setFetchingClientId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [fetchProgress, setFetchProgress] = useState<{ message: string; step: number } | null>(null)
   const [isNewClient, setIsNewClient] = useState(false)
+
+  // Derived state: only show fetching for current client
+  const fetching = fetchingClientId === client.id
 
   const loadContext = async () => {
     setLoading(true)
@@ -73,26 +76,33 @@ export function ClientContextView({ client }: Props) {
 
   const handleFetchFromSite = async () => {
     if (!context.domain) return
-    setFetching(true)
+    const currentClientId = client.id
+    setFetchingClientId(currentClientId)
     setFetchProgress({ message: "Initializing...", step: 0 })
     setError(null)
 
     await api.fetchContextFromSiteStream(
-      client.id,
+      currentClientId,
       context.domain,
       (message, step) => {
+        // Only update progress if still on the same client
         setFetchProgress({ message, step })
       },
       (data) => {
-        setContext(data)
-        setFetching(false)
+        // Only update context if still on the same client
+        if (currentClientId === client.id) {
+          setContext(data)
+          setIsNewClient(false)
+          window.location.reload()
+        }
+        setFetchingClientId(null)
         setFetchProgress(null)
-        setIsNewClient(false)
-        window.location.reload()
       },
       (errorMsg) => {
-        setError(errorMsg)
-        setFetching(false)
+        if (currentClientId === client.id) {
+          setError(errorMsg)
+        }
+        setFetchingClientId(null)
         setFetchProgress(null)
       },
     )
@@ -662,15 +672,131 @@ export function ClientContextView({ client }: Props) {
 
       {/* Staff Bios */}
       <Card>
-        <CardHeader>
-          <CardTitle>Staff Bios (Read-only)</CardTitle>
-          <CardDescription>Team members discovered from the website</CardDescription>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <div>
+            <CardTitle>Staff Bios</CardTitle>
+            <CardDescription>Team members for blog author attribution</CardDescription>
+          </div>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="outline" size="sm" disabled={fetching}>
+                <Plus className="h-4 w-4 mr-2" />
+                Add Staff
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent className="max-w-md">
+              <AlertDialogHeader>
+                <AlertDialogTitle>Add Staff Member</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Add a new team member for blog author attribution.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <div className="grid gap-4 py-4">
+                <div className="grid gap-2">
+                  <label htmlFor="new-staff-name" className="text-sm font-medium">Full Name *</label>
+                  <Input
+                    id="new-staff-name"
+                    placeholder="Jane Smith"
+                    onChange={(e) => {
+                      const form = e.target.closest('form') || e.target.parentElement?.parentElement?.parentElement
+                      if (form) (form as any).dataset.name = e.target.value
+                    }}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <label htmlFor="new-staff-title" className="text-sm font-medium">Title *</label>
+                  <Input
+                    id="new-staff-title"
+                    placeholder="CEO & Founder"
+                    onChange={(e) => {
+                      const form = e.target.closest('form') || e.target.parentElement?.parentElement?.parentElement
+                      if (form) (form as any).dataset.title = e.target.value
+                    }}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <label htmlFor="new-staff-bio" className="text-sm font-medium">Blog Bio</label>
+                  <Textarea
+                    id="new-staff-bio"
+                    placeholder="A short bio for the author section..."
+                    rows={3}
+                    onChange={(e) => {
+                      const form = e.target.closest('form') || e.target.parentElement?.parentElement?.parentElement
+                      if (form) (form as any).dataset.bio = e.target.value
+                    }}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <label htmlFor="new-staff-photo" className="text-sm font-medium">Profile Photo URL</label>
+                  <Input
+                    id="new-staff-photo"
+                    placeholder="https://example.com/photo.jpg"
+                    onChange={(e) => {
+                      const form = e.target.closest('form') || e.target.parentElement?.parentElement?.parentElement
+                      if (form) (form as any).dataset.photo = e.target.value
+                    }}
+                  />
+                </div>
+              </div>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={(e) => {
+                    const container = e.currentTarget.closest('[role="alertdialog"]')
+                    const nameInput = container?.querySelector('#new-staff-name') as HTMLInputElement
+                    const titleInput = container?.querySelector('#new-staff-title') as HTMLInputElement
+                    const bioInput = container?.querySelector('#new-staff-bio') as HTMLTextAreaElement
+                    const photoInput = container?.querySelector('#new-staff-photo') as HTMLInputElement
+                    
+                    const name = nameInput?.value?.trim()
+                    const title = titleInput?.value?.trim()
+                    const bio = bioInput?.value?.trim()
+                    const photo = photoInput?.value?.trim()
+                    
+                    if (!name || !title) {
+                      alert("Name and Title are required")
+                      return
+                    }
+                    
+                    const newStaff = {
+                      full_name: name,
+                      title: title,
+                      blog_bio: bio || "",
+                      profile_photo: photo || "",
+                    }
+                    
+                    setContext((prev) => ({
+                      ...prev,
+                      staff_bios: [...(prev.staff_bios || []), newStaff],
+                    }))
+                  }}
+                >
+                  Add Staff
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </CardHeader>
-        <CardContent>
+        <CardContent className="pt-4">
           {context.staff_bios && context.staff_bios.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {context.staff_bios.map((staff, i) => (
-                <div key={i} className="border rounded-lg p-4 bg-muted/10">
+                <div key={i} className="border rounded-lg p-4 bg-muted/10 group relative">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
+                    onClick={() => {
+                      setContext((prev) => ({
+                        ...prev,
+                        staff_bios: prev.staff_bios?.filter((_, idx) => idx !== i),
+                      }))
+                    }}
+                    disabled={fetching}
+                    title="Remove staff member"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
                   <div className="flex items-start gap-3">
                     {staff.profile_photo && (
                       <img
@@ -679,7 +805,7 @@ export function ClientContextView({ client }: Props) {
                         className="w-16 h-16 rounded-full object-cover shrink-0"
                       />
                     )}
-                    <div className="flex-1 min-w-0">
+                    <div className="flex-1 min-w-0 pr-6">
                       <h4 className="font-semibold text-sm truncate">{staff.full_name}</h4>
                       <p className="text-xs text-muted-foreground truncate">{staff.title}</p>
                     </div>
@@ -692,7 +818,7 @@ export function ClientContextView({ client }: Props) {
             </div>
           ) : (
             <div className="text-center py-8 text-muted-foreground bg-muted/10 rounded-lg border border-dashed">
-              No staff bios found yet.
+              No staff bios yet. Click "Add Staff" to add team members.
             </div>
           )}
         </CardContent>

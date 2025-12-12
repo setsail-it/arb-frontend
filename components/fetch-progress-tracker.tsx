@@ -9,20 +9,18 @@ interface FetchProgressTrackerProps {
 
 const STEPS = [
   { id: 1, label: "Initialize", patterns: ["Starting", "Initializing"] },
-  { id: 2, label: "Scout-1", patterns: ["Scout-1", "Running Scout-1"] },
-  { id: 3, label: "Site Context", patterns: ["Site context discovery complete"] },
-  { id: 4, label: "Scout-2", patterns: ["Scout-2", "Running Scout-2", "blog posts and brand"] },
-  { id: 5, label: "Blog Posts", patterns: ["Blog posts and brand assets discovery complete"] },
-  { id: 6, label: "Images", patterns: ["Collecting images", "Processing blog post", "Image collection"] },
-  { id: 7, label: "Scout-3", patterns: ["Scout-3", "Running Scout-3", "staff bios"] },
-  { id: 8, label: "Save", patterns: ["Saving", "Save"] },
+  { id: 2, label: "Scouts", patterns: ["parallel", "Scout-1", "Scout-2", "Scout-3", "site context", "blog posts", "staff bios"] },
+  { id: 3, label: "Images", patterns: ["Collecting images", "Processing blog post", "Image collection"] },
+  { id: 4, label: "Save", patterns: ["Saving", "Save"] },
 ]
 
 function getCurrentStepId(message: string): number {
-  // Find the highest step that matches the current message
+  const lowerMessage = message.toLowerCase()
+  
+  // Check patterns in reverse order (highest priority first)
   for (let i = STEPS.length - 1; i >= 0; i--) {
     const step = STEPS[i]
-    if (step.patterns.some(pattern => message.toLowerCase().includes(pattern.toLowerCase()))) {
+    if (step.patterns.some(pattern => lowerMessage.includes(pattern.toLowerCase()))) {
       return step.id
     }
   }
@@ -51,8 +49,8 @@ export function FetchProgressTracker({ message }: FetchProgressTrackerProps) {
             </div>
           </div>
 
-          {/* Step Indicators - 4x2 grid for 8 steps */}
-          <div className="grid grid-cols-4 gap-3">
+          {/* Step Indicators - 4 steps in a row */}
+          <div className="grid grid-cols-4 gap-4">
             {STEPS.map((step) => {
               const isComplete = currentStepId > step.id
               const isCurrent = currentStepId === step.id
