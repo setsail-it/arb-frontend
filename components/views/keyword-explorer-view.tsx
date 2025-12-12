@@ -221,7 +221,7 @@ export function KeywordExplorerView({ client }: Props) {
     <div className="h-full flex flex-col gap-4">
       {generatingIdeas && (
         <div className="mb-2">
-          <KeywordGenerationProgress message={generationProgress.message} step={generationProgress.step} />
+          <KeywordGenerationProgress message={generationProgress.message} />
         </div>
       )}
 
