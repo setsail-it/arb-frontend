@@ -322,6 +322,27 @@ export const api = {
       }),
     }),
 
+  // Delete keyword ideas (bulk)
+  deleteKeywordIdeas: (clientId: string, ids: number[]) =>
+    fetchJson<{ deleted_count: number }>(`/clients/${clientId}/keywords/ideas/delete-bulk`, {
+      method: "POST",
+      body: JSON.stringify({ ids }),
+    }),
+
+  // Delete best alternates (bulk)
+  deleteBestAlternates: (clientId: string, ids: number[]) =>
+    fetchJson<{ deleted_count: number }>(`/clients/${clientId}/keywords/best-alternates/delete-bulk`, {
+      method: "POST",
+      body: JSON.stringify({ ids }),
+    }),
+
+  // Delete keyword sets (bulk)
+  deleteKeywordSets: (clientId: string, ids: number[]) =>
+    fetchJson<{ deleted_count: number }>(`/clients/${clientId}/keywords/sets/delete-bulk`, {
+      method: "POST",
+      body: JSON.stringify({ ids }),
+    }),
+
   // Blog Ideas
   getBlogIdeas: (clientId: string) => fetchJson<BlogIdea[]>(`/clients/${clientId}/blog-ideas`),
   generateBlogIdeas: (clientId: string) =>

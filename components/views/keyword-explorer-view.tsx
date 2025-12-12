@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Spinner } from "@/components/ui/spinner"
-import { ChevronRight, ChevronDown } from "lucide-react"
+import { ChevronRight, ChevronDown, Trash2 } from "lucide-react"
 import { KeywordGenerationProgress } from "@/components/keyword-generation-progress"
 
 interface Props {
@@ -34,6 +34,12 @@ export function KeywordExplorerView({ client }: Props) {
   // Selection state
   const [selectedKeywordIds, setSelectedKeywordIds] = useState<Set<number>>(new Set())
   const [selectedBestAlternateIds, setSelectedBestAlternateIds] = useState<Set<number>>(new Set())
+  const [selectedSetIds, setSelectedSetIds] = useState<Set<number>>(new Set())
+
+  // Deleting state
+  const [deletingIdeas, setDeletingIdeas] = useState(false)
+  const [deletingAlternates, setDeletingAlternates] = useState(false)
+  const [deletingSets, setDeletingSets] = useState(false)
 
   // Loading state
   const [loadingIdeas, setLoadingIdeas] = useState(false)
@@ -103,6 +109,7 @@ export function KeywordExplorerView({ client }: Props) {
     setBestAlternates(new Map())
     setSelectedKeywordIds(new Set())
     setSelectedBestAlternateIds(new Set())
+    setSelectedSetIds(new Set())
     // Refresh data for new client
     refreshIdeas()
     refreshClusters()
@@ -217,6 +224,71 @@ export function KeywordExplorerView({ client }: Props) {
     }
   }
 
+  const handleToggleSetSelection = (setId: number) => {
+    setSelectedSetIds((prev) => {
+      const newSet = new Set(prev)
+      if (newSet.has(setId)) {
+        newSet.delete(setId)
+      } else {
+        newSet.add(setId)
+      }
+      return newSet
+    })
+  }
+
+  const handleDeleteSelectedIdeas = async () => {
+    if (selectedKeywordIds.size === 0) return
+    if (!confirm(`Delete ${selectedKeywordIds.size} keyword idea(s)?`)) return
+
+    setDeletingIdeas(true)
+    try {
+      await api.deleteKeywordIdeas(client.id, Array.from(selectedKeywordIds))
+      setSelectedKeywordIds(new Set())
+      await refreshIdeas()
+    } catch (error) {
+      console.error("Failed to delete keyword ideas:", error)
+    } finally {
+      setDeletingIdeas(false)
+    }
+  }
+
+  const handleDeleteSelectedAlternates = async () => {
+    if (selectedBestAlternateIds.size === 0) return
+    if (!confirm(`Delete ${selectedBestAlternateIds.size} best alternate(s)?`)) return
+
+    setDeletingAlternates(true)
+    try {
+      // Get the BestAlternate IDs (not the original keyword IDs)
+      const alternateIds = Array.from(selectedBestAlternateIds)
+        .map((keywordId) => bestAlternates.get(keywordId)?.id)
+        .filter((id): id is number => id !== undefined)
+      
+      await api.deleteBestAlternates(client.id, alternateIds)
+      setSelectedBestAlternateIds(new Set())
+      await refreshBestAlternates()
+    } catch (error) {
+      console.error("Failed to delete best alternates:", error)
+    } finally {
+      setDeletingAlternates(false)
+    }
+  }
+
+  const handleDeleteSelectedSets = async () => {
+    if (selectedSetIds.size === 0) return
+    if (!confirm(`Delete ${selectedSetIds.size} keyword set(s)?`)) return
+
+    setDeletingSets(true)
+    try {
+      await api.deleteKeywordSets(client.id, Array.from(selectedSetIds))
+      setSelectedSetIds(new Set())
+      await refreshSets()
+    } catch (error) {
+      console.error("Failed to delete keyword sets:", error)
+    } finally {
+      setDeletingSets(false)
+    }
+  }
+
   return (
     <div className="h-full flex flex-col gap-4">
       {generatingIdeas && (
@@ -293,10 +365,24 @@ export function KeywordExplorerView({ client }: Props) {
           <CardHeader className="pb-3 space-y-3">
             <div className="flex flex-row items-center justify-between space-y-0">
               <CardTitle className="text-base">Ideas ({ideas.length})</CardTitle>
-              <Button size="sm" onClick={handleGenerateIdeas} disabled={generatingIdeas || loadingIdeas}>
-                {(generatingIdeas || loadingIdeas) && <Spinner className="mr-2" />}
-                {generatingIdeas ? "Generating..." : "Generate"}
-              </Button>
+              <div className="flex gap-2">
+                {selectedKeywordIds.size > 0 && (
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={handleDeleteSelectedIdeas}
+                    disabled={deletingIdeas}
+                  >
+                    {deletingIdeas && <Spinner className="mr-2" />}
+                    <Trash2 className="h-3 w-3 mr-1" />
+                    {selectedKeywordIds.size}
+                  </Button>
+                )}
+                <Button size="sm" onClick={handleGenerateIdeas} disabled={generatingIdeas || loadingIdeas}>
+                  {(generatingIdeas || loadingIdeas) && <Spinner className="mr-2" />}
+                  {generatingIdeas ? "Generating..." : "Generate"}
+                </Button>
+              </div>
             </div>
             <div className="flex gap-2">
               <Input
@@ -381,14 +467,28 @@ export function KeywordExplorerView({ client }: Props) {
         <Card className="flex flex-col h-full">
           <CardHeader className="pb-3 flex flex-row items-center justify-between space-y-0">
             <CardTitle className="text-base">Best Alternate</CardTitle>
-            <Button
-              size="sm"
-              onClick={handleFindBestAlternates}
-              disabled={loadingBestAlternates || selectedKeywordIds.size === 0}
-            >
-              {loadingBestAlternates && <Spinner className="mr-2" />}
-              Find({selectedKeywordIds.size})
-            </Button>
+            <div className="flex gap-2">
+              {selectedBestAlternateIds.size > 0 && (
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  onClick={handleDeleteSelectedAlternates}
+                  disabled={deletingAlternates}
+                >
+                  {deletingAlternates && <Spinner className="mr-2" />}
+                  <Trash2 className="h-3 w-3 mr-1" />
+                  {selectedBestAlternateIds.size}
+                </Button>
+              )}
+              <Button
+                size="sm"
+                onClick={handleFindBestAlternates}
+                disabled={loadingBestAlternates || selectedKeywordIds.size === 0}
+              >
+                {loadingBestAlternates && <Spinner className="mr-2" />}
+                Find({selectedKeywordIds.size})
+              </Button>
+            </div>
           </CardHeader>
           <CardContent className="flex-1 overflow-auto p-4 space-y-3">
             {bestAlternates.size === 0 ? (
@@ -454,38 +554,87 @@ export function KeywordExplorerView({ client }: Props) {
         <Card className="flex flex-col h-full">
           <CardHeader className="pb-3 flex flex-row items-center justify-between space-y-0">
             <CardTitle className="text-base">Sets ({sets.length})</CardTitle>
-            <Button
-              size="sm"
-              onClick={handleDevelopSets}
-              disabled={loadingSets || selectedBestAlternateIds.size === 0}
-            >
-              {loadingSets && <Spinner className="mr-2" />}
-              Develop({selectedBestAlternateIds.size})
-            </Button>
+            <div className="flex gap-2">
+              {selectedSetIds.size > 0 && (
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  onClick={handleDeleteSelectedSets}
+                  disabled={deletingSets}
+                >
+                  {deletingSets && <Spinner className="mr-2" />}
+                  <Trash2 className="h-3 w-3 mr-1" />
+                  {selectedSetIds.size}
+                </Button>
+              )}
+              <Button
+                size="sm"
+                onClick={handleDevelopSets}
+                disabled={loadingSets || selectedBestAlternateIds.size === 0}
+              >
+                {loadingSets && <Spinner className="mr-2" />}
+                Develop({selectedBestAlternateIds.size})
+              </Button>
+            </div>
           </CardHeader>
           <CardContent className="flex-1 overflow-auto p-4 space-y-4">
-            {sets.map((set, i) => (
-              <div key={i} className="border rounded-md p-3 space-y-2">
-                <div className="font-medium text-sm flex justify-between">
-                  <span>{set.primary_keyword}</span>
-                  <span className="text-xs text-muted-foreground">
-                    Vol: {set.primary_search_volume} KD: {set.primary_keyword_difficulty}
-                  </span>
-                </div>
-                <div className="pl-2 border-l-2 border-muted">
-                  {set.secondaries && set.secondaries.length > 0 ? (
-                    set.secondaries.map((sec, j) => (
-                      <div key={j} className="text-xs text-muted-foreground py-0.5 flex justify-between">
-                        <span>{sec.keyword}</span>
-                        <span>{sec.search_volume}</span>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="text-xs text-muted-foreground py-0.5 italic">No secondaries</div>
-                  )}
-                </div>
+            {sets.length > 0 && (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground pb-2 border-b">
+                <input
+                  type="checkbox"
+                  checked={selectedSetIds.size === sets.length && sets.length > 0}
+                  onChange={(e) => {
+                    if (e.target.checked) {
+                      setSelectedSetIds(new Set(sets.map((s) => s.id)))
+                    } else {
+                      setSelectedSetIds(new Set())
+                    }
+                  }}
+                  className="cursor-pointer"
+                />
+                <span>Select all</span>
               </div>
-            ))}
+            )}
+            {sets.map((set) => {
+              const isSelected = selectedSetIds.has(set.id)
+              return (
+                <div
+                  key={set.id}
+                  className={`border rounded-md p-3 space-y-2 cursor-pointer transition-colors ${
+                    isSelected ? "bg-muted/30 border-primary" : "hover:bg-muted/10"
+                  }`}
+                  onClick={() => handleToggleSetSelection(set.id)}
+                >
+                  <div className="font-medium text-sm flex justify-between items-start gap-2">
+                    <div className="flex items-start gap-2">
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => handleToggleSetSelection(set.id)}
+                        onClick={(e) => e.stopPropagation()}
+                        className="mt-0.5 cursor-pointer"
+                      />
+                      <span>{set.primary_keyword}</span>
+                    </div>
+                    <span className="text-xs text-muted-foreground whitespace-nowrap">
+                      Vol: {set.primary_search_volume} KD: {set.primary_keyword_difficulty}
+                    </span>
+                  </div>
+                  <div className="pl-6 border-l-2 border-muted ml-2">
+                    {set.secondaries && set.secondaries.length > 0 ? (
+                      set.secondaries.map((sec, j) => (
+                        <div key={j} className="text-xs text-muted-foreground py-0.5 flex justify-between">
+                          <span>{sec.keyword}</span>
+                          <span>{sec.search_volume}</span>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="text-xs text-muted-foreground py-0.5 italic">No secondaries</div>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
           </CardContent>
         </Card>
       </div>
