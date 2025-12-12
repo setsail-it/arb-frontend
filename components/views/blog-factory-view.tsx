@@ -23,10 +23,39 @@ import {
 } from "@/components/ui/alert-dialog"
 import { DebugPanel } from "@/components/debug-panel"
 import { KeywordGenerationProgress } from "@/components/keyword-generation-progress"
-import { Trash2, Pencil, Check } from "lucide-react"
+import { Trash2, Pencil, Check, ChevronRight, ChevronLeft } from "lucide-react"
 
 interface Props {
   client: Client
+}
+
+// Arrow button component for between columns
+function ArrowButton({
+  onClick,
+  disabled,
+  loading,
+  count,
+  label,
+}: {
+  onClick: () => void
+  disabled: boolean
+  loading: boolean
+  count: number
+  label: string
+}) {
+  return (
+    <div className="flex flex-col items-center justify-center px-1 shrink-0">
+      <Button
+        size="sm"
+        onClick={onClick}
+        disabled={disabled || count === 0}
+        className="h-8 px-2 text-xs flex items-center gap-1"
+      >
+        {loading ? <Spinner className="h-3 w-3" /> : <ChevronRight className="h-4 w-4" />}
+        <span>{label}({count})</span>
+      </Button>
+    </div>
+  )
 }
 
 export function BlogFactoryView({ client }: Props) {
@@ -51,6 +80,9 @@ export function BlogFactoryView({ client }: Props) {
   const [selectedBestAlternateIds, setSelectedBestAlternateIds] = useState<Set<number>>(new Set())
   const [selectedSetIds, setSelectedSetIds] = useState<Set<number>>(new Set())
 
+  // Blog idea selection state
+  const [selectedBlogIdeaIds, setSelectedBlogIdeaIds] = useState<Set<number>>(new Set())
+
   // Keyword deleting state
   const [deletingIdeas, setDeletingIdeas] = useState(false)
   const [deletingAlternates, setDeletingAlternates] = useState(false)
@@ -74,7 +106,8 @@ export function BlogFactoryView({ client }: Props) {
   const [blogIdeas, setBlogIdeas] = useState<BlogIdea[]>([])
   const [loadingBlogIdeas, setLoadingBlogIdeas] = useState(false)
   const [processing, setProcessing] = useState(false)
-  const [generating, setGenerating] = useState(false)
+  const [generatingBlogIdeas, setGeneratingBlogIdeas] = useState(false)
+  const [queuingIdeas, setQueuingIdeas] = useState(false)
 
   // Debugging state
   const [selectedIdea, setSelectedIdea] = useState<BlogIdea | null>(null)
@@ -303,20 +336,57 @@ export function BlogFactoryView({ client }: Props) {
     }
   }
 
-  const handleQueue = async (id: number) => {
-    await api.queueBlogIdea(client.id, String(id))
-    refreshBlogIdeas()
+  const handleToggleBlogIdeaSelection = (ideaId: number) => {
+    setSelectedBlogIdeaIds((prev) => {
+      const newSet = new Set(prev)
+      if (newSet.has(ideaId)) {
+        newSet.delete(ideaId)
+      } else {
+        newSet.add(ideaId)
+      }
+      return newSet
+    })
   }
 
-  const handleGenerate = async () => {
-    setGenerating(true)
+  const handleQueueSelectedIdeas = async () => {
+    if (selectedBlogIdeaIds.size === 0) return
+
+    setQueuingIdeas(true)
     try {
+      for (const id of selectedBlogIdeaIds) {
+        await api.queueBlogIdea(client.id, String(id))
+      }
+      setSelectedBlogIdeaIds(new Set())
+      await refreshBlogIdeas()
+    } catch (e) {
+      console.error("Failed to queue blog ideas", e)
+    } finally {
+      setQueuingIdeas(false)
+    }
+  }
+
+  const handleDequeueIdea = async (ideaId: number) => {
+    try {
+      await api.resetBlogIdea(client.id, ideaId)
+      await refreshBlogIdeas()
+    } catch (e) {
+      console.error("Failed to dequeue blog idea", e)
+    }
+  }
+
+  const handleGenerateBlogIdeas = async () => {
+    if (selectedSetIds.size === 0) return
+
+    setGeneratingBlogIdeas(true)
+    try {
+      // Generate blog ideas from selected sets
       const ideasData = await api.generateBlogIdeas(client.id)
       setBlogIdeas(ideasData || [])
+      setSelectedSetIds(new Set())
     } catch (e) {
       console.error("Failed to generate blog ideas", e)
     } finally {
-      setGenerating(false)
+      setGeneratingBlogIdeas(false)
     }
   }
 
@@ -543,6 +613,7 @@ export function BlogFactoryView({ client }: Props) {
     setSelectedKeywordIds(new Set())
     setSelectedBestAlternateIds(new Set())
     setSelectedSetIds(new Set())
+    setSelectedBlogIdeaIds(new Set())
     // Refresh all data
     refreshKeywordIdeas()
     refreshClusters()
@@ -571,358 +642,223 @@ export function BlogFactoryView({ client }: Props) {
         </div>
       )}
 
-      {/* Horizontal scrollable container for all 7 columns */}
+      {/* Horizontal scrollable container for all columns */}
       <div className="flex-1 overflow-x-auto min-h-0">
-        <div className="flex gap-4 h-full" style={{ minWidth: "1800px" }}>
-          {/* ==================== KEYWORD COLUMNS (with config above) ==================== */}
-          <div className="flex flex-col gap-4 shrink-0" style={{ width: "780px" }}>
-            {/* Config bar - only above keyword columns */}
-            <div className="bg-background border rounded-lg p-3 shadow-sm">
-              <div className="grid grid-cols-6 gap-2">
-                <div className="flex flex-col gap-1">
-                  <label className="text-xs text-muted-foreground">Max KWs/Seed</label>
-                  <Input
-                    type="number"
-                    value={config.max_num_kws_per_seed}
-                    onChange={(e) => setConfig({ ...config, max_num_kws_per_seed: +e.target.value })}
-                    className="h-7 text-xs"
-                  />
+        <div className="flex h-full" style={{ minWidth: "2200px" }}>
+          {/* ==================== KEYWORD COLUMNS SECTION ==================== */}
+          <div className="flex flex-col gap-2 shrink-0" style={{ width: "240px" }}>
+            {/* Config bar */}
+            <div className="bg-background border rounded-lg p-2 shadow-sm">
+              <div className="grid grid-cols-2 gap-2">
+                <div className="flex flex-col gap-0.5">
+                  <label className="text-[10px] text-muted-foreground">Max KWs/Seed</label>
+                  <Input type="number" value={config.max_num_kws_per_seed} onChange={(e) => setConfig({ ...config, max_num_kws_per_seed: +e.target.value })} className="h-6 text-xs" />
                 </div>
-                <div className="flex flex-col gap-1">
-                  <label className="text-xs text-muted-foreground">Min Volume</label>
-                  <Input
-                    type="number"
-                    value={config.sv_min}
-                    onChange={(e) => setConfig({ ...config, sv_min: +e.target.value })}
-                    className="h-7 text-xs"
-                  />
+                <div className="flex flex-col gap-0.5">
+                  <label className="text-[10px] text-muted-foreground">Min Volume</label>
+                  <Input type="number" value={config.sv_min} onChange={(e) => setConfig({ ...config, sv_min: +e.target.value })} className="h-6 text-xs" />
                 </div>
-                <div className="flex flex-col gap-1">
-                  <label className="text-xs text-muted-foreground">Max KD</label>
-                  <Input
-                    type="number"
-                    value={config.kd_max}
-                    onChange={(e) => setConfig({ ...config, kd_max: +e.target.value })}
-                    className="h-7 text-xs"
-                  />
+                <div className="flex flex-col gap-0.5">
+                  <label className="text-[10px] text-muted-foreground">Max KD</label>
+                  <Input type="number" value={config.kd_max} onChange={(e) => setConfig({ ...config, kd_max: +e.target.value })} className="h-6 text-xs" />
                 </div>
-                <div className="flex flex-col gap-1">
-                  <label className="text-xs text-muted-foreground">Similarity</label>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    value={config.sim_threshold}
-                    onChange={(e) => setConfig({ ...config, sim_threshold: +e.target.value })}
-                    className="h-7 text-xs"
-                  />
-                </div>
-                <div className="flex flex-col gap-1">
-                  <label className="text-xs text-muted-foreground">Min Intent</label>
-                  <Input
-                    type="number"
-                    value={config.intent_min}
-                    onChange={(e) => setConfig({ ...config, intent_min: +e.target.value })}
-                    className="h-7 text-xs"
-                  />
-                </div>
-                <div className="flex flex-col gap-1">
-                  <label className="text-xs text-muted-foreground">Max Intent</label>
-                  <Input
-                    type="number"
-                    value={config.intent_max}
-                    onChange={(e) => setConfig({ ...config, intent_max: +e.target.value })}
-                    className="h-7 text-xs"
-                  />
+                <div className="flex flex-col gap-0.5">
+                  <label className="text-[10px] text-muted-foreground">Similarity</label>
+                  <Input type="number" step="0.01" value={config.sim_threshold} onChange={(e) => setConfig({ ...config, sim_threshold: +e.target.value })} className="h-6 text-xs" />
                 </div>
               </div>
             </div>
 
-            {/* 3 Keyword columns */}
-            <div className="flex-1 grid grid-cols-3 gap-4 min-h-0">
-              {/* Column 1: Keyword Ideas */}
-              <Card className="flex flex-col h-full">
-                <CardHeader className="pb-2 space-y-2">
-                  <div className="flex flex-row items-center justify-between space-y-0">
-                    <CardTitle className="text-sm">Ideas ({keywordIdeas.length})</CardTitle>
-                    <div className="flex gap-1">
-                      {selectedKeywordIds.size > 0 && (
-                        <Button size="sm" variant="destructive" onClick={handleDeleteSelectedKeywordIdeas} disabled={deletingIdeas} className="h-6 text-xs px-2">
-                          {deletingIdeas && <Spinner className="mr-1 h-3 w-3" />}
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
-                      )}
-                      <Button size="sm" onClick={handleGenerateKeywordIdeas} disabled={generatingIdeas || loadingKeywordIdeas} className="h-6 text-xs px-2">
-                        {(generatingIdeas || loadingKeywordIdeas) && <Spinner className="mr-1 h-3 w-3" />}
-                        Generate
-                      </Button>
-                    </div>
-                  </div>
+            {/* Column 1: Keyword Ideas */}
+            <Card className="flex flex-col flex-1 min-h-0">
+              <CardHeader className="pb-1 pt-2 px-2 space-y-1">
+                <div className="flex flex-row items-center justify-between">
+                  <CardTitle className="text-xs">Ideas ({keywordIdeas.length})</CardTitle>
                   <div className="flex gap-1">
-                    <Input
-                      placeholder="Add keyword..."
-                      value={newKeyword}
-                      onChange={(e) => setNewKeyword(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" && !addingKeyword && newKeyword.trim()) {
-                          handleAddKeyword()
-                        }
-                      }}
-                      className="flex-1 h-6 text-xs"
-                      disabled={addingKeyword}
-                    />
-                    <Button size="sm" onClick={handleAddKeyword} disabled={addingKeyword || !newKeyword.trim()} variant="outline" className="h-6 text-xs px-2">
-                      {addingKeyword ? <Spinner className="h-3 w-3" /> : "Add"}
+                    {selectedKeywordIds.size > 0 && (
+                      <Button size="sm" variant="destructive" onClick={handleDeleteSelectedKeywordIdeas} disabled={deletingIdeas} className="h-5 text-[10px] px-1">
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    )}
+                    <Button size="sm" onClick={handleGenerateKeywordIdeas} disabled={generatingIdeas || loadingKeywordIdeas} className="h-5 text-[10px] px-2">
+                      {(generatingIdeas || loadingKeywordIdeas) && <Spinner className="mr-1 h-2 w-2" />}
+                      Generate
                     </Button>
                   </div>
-                </CardHeader>
-                <CardContent className="flex-1 overflow-auto p-0">
-                  <div className="border-t">
-                    <table className="w-full text-xs text-left table-fixed">
-                      <thead className="text-[10px] text-muted-foreground bg-muted/50 sticky top-0">
-                        <tr>
-                          <th className="px-2 py-1 w-6">
-                            <input
-                              type="checkbox"
-                              checked={selectedKeywordIds.size === keywordIdeas.length && keywordIdeas.length > 0}
-                              onChange={(e) => {
-                                if (e.target.checked) {
-                                  setSelectedKeywordIds(new Set(keywordIdeas.map((idea) => idea.id)))
-                                } else {
-                                  setSelectedKeywordIds(new Set())
-                                }
-                              }}
-                              className="cursor-pointer"
-                            />
-                          </th>
-                          <th className="px-2 py-1">Keyword</th>
-                          <th className="px-2 py-1 text-right w-14">Vol</th>
-                          <th className="px-2 py-1 text-right w-10">KD</th>
+                </div>
+                <div className="flex gap-1">
+                  <Input placeholder="Add keyword..." value={newKeyword} onChange={(e) => setNewKeyword(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !addingKeyword && newKeyword.trim()) handleAddKeyword() }} className="flex-1 h-5 text-[10px]" disabled={addingKeyword} />
+                  <Button size="sm" onClick={handleAddKeyword} disabled={addingKeyword || !newKeyword.trim()} variant="outline" className="h-5 text-[10px] px-1">
+                    {addingKeyword ? <Spinner className="h-2 w-2" /> : "Add"}
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent className="flex-1 overflow-auto p-0">
+                <div className="border-t">
+                  <table className="w-full text-[10px] text-left table-fixed">
+                    <thead className="text-[9px] text-muted-foreground bg-muted/50 sticky top-0">
+                      <tr>
+                        <th className="px-1 py-0.5 w-5">
+                          <input type="checkbox" checked={selectedKeywordIds.size === keywordIdeas.length && keywordIdeas.length > 0} onChange={(e) => { if (e.target.checked) { setSelectedKeywordIds(new Set(keywordIdeas.map((i) => i.id))) } else { setSelectedKeywordIds(new Set()) } }} className="cursor-pointer" />
+                        </th>
+                        <th className="px-1 py-0.5">Keyword</th>
+                        <th className="px-1 py-0.5 text-right w-10">Vol</th>
+                        <th className="px-1 py-0.5 text-right w-7">KD</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y">
+                      {keywordIdeas.map((idea) => (
+                        <tr key={idea.id} className={selectedKeywordIds.has(idea.id) ? "bg-muted/30" : ""}>
+                          <td className="px-1 py-0.5 align-top"><input type="checkbox" checked={selectedKeywordIds.has(idea.id)} onChange={() => handleToggleKeywordSelection(idea.id)} className="cursor-pointer" /></td>
+                          <td className="px-1 py-0.5 break-words">{idea.keyword}</td>
+                          <td className="px-1 py-0.5 text-right text-muted-foreground whitespace-nowrap align-top">{idea.search_volume?.toLocaleString() ?? "-"}</td>
+                          <td className="px-1 py-0.5 text-right text-muted-foreground whitespace-nowrap align-top">{idea.keyword_difficulty ?? "-"}</td>
                         </tr>
-                      </thead>
-                      <tbody className="divide-y">
-                        {keywordIdeas.map((idea) => (
-                          <tr key={idea.id} className={selectedKeywordIds.has(idea.id) ? "bg-muted/30" : ""}>
-                            <td className="px-2 py-1 align-top">
-                              <input
-                                type="checkbox"
-                                checked={selectedKeywordIds.has(idea.id)}
-                                onChange={() => handleToggleKeywordSelection(idea.id)}
-                                className="cursor-pointer"
-                              />
-                            </td>
-                            <td className="px-2 py-1 break-words">{idea.keyword}</td>
-                            <td className="px-2 py-1 text-right text-muted-foreground whitespace-nowrap align-top">
-                              {idea.search_volume !== null && idea.search_volume !== undefined ? idea.search_volume.toLocaleString() : "-"}
-                            </td>
-                            <td className="px-2 py-1 text-right text-muted-foreground whitespace-nowrap align-top">
-                              {idea.keyword_difficulty !== null && idea.keyword_difficulty !== undefined ? idea.keyword_difficulty : "-"}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </CardContent>
-              </Card>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
 
-              {/* Column 2: Best Alternate */}
-              <Card className="flex flex-col h-full">
-                <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
-                  <CardTitle className="text-sm">Best Alternate</CardTitle>
-                  <div className="flex gap-1">
-                    {selectedBestAlternateIds.size > 0 && (
-                      <Button size="sm" variant="destructive" onClick={handleDeleteSelectedAlternates} disabled={deletingAlternates} className="h-6 text-xs px-2">
-                        {deletingAlternates && <Spinner className="mr-1 h-3 w-3" />}
-                        <Trash2 className="h-3 w-3" />
-                      </Button>
-                    )}
-                    <Button size="sm" onClick={handleFindBestAlternates} disabled={loadingBestAlternates || selectedKeywordIds.size === 0} className="h-6 text-xs px-2">
-                      {loadingBestAlternates && <Spinner className="mr-1 h-3 w-3" />}
-                      Find({selectedKeywordIds.size})
-                    </Button>
-                  </div>
-                </CardHeader>
-                <CardContent className="flex-1 overflow-auto p-2 space-y-2">
-                  {bestAlternates.size === 0 ? (
-                    <div className="text-xs text-muted-foreground text-center py-4">Select keywords and click Find</div>
-                  ) : (
-                    Array.from(bestAlternates.entries()).map(([keywordId, result]) => {
-                      const originalIdea = keywordIdeas.find((idea) => idea.id === keywordId)
-                      const isSelected = selectedBestAlternateIds.has(keywordId)
-                      return (
-                        <div
-                          key={keywordId}
-                          className={`border rounded p-2 space-y-1 cursor-pointer transition-colors text-xs ${isSelected ? "bg-muted/30 border-primary" : "hover:bg-muted/10"}`}
-                          onClick={() => handleToggleBestAlternateSelection(keywordId)}
-                        >
-                          <div className="flex items-start gap-1">
-                            <input
-                              type="checkbox"
-                              checked={isSelected}
-                              onChange={() => handleToggleBestAlternateSelection(keywordId)}
-                              onClick={(e) => e.stopPropagation()}
-                              className="mt-0.5 cursor-pointer"
-                            />
-                            <div className="flex-1 min-w-0">
-                              <div className="font-medium truncate">{result.keyword}</div>
-                              <div className="text-[10px] text-muted-foreground">
-                                Vol: {result.search_volume?.toLocaleString() || "-"} | KD: {result.keyword_difficulty ?? "-"}
-                                {result.is_original && <span className="text-blue-500 ml-1">(Orig)</span>}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      )
-                    })
-                  )}
-                </CardContent>
-              </Card>
+          {/* Arrow: Ideas -> Best Alternate */}
+          <ArrowButton onClick={handleFindBestAlternates} disabled={loadingBestAlternates} loading={loadingBestAlternates} count={selectedKeywordIds.size} label="Find" />
 
-              {/* Column 3: Sets */}
-              <Card className="flex flex-col h-full">
-                <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
-                  <CardTitle className="text-sm">Sets ({sets.length})</CardTitle>
-                  <div className="flex gap-1">
-                    {selectedSetIds.size > 0 && (
-                      <Button size="sm" variant="destructive" onClick={handleDeleteSelectedSets} disabled={deletingSets} className="h-6 text-xs px-2">
-                        {deletingSets && <Spinner className="mr-1 h-3 w-3" />}
-                        <Trash2 className="h-3 w-3" />
-                      </Button>
-                    )}
-                    <Button size="sm" onClick={handleDevelopSets} disabled={loadingSets || selectedBestAlternateIds.size === 0} className="h-6 text-xs px-2">
-                      {loadingSets && <Spinner className="mr-1 h-3 w-3" />}
-                      Develop({selectedBestAlternateIds.size})
-                    </Button>
-                  </div>
-                </CardHeader>
-                <CardContent className="flex-1 overflow-auto p-2 space-y-2">
-                  {sets.length > 0 && (
-                    <div className="flex items-center gap-1 text-[10px] text-muted-foreground pb-1 border-b">
-                      <input
-                        type="checkbox"
-                        checked={selectedSetIds.size === sets.length && sets.length > 0}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setSelectedSetIds(new Set(sets.map((s) => s.id)))
-                          } else {
-                            setSelectedSetIds(new Set())
-                          }
-                        }}
-                        className="cursor-pointer"
-                      />
-                      <span>Select all</span>
-                    </div>
-                  )}
-                  {sets.map((set) => {
-                    const isSelected = selectedSetIds.has(set.id)
-                    return (
-                      <div
-                        key={set.id}
-                        className={`border rounded p-2 space-y-1 cursor-pointer transition-colors text-xs ${isSelected ? "bg-muted/30 border-primary" : "hover:bg-muted/10"}`}
-                        onClick={() => handleToggleSetSelection(set.id)}
-                      >
-                        <div className="flex items-start gap-1">
-                          <input
-                            type="checkbox"
-                            checked={isSelected}
-                            onChange={() => handleToggleSetSelection(set.id)}
-                            onClick={(e) => e.stopPropagation()}
-                            className="mt-0.5 cursor-pointer"
-                          />
-                          <div className="flex-1 min-w-0">
-                            <div className="font-medium truncate">{set.primary_keyword}</div>
-                            <div className="text-[10px] text-muted-foreground">
-                              Vol: {set.primary_search_volume} | KD: {set.primary_keyword_difficulty}
-                            </div>
-                          </div>
-                        </div>
-                        <div className="pl-4 border-l border-muted ml-1 text-[10px] text-muted-foreground">
-                          {set.secondaries && set.secondaries.length > 0
-                            ? set.secondaries.map((sec, j) => (
-                                <div key={j} className="truncate">{sec.keyword}</div>
-                              ))
-                            : <div className="italic">No secondaries</div>}
+          {/* Column 2: Best Alternate */}
+          <Card className="flex flex-col shrink-0 min-h-0" style={{ width: "220px" }}>
+            <CardHeader className="pb-1 pt-2 px-2 flex flex-row items-center justify-between space-y-0">
+              <CardTitle className="text-xs">Best Alternate</CardTitle>
+              {selectedBestAlternateIds.size > 0 && (
+                <Button size="sm" variant="destructive" onClick={handleDeleteSelectedAlternates} disabled={deletingAlternates} className="h-5 text-[10px] px-1">
+                  <Trash2 className="h-3 w-3" />
+                </Button>
+              )}
+            </CardHeader>
+            <CardContent className="flex-1 overflow-auto p-1 space-y-1">
+              {bestAlternates.size === 0 ? (
+                <div className="text-[10px] text-muted-foreground text-center py-4">Select keywords and click Find →</div>
+              ) : (
+                Array.from(bestAlternates.entries()).map(([keywordId, result]) => {
+                  const isSelected = selectedBestAlternateIds.has(keywordId)
+                  return (
+                    <div key={keywordId} className={`border rounded p-1.5 cursor-pointer transition-colors text-[10px] ${isSelected ? "bg-muted/30 border-primary" : "hover:bg-muted/10"}`} onClick={() => handleToggleBestAlternateSelection(keywordId)}>
+                      <div className="flex items-start gap-1">
+                        <input type="checkbox" checked={isSelected} onChange={() => handleToggleBestAlternateSelection(keywordId)} onClick={(e) => e.stopPropagation()} className="mt-0.5 cursor-pointer" />
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium break-words">{result.keyword}</div>
+                          <div className="text-[9px] text-muted-foreground">Vol: {result.search_volume?.toLocaleString() || "-"} | KD: {result.keyword_difficulty ?? "-"}{result.is_original && <span className="text-blue-500 ml-1">(Orig)</span>}</div>
                         </div>
                       </div>
-                    )
-                  })}
-                </CardContent>
-              </Card>
-            </div>
-          </div>
+                    </div>
+                  )
+                })
+              )}
+            </CardContent>
+          </Card>
 
-          {/* ==================== BLOG AUTOMATION COLUMNS ==================== */}
-          <div className="flex-1 grid grid-cols-4 gap-4 min-h-0 shrink-0" style={{ minWidth: "960px" }}>
-            {/* Column 4: Blog Ideas */}
-            <KanbanColumn
-              title={`Blog Ideas (${unqueued.length})`}
-              action={
-                <Button size="sm" className="w-full mb-2 h-7 text-xs" onClick={handleGenerate} disabled={generating}>
-                  {generating && <Spinner className="mr-2" />}
-                  Generate
+          {/* Arrow: Best Alternate -> Sets */}
+          <ArrowButton onClick={handleDevelopSets} disabled={loadingSets} loading={loadingSets} count={selectedBestAlternateIds.size} label="Develop" />
+
+          {/* Column 3: Sets */}
+          <Card className="flex flex-col shrink-0 min-h-0" style={{ width: "220px" }}>
+            <CardHeader className="pb-1 pt-2 px-2 flex flex-row items-center justify-between space-y-0">
+              <CardTitle className="text-xs">Sets ({sets.length})</CardTitle>
+              {selectedSetIds.size > 0 && (
+                <Button size="sm" variant="destructive" onClick={handleDeleteSelectedSets} disabled={deletingSets} className="h-5 text-[10px] px-1">
+                  <Trash2 className="h-3 w-3" />
                 </Button>
-              }
-            >
+              )}
+            </CardHeader>
+            <CardContent className="flex-1 overflow-auto p-1 space-y-1">
+              {sets.length > 0 && (
+                <div className="flex items-center gap-1 text-[9px] text-muted-foreground pb-1 border-b">
+                  <input type="checkbox" checked={selectedSetIds.size === sets.length && sets.length > 0} onChange={(e) => { if (e.target.checked) { setSelectedSetIds(new Set(sets.map((s) => s.id))) } else { setSelectedSetIds(new Set()) } }} className="cursor-pointer" />
+                  <span>Select all</span>
+                </div>
+              )}
+              {sets.map((set) => {
+                const isSelected = selectedSetIds.has(set.id)
+                return (
+                  <div key={set.id} className={`border rounded p-1.5 cursor-pointer transition-colors text-[10px] ${isSelected ? "bg-muted/30 border-primary" : "hover:bg-muted/10"}`} onClick={() => handleToggleSetSelection(set.id)}>
+                    <div className="flex items-start gap-1">
+                      <input type="checkbox" checked={isSelected} onChange={() => handleToggleSetSelection(set.id)} onClick={(e) => e.stopPropagation()} className="mt-0.5 cursor-pointer" />
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium break-words">{set.primary_keyword}</div>
+                        <div className="text-[9px] text-muted-foreground">Vol: {set.primary_search_volume} | KD: {set.primary_keyword_difficulty}</div>
+                        <div className="pl-2 border-l border-muted mt-0.5 text-[9px] text-muted-foreground">
+                          {set.secondaries && set.secondaries.length > 0 ? set.secondaries.map((sec, j) => <div key={j} className="truncate">{sec.keyword}</div>) : <div className="italic">No secondaries</div>}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </CardContent>
+          </Card>
+
+          {/* Arrow: Sets -> Blog Ideas */}
+          <ArrowButton onClick={handleGenerateBlogIdeas} disabled={generatingBlogIdeas} loading={generatingBlogIdeas} count={selectedSetIds.size} label="Generate" />
+
+          {/* Column 4: Blog Ideas (Unqueued) */}
+          <Card className="flex flex-col shrink-0 min-h-0" style={{ width: "220px" }}>
+            <CardHeader className="pb-1 pt-2 px-2 flex flex-row items-center justify-between space-y-0">
+              <CardTitle className="text-xs">Blog Ideas ({unqueued.length})</CardTitle>
+            </CardHeader>
+            <CardContent className="flex-1 overflow-auto p-1 space-y-1">
+              {unqueued.length > 0 && (
+                <div className="flex items-center gap-1 text-[9px] text-muted-foreground pb-1 border-b">
+                  <input type="checkbox" checked={selectedBlogIdeaIds.size === unqueued.length && unqueued.length > 0} onChange={(e) => { if (e.target.checked) { setSelectedBlogIdeaIds(new Set(unqueued.map((i) => i.id))) } else { setSelectedBlogIdeaIds(new Set()) } }} className="cursor-pointer" />
+                  <span>Select all</span>
+                </div>
+              )}
               {unqueued.map((idea) => (
-                <KanbanCard
-                  key={idea.id}
-                  idea={idea}
-                  onView={() => setSelectedIdea(idea)}
-                  onUpdateTopic={(topic) => handleTopicUpdate(idea.id, topic)}
-                  onDelete={() => handleDeleteBlogIdea(idea.id)}
-                  isEditable={true}
-                >
-                  <Button size="sm" variant="secondary" className="w-full mt-1 h-6 text-xs" onClick={() => handleQueue(idea.id)}>
-                    Queue
-                  </Button>
-                </KanbanCard>
+                <BlogIdeaCard key={idea.id} idea={idea} isSelected={selectedBlogIdeaIds.has(idea.id)} onToggleSelect={() => handleToggleBlogIdeaSelection(idea.id)} onView={() => setSelectedIdea(idea)} onUpdateTopic={(topic) => handleTopicUpdate(idea.id, topic)} onDelete={() => handleDeleteBlogIdea(idea.id)} isEditable showCheckbox />
               ))}
-            </KanbanColumn>
+            </CardContent>
+          </Card>
 
-            {/* Column 5: Queued */}
-            <KanbanColumn
-              title={`Queued (${queued.length})`}
-              action={
-                <Button size="sm" className="w-full mb-2 h-7 text-xs" onClick={handleProcessQueued} disabled={processing || queued.length === 0}>
-                  {processing && <Spinner className="mr-2" />}
-                  Process Queued
-                </Button>
-              }
-            >
+          {/* Arrow: Blog Ideas -> Queued */}
+          <ArrowButton onClick={handleQueueSelectedIdeas} disabled={queuingIdeas} loading={queuingIdeas} count={selectedBlogIdeaIds.size} label="Queue" />
+
+          {/* Column 5: Queued */}
+          <Card className="flex flex-col shrink-0 min-h-0" style={{ width: "220px" }}>
+            <CardHeader className="pb-1 pt-2 px-2 flex flex-row items-center justify-between space-y-0">
+              <CardTitle className="text-xs">Queued ({queued.length})</CardTitle>
+            </CardHeader>
+            <CardContent className="flex-1 overflow-auto p-1 space-y-1">
               {queued.map((idea) => (
-                <KanbanCard key={idea.id} idea={idea} onView={() => setSelectedIdea(idea)} />
+                <BlogIdeaCard key={idea.id} idea={idea} onView={() => setSelectedIdea(idea)} onDequeue={() => handleDequeueIdea(idea.id)} />
               ))}
-            </KanbanColumn>
+            </CardContent>
+          </Card>
 
-            {/* Column 6: In Progress */}
-            <KanbanColumn title={`In Progress (${inProgress.length})`}>
+          {/* Arrow: Queued -> In Progress */}
+          <ArrowButton onClick={handleProcessQueued} disabled={processing || queued.length === 0} loading={processing} count={queued.length} label="Process" />
+
+          {/* Column 6: In Progress */}
+          <Card className="flex flex-col shrink-0 min-h-0" style={{ width: "220px" }}>
+            <CardHeader className="pb-1 pt-2 px-2">
+              <CardTitle className="text-xs">In Progress ({inProgress.length})</CardTitle>
+            </CardHeader>
+            <CardContent className="flex-1 overflow-auto p-1 space-y-1">
               {inProgress.map((idea) => (
-                <KanbanCard
-                  key={idea.id}
-                  idea={idea}
-                  onView={() => setSelectedIdea(idea)}
-                  onViewProcess={() => handleViewProcess(idea)}
-                  onViewMonitor={() => handleViewMonitor(idea)}
-                  onAbort={() => handleAbortPipeline(idea)}
-                  isInProgress={true}
-                />
+                <BlogIdeaCard key={idea.id} idea={idea} onView={() => setSelectedIdea(idea)} onViewProcess={() => handleViewProcess(idea)} onViewMonitor={() => handleViewMonitor(idea)} onAbort={() => handleAbortPipeline(idea)} isInProgress />
               ))}
-            </KanbanColumn>
+            </CardContent>
+          </Card>
 
-            {/* Column 7: Done */}
-            <KanbanColumn title={`Done (${done.length})`}>
+          {/* Column 7: Done */}
+          <Card className="flex flex-col shrink-0 min-h-0 ml-2" style={{ width: "240px" }}>
+            <CardHeader className="pb-1 pt-2 px-2">
+              <CardTitle className="text-xs">Done ({done.length})</CardTitle>
+            </CardHeader>
+            <CardContent className="flex-1 overflow-auto p-1 space-y-1">
               {done.map((idea) => (
-                <KanbanCard
-                  key={idea.id}
-                  idea={idea}
-                  onView={() => setSelectedIdea(idea)}
-                  onViewPost={() => handleViewPost(idea)}
-                  onDownload={() => handleDownloadHtml(idea)}
-                  onReset={() => handleResetBlogIdea(idea)}
-                />
+                <BlogIdeaCard key={idea.id} idea={idea} onView={() => setSelectedIdea(idea)} onViewPost={() => handleViewPost(idea)} onDownload={() => handleDownloadHtml(idea)} onReset={() => handleResetBlogIdea(idea)} />
               ))}
-            </KanbanColumn>
-          </div>
+            </CardContent>
+          </Card>
         </div>
       </div>
 
@@ -970,21 +906,10 @@ export function BlogFactoryView({ client }: Props) {
   )
 }
 
-function KanbanColumn({ title, children, action }: { title: string; children: React.ReactNode; action?: React.ReactNode }) {
-  return (
-    <div className="bg-muted/10 rounded-lg border flex flex-col h-full max-h-full">
-      <div className="p-2 border-b bg-muted/20 font-semibold text-xs">{title}</div>
-      <div className="p-2 overflow-auto flex-1 space-y-2">
-        {action}
-        {children}
-      </div>
-    </div>
-  )
-}
-
-function KanbanCard({
+function BlogIdeaCard({
   idea,
-  children,
+  isSelected,
+  onToggleSelect,
   onView,
   onViewProcess,
   onViewPost,
@@ -994,11 +919,14 @@ function KanbanCard({
   onReset,
   onUpdateTopic,
   onDelete,
+  onDequeue,
   isInProgress,
   isEditable,
+  showCheckbox,
 }: {
   idea: BlogIdea
-  children?: React.ReactNode
+  isSelected?: boolean
+  onToggleSelect?: () => void
   onView: () => void
   onViewProcess?: () => void
   onViewPost?: () => void
@@ -1008,8 +936,10 @@ function KanbanCard({
   onReset?: () => void
   onUpdateTopic?: (topic: string) => void
   onDelete?: () => void
+  onDequeue?: () => void
   isInProgress?: boolean
   isEditable?: boolean
+  showCheckbox?: boolean
 }) {
   const [topic, setTopic] = useState(idea.topic)
   const [isEditing, setIsEditing] = useState(false)
@@ -1052,117 +982,64 @@ function KanbanCard({
   }
 
   return (
-    <div
-      className={`p-2 rounded border shadow-sm text-xs space-y-1 ${
-        isInProgress ? "bg-cyan-50 dark:bg-cyan-950/20 border-cyan-200 dark:border-cyan-800" : "bg-background"
-      }`}
-    >
-      {isEditable ? (
+    <div className={`p-1.5 rounded border text-[10px] space-y-1 ${isInProgress ? "bg-cyan-50 dark:bg-cyan-950/20 border-cyan-200 dark:border-cyan-800" : isSelected ? "bg-muted/30 border-primary" : "bg-background"}`}>
+      {showCheckbox && onToggleSelect ? (
         isEditing ? (
           <div className="flex gap-1 items-start">
-            <Input
-              value={topic}
-              onChange={(e) => setTopic(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") handleSave()
-                if (e.key === "Escape") handleCancelEdit()
-              }}
-              className="h-6 text-xs font-medium flex-1"
-              autoFocus
-            />
-            <button
-              onClick={handleSave}
-              disabled={isSaving}
-              className="p-1 hover:bg-green-100 dark:hover:bg-green-900/30 rounded text-green-600 dark:text-green-400 transition-colors shrink-0"
-              title="Save"
-            >
+            <Input value={topic} onChange={(e) => setTopic(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") handleSave(); if (e.key === "Escape") handleCancelEdit() }} className="h-5 text-[10px] font-medium flex-1" autoFocus />
+            <button onClick={handleSave} disabled={isSaving} className="p-0.5 hover:bg-green-100 dark:hover:bg-green-900/30 rounded text-green-600 dark:text-green-400 transition-colors shrink-0" title="Save">
               <Check className="h-3 w-3" />
             </button>
           </div>
         ) : (
           <div className="flex gap-1 items-start">
-            <div className="font-medium leading-tight flex-1 line-clamp-2">{idea.topic}</div>
-            <button
-              onClick={() => setIsEditing(true)}
-              className="p-1 hover:bg-muted rounded text-muted-foreground hover:text-foreground transition-colors shrink-0"
-              title="Edit title"
-            >
-              <Pencil className="h-3 w-3" />
-            </button>
-            <button
-              onClick={() => setShowDeleteDialog(true)}
-              className="p-1 hover:bg-destructive/10 rounded text-destructive transition-colors shrink-0"
-              title="Delete blog idea"
-            >
-              <Trash2 className="h-3 w-3" />
-            </button>
+            <input type="checkbox" checked={isSelected} onChange={onToggleSelect} className="mt-0.5 cursor-pointer shrink-0" />
+            <div className="font-medium leading-tight flex-1 break-words">{idea.topic}</div>
+            {isEditable && (
+              <>
+                <button onClick={() => setIsEditing(true)} className="p-0.5 hover:bg-muted rounded text-muted-foreground hover:text-foreground transition-colors shrink-0" title="Edit title">
+                  <Pencil className="h-2.5 w-2.5" />
+                </button>
+                <button onClick={() => setShowDeleteDialog(true)} className="p-0.5 hover:bg-destructive/10 rounded text-destructive transition-colors shrink-0" title="Delete blog idea">
+                  <Trash2 className="h-2.5 w-2.5" />
+                </button>
+              </>
+            )}
           </div>
         )
       ) : (
-        <div className="font-medium leading-tight line-clamp-2">{idea.topic}</div>
+        <div className="flex gap-1 items-start">
+          {onDequeue && (
+            <button onClick={onDequeue} className="p-0.5 hover:bg-muted rounded text-muted-foreground hover:text-foreground transition-colors shrink-0" title="Remove from queue">
+              <ChevronLeft className="h-3 w-3" />
+            </button>
+          )}
+          <div className="font-medium leading-tight flex-1 break-words">{idea.topic}</div>
+        </div>
       )}
-      <div className="flex justify-between items-center text-[10px] text-muted-foreground">
-        <Badge variant={idea.state === "failed" ? "destructive" : "outline"} className="text-[9px] h-4 px-1">
-          {idea.state}
-        </Badge>
-        <button onClick={onView} className="hover:underline text-primary">
-          Details
-        </button>
+      <div className="flex justify-between items-center text-[9px] text-muted-foreground">
+        <Badge variant={idea.state === "failed" ? "destructive" : "outline"} className="text-[8px] h-3.5 px-1">{idea.state}</Badge>
+        <button onClick={onView} className="hover:underline text-primary">Details</button>
       </div>
-      {isInProgress && onViewProcess && (
-        <Button size="sm" variant="outline" className="w-full h-5 text-[10px]" onClick={onViewProcess}>
-          View process
-        </Button>
-      )}
-      {isInProgress && onViewMonitor && (
-        <Button size="sm" variant="default" className="w-full h-5 text-[10px]" onClick={onViewMonitor}>
-          Open Monitor
-        </Button>
-      )}
-      {isInProgress && onAbort && (
-        <Button size="sm" variant="destructive" className="w-full h-5 text-[10px]" onClick={onAbort}>
-          Abort
-        </Button>
-      )}
-      {idea.state === "complete" && onViewPost && (
-        <Button size="sm" variant="default" className="w-full h-5 text-[10px]" onClick={onViewPost}>
-          View post
-        </Button>
-      )}
-      {idea.state === "complete" && onDownload && (
-        <Button size="sm" variant="outline" className="w-full h-5 text-[10px]" onClick={onDownload}>
-          Download HTML
-        </Button>
-      )}
-      {onReset && (
-        <Button size="sm" variant="outline" className="w-full h-5 text-[10px]" onClick={onReset}>
-          Reset
-        </Button>
-      )}
-      {children}
+      {isInProgress && onViewProcess && <Button size="sm" variant="outline" className="w-full h-5 text-[9px]" onClick={onViewProcess}>View process</Button>}
+      {isInProgress && onViewMonitor && <Button size="sm" variant="default" className="w-full h-5 text-[9px]" onClick={onViewMonitor}>Open Monitor</Button>}
+      {isInProgress && onAbort && <Button size="sm" variant="destructive" className="w-full h-5 text-[9px]" onClick={onAbort}>Abort</Button>}
+      {idea.state === "complete" && onViewPost && <Button size="sm" variant="default" className="w-full h-5 text-[9px]" onClick={onViewPost}>View post</Button>}
+      {idea.state === "complete" && onDownload && <Button size="sm" variant="outline" className="w-full h-5 text-[9px]" onClick={onDownload}>Download HTML</Button>}
+      {onReset && <Button size="sm" variant="outline" className="w-full h-5 text-[9px]" onClick={onReset}>Reset</Button>}
 
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Blog Idea</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete &quot;{idea.topic}&quot;? This will permanently delete the blog idea and all
-              associated artifacts. This action cannot be undone.
-            </AlertDialogDescription>
+            <AlertDialogDescription>Are you sure you want to delete &quot;{idea.topic}&quot;? This will permanently delete the blog idea and all associated artifacts. This action cannot be undone.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDeleteClick}
-              disabled={isDeleting}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {isDeleting ? "Deleting..." : "Delete"}
-            </AlertDialogAction>
+            <AlertDialogAction onClick={handleDeleteClick} disabled={isDeleting} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">{isDeleting ? "Deleting..." : "Delete"}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
     </div>
   )
 }
-
