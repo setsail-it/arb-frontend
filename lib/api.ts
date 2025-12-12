@@ -345,9 +345,10 @@ export const api = {
 
   // Blog Ideas
   getBlogIdeas: (clientId: string) => fetchJson<BlogIdea[]>(`/clients/${clientId}/blog-ideas`),
-  generateBlogIdeas: (clientId: string) =>
+  generateBlogIdeas: (clientId: string, keywordSetIds?: number[]) =>
     fetchJson<BlogIdea[]>(`/clients/${clientId}/blog-ideas/generate`, {
       method: "POST",
+      body: JSON.stringify({ keyword_set_ids: keywordSetIds }),
     }),
   updateBlogIdeaTopic: (clientId: string, ideaId: string, topic: string) =>
     fetchJson(`/clients/${clientId}/blog-ideas/${ideaId}`, {

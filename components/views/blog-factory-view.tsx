@@ -44,14 +44,14 @@ function ArrowButton({
   label: string
 }) {
   return (
-    <div className="flex flex-col items-center justify-center px-1 shrink-0">
+    <div className="flex flex-col items-center justify-center px-0.5 shrink-0">
       <Button
         size="sm"
         onClick={onClick}
         disabled={disabled || count === 0}
-        className="h-8 px-2 text-xs flex items-center gap-1"
+        className="h-7 px-2 text-xs flex items-center gap-0.5"
       >
-        {loading ? <Spinner className="h-3 w-3" /> : <ChevronRight className="h-4 w-4" />}
+        {loading ? <Spinner className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
         <span>{label}({count})</span>
       </Button>
     </div>
@@ -379,9 +379,14 @@ export function BlogFactoryView({ client }: Props) {
 
     setGeneratingBlogIdeas(true)
     try {
-      // Generate blog ideas from selected sets
-      const ideasData = await api.generateBlogIdeas(client.id)
-      setBlogIdeas(ideasData || [])
+      // Generate blog ideas from selected sets only
+      const ideasData = await api.generateBlogIdeas(client.id, Array.from(selectedSetIds))
+      // Merge new ideas with existing ones
+      setBlogIdeas((prev) => {
+        const existingIds = new Set(prev.map((i) => i.id))
+        const newIdeas = ideasData.filter((i) => !existingIds.has(i.id))
+        return [...prev, ...newIdeas]
+      })
       setSelectedSetIds(new Set())
     } catch (e) {
       console.error("Failed to generate blog ideas", e)
@@ -644,27 +649,27 @@ export function BlogFactoryView({ client }: Props) {
 
       {/* Horizontal scrollable container for all columns */}
       <div className="flex-1 overflow-x-auto min-h-0">
-        <div className="flex h-full" style={{ minWidth: "2200px" }}>
+        <div className="flex h-full gap-1" style={{ minWidth: "1900px" }}>
           {/* ==================== KEYWORD COLUMNS SECTION ==================== */}
-          <div className="flex flex-col gap-2 shrink-0" style={{ width: "240px" }}>
+          <div className="flex flex-col gap-1 shrink-0" style={{ width: "280px" }}>
             {/* Config bar */}
-            <div className="bg-background border rounded-lg p-2 shadow-sm">
-              <div className="grid grid-cols-2 gap-2">
-                <div className="flex flex-col gap-0.5">
-                  <label className="text-[10px] text-muted-foreground">Max KWs/Seed</label>
-                  <Input type="number" value={config.max_num_kws_per_seed} onChange={(e) => setConfig({ ...config, max_num_kws_per_seed: +e.target.value })} className="h-6 text-xs" />
+            <div className="bg-background border rounded p-2 shadow-sm">
+              <div className="grid grid-cols-2 gap-1.5">
+                <div className="flex flex-col">
+                  <label className="text-xs text-muted-foreground">Max KWs/Seed</label>
+                  <Input type="number" value={config.max_num_kws_per_seed} onChange={(e) => setConfig({ ...config, max_num_kws_per_seed: +e.target.value })} className="h-7 text-sm" />
                 </div>
-                <div className="flex flex-col gap-0.5">
-                  <label className="text-[10px] text-muted-foreground">Min Volume</label>
-                  <Input type="number" value={config.sv_min} onChange={(e) => setConfig({ ...config, sv_min: +e.target.value })} className="h-6 text-xs" />
+                <div className="flex flex-col">
+                  <label className="text-xs text-muted-foreground">Min Volume</label>
+                  <Input type="number" value={config.sv_min} onChange={(e) => setConfig({ ...config, sv_min: +e.target.value })} className="h-7 text-sm" />
                 </div>
-                <div className="flex flex-col gap-0.5">
-                  <label className="text-[10px] text-muted-foreground">Max KD</label>
-                  <Input type="number" value={config.kd_max} onChange={(e) => setConfig({ ...config, kd_max: +e.target.value })} className="h-6 text-xs" />
+                <div className="flex flex-col">
+                  <label className="text-xs text-muted-foreground">Max KD</label>
+                  <Input type="number" value={config.kd_max} onChange={(e) => setConfig({ ...config, kd_max: +e.target.value })} className="h-7 text-sm" />
                 </div>
-                <div className="flex flex-col gap-0.5">
-                  <label className="text-[10px] text-muted-foreground">Similarity</label>
-                  <Input type="number" step="0.01" value={config.sim_threshold} onChange={(e) => setConfig({ ...config, sim_threshold: +e.target.value })} className="h-6 text-xs" />
+                <div className="flex flex-col">
+                  <label className="text-xs text-muted-foreground">Similarity</label>
+                  <Input type="number" step="0.01" value={config.sim_threshold} onChange={(e) => setConfig({ ...config, sim_threshold: +e.target.value })} className="h-7 text-sm" />
                 </div>
               </div>
             </div>
@@ -673,46 +678,46 @@ export function BlogFactoryView({ client }: Props) {
             <Card className="flex flex-col flex-1 min-h-0">
               <CardHeader className="pb-1 pt-2 px-2 space-y-1">
                 <div className="flex flex-row items-center justify-between">
-                  <CardTitle className="text-xs">Ideas ({keywordIdeas.length})</CardTitle>
+                  <CardTitle className="text-sm">Ideas ({keywordIdeas.length})</CardTitle>
                   <div className="flex gap-1">
                     {selectedKeywordIds.size > 0 && (
-                      <Button size="sm" variant="destructive" onClick={handleDeleteSelectedKeywordIdeas} disabled={deletingIdeas} className="h-5 text-[10px] px-1">
-                        <Trash2 className="h-3 w-3" />
+                      <Button size="sm" variant="destructive" onClick={handleDeleteSelectedKeywordIdeas} disabled={deletingIdeas} className="h-6 px-1.5">
+                        <Trash2 className="h-3.5 w-3.5" />
                       </Button>
                     )}
-                    <Button size="sm" onClick={handleGenerateKeywordIdeas} disabled={generatingIdeas || loadingKeywordIdeas} className="h-5 text-[10px] px-2">
-                      {(generatingIdeas || loadingKeywordIdeas) && <Spinner className="mr-1 h-2 w-2" />}
+                    <Button size="sm" onClick={handleGenerateKeywordIdeas} disabled={generatingIdeas || loadingKeywordIdeas} className="h-6 text-xs px-2">
+                      {(generatingIdeas || loadingKeywordIdeas) && <Spinner className="mr-1 h-3 w-3" />}
                       Generate
                     </Button>
                   </div>
                 </div>
                 <div className="flex gap-1">
-                  <Input placeholder="Add keyword..." value={newKeyword} onChange={(e) => setNewKeyword(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !addingKeyword && newKeyword.trim()) handleAddKeyword() }} className="flex-1 h-5 text-[10px]" disabled={addingKeyword} />
-                  <Button size="sm" onClick={handleAddKeyword} disabled={addingKeyword || !newKeyword.trim()} variant="outline" className="h-5 text-[10px] px-1">
-                    {addingKeyword ? <Spinner className="h-2 w-2" /> : "Add"}
+                  <Input placeholder="Add keyword..." value={newKeyword} onChange={(e) => setNewKeyword(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !addingKeyword && newKeyword.trim()) handleAddKeyword() }} className="flex-1 h-6 text-xs" disabled={addingKeyword} />
+                  <Button size="sm" onClick={handleAddKeyword} disabled={addingKeyword || !newKeyword.trim()} variant="outline" className="h-6 text-xs px-2">
+                    {addingKeyword ? <Spinner className="h-3 w-3" /> : "Add"}
                   </Button>
                 </div>
               </CardHeader>
               <CardContent className="flex-1 overflow-auto p-0">
                 <div className="border-t">
-                  <table className="w-full text-[10px] text-left table-fixed">
-                    <thead className="text-[9px] text-muted-foreground bg-muted/50 sticky top-0">
+                  <table className="w-full text-xs text-left table-fixed">
+                    <thead className="text-xs text-muted-foreground bg-muted/50 sticky top-0">
                       <tr>
-                        <th className="px-1 py-0.5 w-5">
+                        <th className="px-1.5 py-1 w-6">
                           <input type="checkbox" checked={selectedKeywordIds.size === keywordIdeas.length && keywordIdeas.length > 0} onChange={(e) => { if (e.target.checked) { setSelectedKeywordIds(new Set(keywordIdeas.map((i) => i.id))) } else { setSelectedKeywordIds(new Set()) } }} className="cursor-pointer" />
                         </th>
-                        <th className="px-1 py-0.5">Keyword</th>
-                        <th className="px-1 py-0.5 text-right w-10">Vol</th>
-                        <th className="px-1 py-0.5 text-right w-7">KD</th>
+                        <th className="px-1.5 py-1">Keyword</th>
+                        <th className="px-1.5 py-1 text-right w-14">Vol</th>
+                        <th className="px-1.5 py-1 text-right w-8">KD</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y">
                       {keywordIdeas.map((idea) => (
                         <tr key={idea.id} className={selectedKeywordIds.has(idea.id) ? "bg-muted/30" : ""}>
-                          <td className="px-1 py-0.5 align-top"><input type="checkbox" checked={selectedKeywordIds.has(idea.id)} onChange={() => handleToggleKeywordSelection(idea.id)} className="cursor-pointer" /></td>
-                          <td className="px-1 py-0.5 break-words">{idea.keyword}</td>
-                          <td className="px-1 py-0.5 text-right text-muted-foreground whitespace-nowrap align-top">{idea.search_volume?.toLocaleString() ?? "-"}</td>
-                          <td className="px-1 py-0.5 text-right text-muted-foreground whitespace-nowrap align-top">{idea.keyword_difficulty ?? "-"}</td>
+                          <td className="px-1.5 py-1 align-top"><input type="checkbox" checked={selectedKeywordIds.has(idea.id)} onChange={() => handleToggleKeywordSelection(idea.id)} className="cursor-pointer" /></td>
+                          <td className="px-1.5 py-1 break-words">{idea.keyword}</td>
+                          <td className="px-1.5 py-1 text-right text-muted-foreground whitespace-nowrap align-top">{idea.search_volume?.toLocaleString() ?? "-"}</td>
+                          <td className="px-1.5 py-1 text-right text-muted-foreground whitespace-nowrap align-top">{idea.keyword_difficulty ?? "-"}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -726,28 +731,28 @@ export function BlogFactoryView({ client }: Props) {
           <ArrowButton onClick={handleFindBestAlternates} disabled={loadingBestAlternates} loading={loadingBestAlternates} count={selectedKeywordIds.size} label="Find" />
 
           {/* Column 2: Best Alternate */}
-          <Card className="flex flex-col shrink-0 min-h-0" style={{ width: "220px" }}>
+          <Card className="flex flex-col shrink-0 min-h-0" style={{ width: "240px" }}>
             <CardHeader className="pb-1 pt-2 px-2 flex flex-row items-center justify-between space-y-0">
-              <CardTitle className="text-xs">Best Alternate</CardTitle>
+              <CardTitle className="text-sm">Best Alternate</CardTitle>
               {selectedBestAlternateIds.size > 0 && (
-                <Button size="sm" variant="destructive" onClick={handleDeleteSelectedAlternates} disabled={deletingAlternates} className="h-5 text-[10px] px-1">
-                  <Trash2 className="h-3 w-3" />
+                <Button size="sm" variant="destructive" onClick={handleDeleteSelectedAlternates} disabled={deletingAlternates} className="h-6 px-1.5">
+                  <Trash2 className="h-3.5 w-3.5" />
                 </Button>
               )}
             </CardHeader>
-            <CardContent className="flex-1 overflow-auto p-1 space-y-1">
+            <CardContent className="flex-1 overflow-auto p-1.5 space-y-1.5">
               {bestAlternates.size === 0 ? (
-                <div className="text-[10px] text-muted-foreground text-center py-4">Select keywords and click Find →</div>
+                <div className="text-xs text-muted-foreground text-center py-4">Select keywords and click Find →</div>
               ) : (
                 Array.from(bestAlternates.entries()).map(([keywordId, result]) => {
                   const isSelected = selectedBestAlternateIds.has(keywordId)
                   return (
-                    <div key={keywordId} className={`border rounded p-1.5 cursor-pointer transition-colors text-[10px] ${isSelected ? "bg-muted/30 border-primary" : "hover:bg-muted/10"}`} onClick={() => handleToggleBestAlternateSelection(keywordId)}>
-                      <div className="flex items-start gap-1">
+                    <div key={keywordId} className={`border rounded p-2 cursor-pointer transition-colors text-xs ${isSelected ? "bg-muted/30 border-primary" : "hover:bg-muted/10"}`} onClick={() => handleToggleBestAlternateSelection(keywordId)}>
+                      <div className="flex items-start gap-1.5">
                         <input type="checkbox" checked={isSelected} onChange={() => handleToggleBestAlternateSelection(keywordId)} onClick={(e) => e.stopPropagation()} className="mt-0.5 cursor-pointer" />
                         <div className="flex-1 min-w-0">
                           <div className="font-medium break-words">{result.keyword}</div>
-                          <div className="text-[9px] text-muted-foreground">Vol: {result.search_volume?.toLocaleString() || "-"} | KD: {result.keyword_difficulty ?? "-"}{result.is_original && <span className="text-blue-500 ml-1">(Orig)</span>}</div>
+                          <div className="text-xs text-muted-foreground mt-0.5">Vol: {result.search_volume?.toLocaleString() || "-"} | KD: {result.keyword_difficulty ?? "-"}{result.is_original && <span className="text-blue-500 ml-1">(Orig)</span>}</div>
                         </div>
                       </div>
                     </div>
