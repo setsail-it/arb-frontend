@@ -677,7 +677,7 @@ export function BlogFactoryView({ client }: Props) {
                 </CardHeader>
                 <CardContent className="flex-1 overflow-auto p-0">
                   <div className="border-t">
-                    <table className="w-full text-xs text-left">
+                    <table className="w-full text-xs text-left table-fixed">
                       <thead className="text-[10px] text-muted-foreground bg-muted/50 sticky top-0">
                         <tr>
                           <th className="px-2 py-1 w-6">
@@ -695,14 +695,14 @@ export function BlogFactoryView({ client }: Props) {
                             />
                           </th>
                           <th className="px-2 py-1">Keyword</th>
-                          <th className="px-2 py-1 text-right">Vol</th>
-                          <th className="px-2 py-1 text-right">KD</th>
+                          <th className="px-2 py-1 text-right w-14">Vol</th>
+                          <th className="px-2 py-1 text-right w-10">KD</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y">
                         {keywordIdeas.map((idea) => (
                           <tr key={idea.id} className={selectedKeywordIds.has(idea.id) ? "bg-muted/30" : ""}>
-                            <td className="px-2 py-1">
+                            <td className="px-2 py-1 align-top">
                               <input
                                 type="checkbox"
                                 checked={selectedKeywordIds.has(idea.id)}
@@ -710,11 +710,11 @@ export function BlogFactoryView({ client }: Props) {
                                 className="cursor-pointer"
                               />
                             </td>
-                            <td className="px-2 py-1 truncate max-w-[100px]" title={idea.keyword}>{idea.keyword}</td>
-                            <td className="px-2 py-1 text-right text-muted-foreground">
+                            <td className="px-2 py-1 break-words">{idea.keyword}</td>
+                            <td className="px-2 py-1 text-right text-muted-foreground whitespace-nowrap align-top">
                               {idea.search_volume !== null && idea.search_volume !== undefined ? idea.search_volume.toLocaleString() : "-"}
                             </td>
-                            <td className="px-2 py-1 text-right text-muted-foreground">
+                            <td className="px-2 py-1 text-right text-muted-foreground whitespace-nowrap align-top">
                               {idea.keyword_difficulty !== null && idea.keyword_difficulty !== undefined ? idea.keyword_difficulty : "-"}
                             </td>
                           </tr>
