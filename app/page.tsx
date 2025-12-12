@@ -4,8 +4,7 @@ import { useState } from "react"
 import type { Client } from "@/types"
 import { ClientSelector } from "@/components/client-selector"
 import { ClientContextView } from "@/components/views/client-context-view"
-import { KeywordExplorerView } from "@/components/views/keyword-explorer-view"
-import { BloggerAutomationView } from "@/components/views/blogger-automation-view"
+import { BlogFactoryView } from "@/components/views/blog-factory-view"
 
 export default function ABSControlPanel() {
   const [selectedClient, setSelectedClient] = useState<Client | null>(null)
@@ -26,14 +25,9 @@ export default function ABSControlPanel() {
         <div className="space-y-1">
           <NavButton label="Client Context" active={activeTab === "context"} onClick={() => setActiveTab("context")} />
           <NavButton
-            label="Keyword Explorer"
-            active={activeTab === "keywords"}
-            onClick={() => setActiveTab("keywords")}
-          />
-          <NavButton
-            label="Blogger Automation"
-            active={activeTab === "automation"}
-            onClick={() => setActiveTab("automation")}
+            label="Blog Factory"
+            active={activeTab === "factory"}
+            onClick={() => setActiveTab("factory")}
           />
         </div>
       </div>
@@ -45,10 +39,9 @@ export default function ABSControlPanel() {
             Select a client from the sidebar to get started.
           </div>
         ) : (
-          <div className="flex-1 p-6 overflow-y-auto">
+          <div className="flex-1 p-6 overflow-hidden">
             {activeTab === "context" && <ClientContextView client={selectedClient} />}
-            {activeTab === "keywords" && <KeywordExplorerView client={selectedClient} />}
-            {activeTab === "automation" && <BloggerAutomationView client={selectedClient} />}
+            {activeTab === "factory" && <BlogFactoryView client={selectedClient} />}
           </div>
         )}
       </main>
