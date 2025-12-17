@@ -1,5 +1,5 @@
 import { BACKEND_BASE_URL } from "./config"
-import type { Client, ClientContext, KeywordIdea, KeywordCluster, KeywordSet, BlogIdea, BlogIdeaDebug, BestAlternateResult } from "@/types"
+import type { Client, ClientContext, DiscoveryDocument, KeywordIdea, KeywordCluster, KeywordSet, BlogIdea, BlogIdeaDebug, BestAlternateResult } from "@/types"
 
 class ApiError extends Error {
   status: number
@@ -547,4 +547,55 @@ export const api = {
     // Open download in new tab - browser will handle the file download
     window.open(`${baseUrl}/clients/${clientId}/blog-ideas/${blogIdeaId}/download`, "_blank")
   },
+
+  // Discovery Document
+  getDiscoveryDocument: async (clientId: string) => {
+    try {
+      return await fetchJson<DiscoveryDocument>(`/clients/${clientId}/discovery-document`)
+    } catch (e: any) {
+      if (e.status === 404) {
+        return {}
+      }
+      throw e
+    }
+  },
+  saveDiscoveryDocument: (clientId: string, data: DiscoveryDocument) =>
+    fetchJson<DiscoveryDocument>(`/clients/${clientId}/discovery-document`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  generateDiscoveryDocEditToken: (clientId: string) =>
+    fetchJson<DiscoveryDocument>(`/clients/${clientId}/discovery-document/generate-edit-token`, {
+      method: "POST",
+    }),
+  revokeDiscoveryDocEditToken: (clientId: string) =>
+    fetchJson<DiscoveryDocument>(`/clients/${clientId}/discovery-document/revoke-edit-token`, {
+      method: "DELETE",
+    }),
+
+  // Context Edit Token Management
+  generateContextEditToken: (clientId: string) =>
+    fetchJson<ClientContext>(`/clients/${clientId}/context/generate-edit-token`, {
+      method: "POST",
+    }),
+  revokeContextEditToken: (clientId: string) =>
+    fetchJson<ClientContext>(`/clients/${clientId}/context/revoke-edit-token`, {
+      method: "DELETE",
+    }),
+
+  // Public API (token-based, no auth)
+  getPublicDiscoveryDocument: (editToken: string) =>
+    fetchJson<DiscoveryDocument>(`/public/discovery-document/${editToken}`),
+  savePublicDiscoveryDocument: (editToken: string, data: DiscoveryDocument) =>
+    fetchJson<DiscoveryDocument>(`/public/discovery-document/${editToken}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  getPublicContext: (editToken: string) =>
+    fetchJson<ClientContext>(`/public/context/${editToken}`),
+  savePublicContext: (editToken: string, data: ClientContext) =>
+    fetchJson<ClientContext>(`/public/context/${editToken}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
 }
