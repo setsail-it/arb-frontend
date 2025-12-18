@@ -89,32 +89,6 @@ export function ClientContextView({ client }: Props) {
     }
   }, [flowState.discoveryDoc, flowState.generalContext])
 
-  useEffect(() => {
-    const loadExistingData = async () => {
-      try {
-        const doc = await api.getDiscoveryDocument(client.id)
-        if (doc && doc.domain) {
-          setDomainInput(doc.domain)
-          setFlowState(prev => ({
-            ...prev,
-            domain: "complete",
-            discoveryDoc: doc.client_name ? "complete" : "idle",
-          }))
-        }
-        const context = await api.getContext(client.id)
-        if (context && (context.overview || context.writing_rules)) {
-          setFlowState(prev => ({
-            ...prev,
-            generalContext: "complete",
-          }))
-        }
-      } catch (e) {
-        // No existing data
-      }
-    }
-    loadExistingData()
-  }, [client.id])
-
   // Polling interval refs
   const ddPollingRef = useRef<NodeJS.Timeout | null>(null)
   const gcPollingRef = useRef<NodeJS.Timeout | null>(null)
@@ -127,7 +101,12 @@ export function ClientContextView({ client }: Props) {
     }
   }, [])
 
+  // Define polling functions first so they can be used in useEffect
   const pollDDStatus = () => {
+    // Clear any existing polling first
+    if (ddPollingRef.current) {
+      clearInterval(ddPollingRef.current)
+    }
     ddPollingRef.current = setInterval(async () => {
       try {
         const status = await api.getInitialDraftStatus(client.id)
@@ -150,6 +129,10 @@ export function ClientContextView({ client }: Props) {
   }
 
   const pollGCStatus = () => {
+    // Clear any existing polling first
+    if (gcPollingRef.current) {
+      clearInterval(gcPollingRef.current)
+    }
     gcPollingRef.current = setInterval(async () => {
       try {
         const status = await api.getContextFetchStatus(client.id)
@@ -170,6 +153,87 @@ export function ClientContextView({ client }: Props) {
       }
     }, 3000) // Poll every 3 seconds
   }
+
+  // Load existing data AND check for in-progress jobs on mount
+  useEffect(() => {
+    const loadExistingDataAndJobStatus = async () => {
+      try {
+        // First check job statuses
+        let ddJobStatus: string | null = null
+        let gcJobStatus: string | null = null
+        
+        try {
+          const ddStatus = await api.getInitialDraftStatus(client.id)
+          ddJobStatus = ddStatus.status
+          console.log("[Load] DD job status:", ddJobStatus)
+        } catch (e) {
+          // No DD job found
+        }
+        
+        try {
+          const gcStatus = await api.getContextFetchStatus(client.id)
+          gcJobStatus = gcStatus.status
+          console.log("[Load] GC job status:", gcJobStatus)
+        } catch (e) {
+          // No GC job found
+        }
+        
+        // Load document data
+        let doc: any = null
+        try {
+          doc = await api.getDiscoveryDocument(client.id)
+          if (doc && doc.domain) {
+            setDomainInput(doc.domain)
+          }
+        } catch (e) {
+          // No document
+        }
+        
+        // Determine DD state based on job status first, then data
+        let ddState: ComponentStatus = "idle"
+        if (ddJobStatus === "running" || ddJobStatus === "pending") {
+          ddState = "processing"
+          // Resume polling for this job
+          pollDDStatus()
+        } else if (ddJobStatus === "error") {
+          ddState = "error"
+        } else if (ddJobStatus === "complete" || (doc && doc.client_name)) {
+          ddState = "complete"
+        }
+        
+        // Determine GC state based on job status first, then data
+        let gcState: ComponentStatus = "idle"
+        if (gcJobStatus === "running" || gcJobStatus === "pending") {
+          gcState = "processing"
+          // Resume polling for this job
+          pollGCStatus()
+        } else if (gcJobStatus === "error") {
+          gcState = "error"
+        } else {
+          // Check if context data exists
+          try {
+            const context = await api.getContext(client.id)
+            if (context && (context.overview || context.writing_rules)) {
+              gcState = "complete"
+            }
+          } catch (e) {
+            // No context data
+          }
+        }
+        
+        setFlowState(prev => ({
+          ...prev,
+          domain: doc?.domain ? "complete" : "idle",
+          discoveryDoc: ddState,
+          generalContext: gcState,
+        }))
+        
+      } catch (e) {
+        console.error("Error loading existing data:", e)
+      }
+    }
+    loadExistingDataAndJobStatus()
+  }, [client.id])
 
   const handleActivate = async () => {
     if (!domainInput.trim()) return
@@ -320,15 +384,15 @@ export function ClientContextView({ client }: Props) {
             />
             <Button
               onClick={handleActivate}
-              disabled={!domainInput.trim() || isActivating}
+              disabled={!domainInput.trim() || isActivating || flowState.discoveryDoc === "processing" || flowState.generalContext === "processing"}
               className="w-full mt-3 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white border-0"
             >
-              {isActivating ? (
+              {(isActivating || flowState.discoveryDoc === "processing" || flowState.generalContext === "processing") ? (
                 <Spinner className="h-4 w-4 mr-2" />
               ) : (
                 <Zap className="h-4 w-4 mr-2" />
               )}
-              {isActivating ? "Processing..." : "Activate Pipeline"}
+              {(isActivating || flowState.discoveryDoc === "processing" || flowState.generalContext === "processing") ? "Processing..." : "Activate Pipeline"}
             </Button>
           </PipelineCard>
         </div>
