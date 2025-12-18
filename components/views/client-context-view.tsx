@@ -7,18 +7,18 @@ import { DiscoveryDocumentForm } from "@/components/views/discovery-document-for
 import { GeneralContextForm } from "@/components/views/general-context-form"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Spinner } from "@/components/ui/spinner"
 import { 
-  ArrowRight, 
   ArrowLeft,
   FileText, 
   Database, 
   Shield,
   Presentation,
   FileStack,
-  Lightbulb,
-  Play
+  Globe,
+  Zap,
+  ChevronRight
 } from "lucide-react"
 
 interface Props {
@@ -50,7 +50,6 @@ export function ClientContextView({ client }: Props) {
     serviceDocs: "idle",
   })
 
-  // Load existing discovery doc to check if domain exists
   useEffect(() => {
     const loadExistingData = async () => {
       try {
@@ -89,7 +88,6 @@ export function ClientContextView({ client }: Props) {
     }))
 
     try {
-      // Trigger Discovery Doc generation
       await api.generateInitialDraft(client.id, domainInput.trim())
       setFlowState(prev => ({ ...prev, discoveryDoc: "complete" }))
     } catch (e) {
@@ -98,7 +96,6 @@ export function ClientContextView({ client }: Props) {
     }
 
     try {
-      // Trigger General Context fetch
       await api.fetchContextFromSite(client.id, domainInput.trim())
       setFlowState(prev => ({ ...prev, generalContext: "complete" }))
     } catch (e) {
@@ -111,399 +108,368 @@ export function ClientContextView({ client }: Props) {
 
   const handleStrategyGenerate = async () => {
     setFlowState(prev => ({ ...prev, strategyDoc: "processing" }))
-    // Stub: Would call Perplexity API
     await new Promise(resolve => setTimeout(resolve, 2000))
     setFlowState(prev => ({ ...prev, strategyDoc: "complete" }))
   }
 
   const handleGammaGenerate = async () => {
     setFlowState(prev => ({ ...prev, gamma: "processing" }))
-    // Stub: Would generate Gamma presentation
     await new Promise(resolve => setTimeout(resolve, 2000))
     setFlowState(prev => ({ ...prev, gamma: "complete" }))
   }
 
   const handleServiceDocsGenerate = async () => {
     setFlowState(prev => ({ ...prev, serviceDocs: "processing" }))
-    // Stub: Would generate service documents
     await new Promise(resolve => setTimeout(resolve, 2000))
     setFlowState(prev => ({ ...prev, serviceDocs: "complete" }))
   }
 
-  // Render detail views with back button
+  // Detail views
   if (activeView !== "admin") {
     return (
       <div className="h-full overflow-auto">
-        <div className="mb-4">
-          <Button 
-            variant="ghost" 
-            onClick={() => setActiveView("admin")}
-            className="gap-2"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Back to Admin View
-          </Button>
-        </div>
+        <Button 
+          variant="ghost" 
+          onClick={() => setActiveView("admin")}
+          className="mb-6 gap-2 text-muted-foreground hover:text-foreground"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Back to Pipeline
+        </Button>
         
         {activeView === "discovery" && (
           <DiscoveryDocumentForm client={client} initialDomain={domainInput} />
         )}
-        
         {activeView === "general" && (
           <GeneralContextForm client={client} />
         )}
-        
         {activeView === "ground-truth" && (
-          <GroundTruthView />
+          <StubView 
+            title="Ground Truth" 
+            description="Manual override and verification of AI-generated content"
+            icon={<Shield className="h-8 w-8" />}
+          />
         )}
-        
         {activeView === "strategy" && (
-          <StrategyDocView onGenerate={handleStrategyGenerate} status={flowState.strategyDoc} />
+          <StubView 
+            title="Strategy Document" 
+            description="AI-powered strategic analysis using Perplexity"
+            icon={<FileStack className="h-8 w-8" />}
+            onGenerate={handleStrategyGenerate}
+            status={flowState.strategyDoc}
+          />
         )}
-        
         {activeView === "gamma" && (
-          <GammaPresentationView onGenerate={handleGammaGenerate} status={flowState.gamma} />
+          <StubView 
+            title="Gamma Presentation" 
+            description="Auto-generated slide deck presentation"
+            icon={<Presentation className="h-8 w-8" />}
+            onGenerate={handleGammaGenerate}
+            status={flowState.gamma}
+          />
         )}
-        
         {activeView === "service-docs" && (
-          <ServiceDocsView onGenerate={handleServiceDocsGenerate} status={flowState.serviceDocs} />
+          <StubView 
+            title="Service Documents" 
+            description="Client deliverable documents"
+            icon={<FileStack className="h-8 w-8" />}
+            onGenerate={handleServiceDocsGenerate}
+            status={flowState.serviceDocs}
+          />
         )}
       </div>
     )
   }
 
   return (
-    <div className="h-full overflow-auto p-6">
-      <h2 className="text-2xl font-bold mb-6">Client Data Pipeline</h2>
-      
-      {/* Flow Diagram */}
-      <div className="relative min-h-[500px]">
-        {/* Row 1: Domain Input */}
-        <div className="flex items-start gap-4 mb-8">
-          {/* Domain Input Node */}
-          <FlowNode
-            title="Domain / About Company"
-            icon={<Lightbulb className="h-5 w-5" />}
+    <div className="h-full overflow-auto p-8 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
+      {/* Header */}
+      <div className="mb-10">
+        <h1 className="text-3xl font-bold text-white mb-2">Client Data Pipeline</h1>
+        <p className="text-slate-400">Orchestrate your client onboarding workflow</p>
+      </div>
+
+      {/* Main Pipeline Flow */}
+      <div className="space-y-8">
+        
+        {/* Stage 1: Input */}
+        <div className="flex items-center gap-6">
+          <StageLabel number={1} label="Input" />
+          <PipelineCard
+            title="Domain / Company Info"
+            icon={<Globe className="h-5 w-5" />}
             status={flowState.domain}
-            className="w-72"
+            className="flex-1 max-w-md"
           >
             <Textarea
-              placeholder="Enter domain name (e.g., acme.com) or brief company description..."
+              placeholder="Enter domain (e.g., acme.com) or company description..."
               value={domainInput}
               onChange={(e) => setDomainInput(e.target.value)}
-              className="min-h-[80px] text-sm"
+              className="bg-slate-800/50 border-slate-700 text-white placeholder:text-slate-500 min-h-[60px] resize-none"
             />
-          </FlowNode>
-
-          {/* Activate Arrow */}
-          <div className="flex items-center self-center mt-8">
             <Button
               onClick={handleActivate}
               disabled={!domainInput.trim() || isActivating}
-              className="gap-2 bg-blue-600 hover:bg-blue-700"
+              className="w-full mt-3 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white border-0"
             >
               {isActivating ? (
-                <Spinner className="h-4 w-4" />
+                <Spinner className="h-4 w-4 mr-2" />
               ) : (
-                <Play className="h-4 w-4" />
+                <Zap className="h-4 w-4 mr-2" />
               )}
-              Activate
+              {isActivating ? "Processing..." : "Activate Pipeline"}
             </Button>
-            <ArrowRight className="h-6 w-6 text-slate-500 ml-2" />
-          </div>
+          </PipelineCard>
+        </div>
 
-          {/* Discovery Doc & General Context Column */}
-          <div className="flex flex-col gap-4">
-            <FlowNode
-              title="Discovery Doc"
+        {/* Connection Line */}
+        <ConnectionLine active={flowState.domain === "complete"} />
+
+        {/* Stage 2: Research */}
+        <div className="flex items-start gap-6">
+          <StageLabel number={2} label="Research" />
+          <div className="flex gap-4">
+            <PipelineCard
+              title="Discovery Document"
+              subtitle="Client research & profile"
               icon={<FileText className="h-5 w-5" />}
               status={flowState.discoveryDoc}
               onClick={() => setActiveView("discovery")}
               clickable
             />
-            <FlowNode
+            <PipelineCard
               title="General Context"
+              subtitle="Writing rules & overview"
               icon={<Database className="h-5 w-5" />}
               status={flowState.generalContext}
               onClick={() => setActiveView("general")}
               clickable
             />
           </div>
+        </div>
 
-          {/* Arrow from Discovery Doc */}
-          <div className="flex items-start pt-6">
-            <ArrowRight className="h-6 w-6 text-slate-500" />
-          </div>
+        {/* Connection Line */}
+        <ConnectionLine active={flowState.discoveryDoc === "complete"} />
 
-          {/* Strategy Doc */}
-          <div className="pt-0">
-            <FlowNode
-              title="Strategy Doc"
-              icon={<FileStack className="h-5 w-5" />}
-              status={flowState.strategyDoc}
-              onClick={() => setActiveView("strategy")}
-              clickable
-              subtitle="Perplexity Analysis"
-            />
-          </div>
+        {/* Stage 3: Strategy */}
+        <div className="flex items-center gap-6">
+          <StageLabel number={3} label="Strategy" />
+          <PipelineCard
+            title="Strategy Document"
+            subtitle="Perplexity AI analysis"
+            icon={<FileStack className="h-5 w-5" />}
+            status={flowState.strategyDoc}
+            onClick={() => setActiveView("strategy")}
+            clickable
+          />
+        </div>
 
-          {/* Arrow */}
-          <div className="flex items-start pt-6">
-            <ArrowRight className="h-6 w-6 text-slate-500" />
-          </div>
+        {/* Connection Line */}
+        <ConnectionLine active={flowState.strategyDoc === "complete"} />
 
-          {/* Gamma Presentation */}
-          <div className="pt-0">
-            <FlowNode
+        {/* Stage 4: Output */}
+        <div className="flex items-start gap-6">
+          <StageLabel number={4} label="Output" />
+          <div className="flex gap-4">
+            <PipelineCard
               title="Gamma Presentation"
+              subtitle="Slide deck"
               icon={<Presentation className="h-5 w-5" />}
               status={flowState.gamma}
               onClick={() => setActiveView("gamma")}
               clickable
-              subtitle="Slide Deck"
             />
-          </div>
-
-          {/* Arrow */}
-          <div className="flex items-start pt-6">
-            <ArrowRight className="h-6 w-6 text-slate-500" />
-          </div>
-
-          {/* Service Docs */}
-          <div className="pt-0">
-            <FlowNode
-              title="Service Docs"
+            <PipelineCard
+              title="Service Documents"
+              subtitle="Deliverables"
               icon={<FileStack className="h-5 w-5" />}
               status={flowState.serviceDocs}
               onClick={() => setActiveView("service-docs")}
               clickable
-              subtitle="Deliverables"
             />
           </div>
         </div>
+      </div>
 
-        {/* Ground Truth - Island */}
-        <div className="absolute bottom-4 right-4">
-          <FlowNode
-            title="Ground Truth"
-            icon={<Shield className="h-5 w-5" />}
-            status="idle"
-            onClick={() => setActiveView("ground-truth")}
-            clickable
-            subtitle="Manual Override"
-            isIsland
-          />
-        </div>
+      {/* Ground Truth - Floating Card */}
+      <div className="fixed bottom-8 right-8">
+        <PipelineCard
+          title="Ground Truth"
+          subtitle="Manual override"
+          icon={<Shield className="h-5 w-5" />}
+          status="idle"
+          onClick={() => setActiveView("ground-truth")}
+          clickable
+          floating
+        />
       </div>
 
       {/* Legend */}
-      <div className="mt-8 flex gap-6 text-sm text-muted-foreground">
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded-full bg-slate-500" />
-          <span>Not Started</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded-full bg-blue-500 animate-pulse" />
-          <span>Processing</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded-full bg-emerald-500" />
-          <span>Complete</span>
-        </div>
+      <div className="fixed bottom-8 left-8 flex gap-6 text-sm">
+        <LegendItem color="bg-slate-600" label="Not Started" />
+        <LegendItem color="bg-violet-500" pulse label="Processing" />
+        <LegendItem color="bg-emerald-500" label="Complete" />
       </div>
     </div>
   )
 }
 
-// Flow Node Component
-interface FlowNodeProps {
+// Components
+
+function StageLabel({ number, label }: { number: number; label: string }) {
+  return (
+    <div className="w-20 flex-shrink-0 text-center">
+      <div className="w-10 h-10 mx-auto rounded-full bg-slate-800 border-2 border-slate-700 flex items-center justify-center text-slate-400 font-mono text-sm mb-1">
+        {number}
+      </div>
+      <span className="text-xs text-slate-500 uppercase tracking-wider">{label}</span>
+    </div>
+  )
+}
+
+function ConnectionLine({ active }: { active: boolean }) {
+  return (
+    <div className="flex items-center gap-6">
+      <div className="w-20 flex justify-center">
+        <div className={`w-0.5 h-8 ${active ? "bg-gradient-to-b from-emerald-500 to-emerald-500/20" : "bg-slate-700"}`} />
+      </div>
+      <ChevronRight className={`h-4 w-4 ${active ? "text-emerald-500" : "text-slate-700"}`} />
+    </div>
+  )
+}
+
+interface PipelineCardProps {
   title: string
+  subtitle?: string
   icon: React.ReactNode
   status: ComponentStatus
   onClick?: () => void
   clickable?: boolean
   children?: React.ReactNode
   className?: string
-  subtitle?: string
-  isIsland?: boolean
+  floating?: boolean
 }
 
-function FlowNode({ 
+function PipelineCard({ 
   title, 
+  subtitle,
   icon, 
   status, 
   onClick, 
   clickable, 
-  children, 
+  children,
   className = "",
-  subtitle,
-  isIsland
-}: FlowNodeProps) {
-  const statusStyles = {
-    idle: "border-slate-600 bg-slate-800/50",
-    processing: "border-blue-500 bg-blue-950/30 animate-pulse",
-    complete: "border-emerald-500 bg-emerald-950/30",
+  floating
+}: PipelineCardProps) {
+  const statusConfig = {
+    idle: {
+      border: "border-slate-700",
+      bg: "bg-slate-800/40",
+      iconBg: "bg-slate-700",
+      iconColor: "text-slate-400",
+      glow: "",
+    },
+    processing: {
+      border: "border-violet-500/50",
+      bg: "bg-violet-950/20",
+      iconBg: "bg-violet-600",
+      iconColor: "text-white",
+      glow: "shadow-lg shadow-violet-500/20 animate-pulse",
+    },
+    complete: {
+      border: "border-emerald-500/50",
+      bg: "bg-emerald-950/20",
+      iconBg: "bg-emerald-600",
+      iconColor: "text-white",
+      glow: "shadow-lg shadow-emerald-500/10",
+    },
   }
 
-  const iconColors = {
-    idle: "text-slate-400",
-    processing: "text-blue-400",
-    complete: "text-emerald-400",
-  }
+  const config = statusConfig[status]
 
   return (
     <Card 
       className={`
-        ${statusStyles[status]} 
-        ${clickable ? "cursor-pointer hover:border-opacity-100 transition-all hover:scale-105" : ""}
-        ${isIsland ? "border-dashed" : ""}
-        border-2 ${className}
+        ${config.border} ${config.bg} ${config.glow}
+        ${clickable ? "cursor-pointer hover:scale-[1.02] hover:border-opacity-100" : ""}
+        ${floating ? "border-dashed" : ""}
+        transition-all duration-200 backdrop-blur-sm
+        ${className}
       `}
       onClick={clickable ? onClick : undefined}
     >
-      <CardHeader className="pb-2 pt-4 px-4">
-        <CardTitle className="text-sm font-medium flex items-center gap-2">
-          <span className={iconColors[status]}>{icon}</span>
-          {title}
-        </CardTitle>
-        {subtitle && (
-          <p className="text-xs text-muted-foreground">{subtitle}</p>
-        )}
-      </CardHeader>
-      {children && (
-        <CardContent className="pt-0 px-4 pb-4">
-          {children}
-        </CardContent>
-      )}
+      <CardContent className="p-4">
+        <div className="flex items-start gap-3">
+          <div className={`${config.iconBg} ${config.iconColor} p-2 rounded-lg flex-shrink-0`}>
+            {icon}
+          </div>
+          <div className="flex-1 min-w-0">
+            <h3 className="font-medium text-white text-sm">{title}</h3>
+            {subtitle && (
+              <p className="text-xs text-slate-400 mt-0.5">{subtitle}</p>
+            )}
+            {children && <div className="mt-3">{children}</div>}
+          </div>
+          {clickable && (
+            <ChevronRight className="h-4 w-4 text-slate-500 flex-shrink-0 mt-1" />
+          )}
+        </div>
+      </CardContent>
     </Card>
   )
 }
 
-// Stub Views
-function GroundTruthView() {
+function LegendItem({ color, label, pulse }: { color: string; label: string; pulse?: boolean }) {
   return (
-    <div className="space-y-4">
-      <h2 className="text-2xl font-bold">Ground Truth</h2>
-      <Card className="border-dashed">
-        <CardContent className="py-12 text-center">
-          <Shield className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-          <p className="text-muted-foreground">
-            Ground Truth allows manual override of AI-generated content.
-          </p>
-          <p className="text-sm text-muted-foreground mt-2">
-            Coming soon...
-          </p>
-        </CardContent>
-      </Card>
+    <div className="flex items-center gap-2 text-slate-400">
+      <div className={`w-2.5 h-2.5 rounded-full ${color} ${pulse ? "animate-pulse" : ""}`} />
+      <span>{label}</span>
     </div>
   )
 }
 
-function StrategyDocView({ onGenerate, status }: { onGenerate: () => void; status: ComponentStatus }) {
-  return (
-    <div className="space-y-4">
-      <h2 className="text-2xl font-bold">Strategy Document</h2>
-      <Card>
-        <CardContent className="py-8">
-          <div className="text-center space-y-4">
-            <FileStack className="h-12 w-12 mx-auto text-muted-foreground" />
-            <p className="text-muted-foreground">
-              Strategy Document generation using Perplexity AI analysis.
-            </p>
-            <Button 
-              onClick={onGenerate} 
-              disabled={status === "processing"}
-              className="gap-2"
-            >
-              {status === "processing" ? (
-                <>
-                  <Spinner className="h-4 w-4" />
-                  Generating...
-                </>
-              ) : status === "complete" ? (
-                "Regenerate Strategy Doc"
-              ) : (
-                "Generate Strategy Doc"
-              )}
-            </Button>
-            {status === "complete" && (
-              <p className="text-sm text-emerald-500">✓ Strategy document generated (stub)</p>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-    </div>
-  )
+interface StubViewProps {
+  title: string
+  description: string
+  icon: React.ReactNode
+  onGenerate?: () => void
+  status?: ComponentStatus
 }
 
-function GammaPresentationView({ onGenerate, status }: { onGenerate: () => void; status: ComponentStatus }) {
+function StubView({ title, description, icon, onGenerate, status }: StubViewProps) {
   return (
-    <div className="space-y-4">
-      <h2 className="text-2xl font-bold">Gamma Presentation</h2>
-      <Card>
-        <CardContent className="py-8">
-          <div className="text-center space-y-4">
-            <Presentation className="h-12 w-12 mx-auto text-muted-foreground" />
-            <p className="text-muted-foreground">
-              Generate a professional slide deck presentation.
-            </p>
+    <div className="max-w-2xl mx-auto">
+      <Card className="border-slate-700 bg-slate-800/40">
+        <CardContent className="py-16 text-center">
+          <div className="w-16 h-16 mx-auto mb-6 rounded-2xl bg-slate-700 flex items-center justify-center text-slate-400">
+            {icon}
+          </div>
+          <h2 className="text-2xl font-bold text-white mb-2">{title}</h2>
+          <p className="text-slate-400 mb-8">{description}</p>
+          {onGenerate && (
             <Button 
-              onClick={onGenerate} 
+              onClick={onGenerate}
               disabled={status === "processing"}
-              className="gap-2"
+              className="bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500"
             >
               {status === "processing" ? (
                 <>
-                  <Spinner className="h-4 w-4" />
+                  <Spinner className="h-4 w-4 mr-2" />
                   Generating...
                 </>
               ) : status === "complete" ? (
-                "Regenerate Presentation"
+                "Regenerate"
               ) : (
-                "Generate Presentation"
+                "Generate"
               )}
             </Button>
-            {status === "complete" && (
-              <p className="text-sm text-emerald-500">✓ Presentation generated (stub)</p>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-    </div>
-  )
-}
-
-function ServiceDocsView({ onGenerate, status }: { onGenerate: () => void; status: ComponentStatus }) {
-  return (
-    <div className="space-y-4">
-      <h2 className="text-2xl font-bold">Service Documents</h2>
-      <Card>
-        <CardContent className="py-8">
-          <div className="text-center space-y-4">
-            <FileStack className="h-12 w-12 mx-auto text-muted-foreground" />
-            <p className="text-muted-foreground">
-              Generate service-specific deliverable documents.
-            </p>
-            <Button 
-              onClick={onGenerate} 
-              disabled={status === "processing"}
-              className="gap-2"
-            >
-              {status === "processing" ? (
-                <>
-                  <Spinner className="h-4 w-4" />
-                  Generating...
-                </>
-              ) : status === "complete" ? (
-                "Regenerate Service Docs"
-              ) : (
-                "Generate Service Docs"
-              )}
-            </Button>
-            {status === "complete" && (
-              <p className="text-sm text-emerald-500">✓ Service documents generated (stub)</p>
-            )}
-          </div>
+          )}
+          {status === "complete" && (
+            <p className="mt-4 text-sm text-emerald-400">✓ Generated successfully (stub)</p>
+          )}
+          {!onGenerate && (
+            <p className="text-sm text-slate-500">Coming soon</p>
+          )}
         </CardContent>
       </Card>
     </div>
