@@ -60,6 +60,9 @@ export interface DiscoveryDocument {
   created_at?: string
   updated_at?: string
 
+  // Domain (entered when creating client or manually)
+  domain?: string | null
+
   // Section 0: Meta/Header
   client_name?: string | null
   discovery_date?: string | null

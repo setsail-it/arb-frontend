@@ -30,6 +30,7 @@ export function ClientSelector({ selectedClient, onSelectClient, onClientDeleted
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [newClientName, setNewClientName] = useState("")
+  const [newClientDomain, setNewClientDomain] = useState("")
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [clientToDelete, setClientToDelete] = useState<Client | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
@@ -57,10 +58,11 @@ export function ClientSelector({ selectedClient, onSelectClient, onClientDeleted
     setIsLoading(true)
     setError(null)
     try {
-      const newClient = await api.createClient(newClientName)
+      const newClient = await api.createClient(newClientName, newClientDomain.trim() || undefined)
       setClients([...clients, newClient])
       onSelectClient(newClient)
       setNewClientName("")
+      setNewClientDomain("")
       setIsDialogOpen(false)
     } catch (e) {
       console.error("Failed to create client", e)
@@ -182,7 +184,13 @@ export function ClientSelector({ selectedClient, onSelectClient, onClientDeleted
         </DropdownMenuContent>
       </DropdownMenu>
 
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+      <Dialog open={isDialogOpen} onOpenChange={(open) => {
+        setIsDialogOpen(open)
+        if (!open) {
+          setNewClientName("")
+          setNewClientDomain("")
+        }
+      }}>
         <DialogTrigger asChild>
           <Button
             variant="ghost"
@@ -197,11 +205,31 @@ export function ClientSelector({ selectedClient, onSelectClient, onClientDeleted
           <DialogHeader>
             <DialogTitle>Add New Client</DialogTitle>
           </DialogHeader>
-          <div className="flex gap-2 mt-4">
-            <Input placeholder="Client Name" value={newClientName} onChange={(e) => setNewClientName(e.target.value)} />
-            <Button onClick={handleAddClient} disabled={isLoading}>
-              {isLoading ? "Adding..." : "Add"}
-            </Button>
+          <div className="space-y-4 mt-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Client Name *</label>
+              <Input 
+                placeholder="e.g. Acme Corp" 
+                value={newClientName} 
+                onChange={(e) => setNewClientName(e.target.value)} 
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Domain (optional)</label>
+              <Input 
+                placeholder="e.g. acme.com" 
+                value={newClientDomain} 
+                onChange={(e) => setNewClientDomain(e.target.value)} 
+              />
+              <p className="text-xs text-muted-foreground">
+                This will be saved to the Discovery Document
+              </p>
+            </div>
+            <div className="flex justify-end">
+              <Button onClick={handleAddClient} disabled={isLoading || !newClientName.trim()}>
+                {isLoading ? "Adding..." : "Add Client"}
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>

@@ -8,9 +8,20 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Spinner } from "@/components/ui/spinner"
-import { Plus, Trash2, Copy, Check, Link2 } from "lucide-react"
+import { Plus, Trash2, Copy, Check, Link2, Wand2, Globe } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 
 interface Props {
   client: Client
@@ -85,6 +96,165 @@ export function DiscoveryDocumentForm({ client, isPublicMode = false, editToken 
   const [error, setError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
   const [generatingToken, setGeneratingToken] = useState(false)
+  const [generatingDraft, setGeneratingDraft] = useState(false)
+
+  // Stub function to generate initial draft - fills "test" in all text fields
+  const handleGenerateInitialDraft = async () => {
+    setGeneratingDraft(true)
+    
+    // Stub: Fill all text fields with "test"
+    const draftDoc: DiscoveryDocument = {
+      ...doc,
+      // Keep existing domain and edit_token
+      domain: doc.domain,
+      edit_token: doc.edit_token,
+      
+      // Section 0: Meta/Header
+      client_name: "test",
+      contact_name: "test",
+      contact_title: "test",
+      contact_email: "test@test.com",
+      contact_phone: "123-456-7890",
+      industry: "test",
+      
+      // Section 1: Company Overview
+      primary_business: "test",
+      years_in_business: "test",
+      annual_revenue: "test",
+      num_employees: 10,
+      geographic_market: "test",
+      primary_goal_12_months: "test",
+      target_leads_per_month: 100,
+      target_leads_timeframe: "test",
+      target_cpl_amount: "test",
+      target_cpl_reasoning: "test",
+      qualified_lead_definition: "test",
+      customer_ltv: "test",
+      customer_ltv_calculation: "test",
+      sales_cycle_length: "test",
+      close_rate_percent: "test",
+      current_monthly_leads: 50,
+      current_lead_generation_method: "test",
+      current_sql_percent: "test",
+      what_is_working: "test",
+      budget_monthly: "test",
+      budget_quarterly: "test",
+      budget_annual: "test",
+      leadgen_budget_monthly: "test",
+      leadgen_budget_quarterly: "test",
+      leadgen_budget_annual: "test",
+      seasonal_peak_months: "test",
+      seasonal_slow_months: "test",
+      seasonal_details: "test",
+      
+      // Section 2: Target Audience
+      ideal_customer_description: "test",
+      decision_maker_titles: "test",
+      decision_authority_level: "C-Suite",
+      target_company_size: "test",
+      target_industries: "test",
+      geographic_focus: "test",
+      customer_age_range: "test",
+      customer_gender: "All",
+      customer_education: "Any",
+      customer_income_range: "test",
+      pain_point_1: "test",
+      pain_point_2: "test",
+      pain_point_3: "test",
+      goal_motivation_1: "test",
+      goal_motivation_2: "test",
+      goal_motivation_3: "test",
+      buying_process: "test",
+      
+      // Section 3: Value Proposition
+      differentiation: "test",
+      value_prop_1: "test",
+      value_prop_2: "test",
+      value_prop_3: "test",
+      why_choose_us: "test",
+      market_perception: "test",
+      brand_voice_other: "test",
+      messaging_theme_1: "test",
+      messaging_theme_2: "test",
+      messaging_theme_3: "test",
+      testimonials_available: "Yes",
+      testimonials_count: 5,
+      testimonials_examples: "test",
+      proof_customer_stories: "test",
+      proof_statistics: "test",
+      proof_awards: "test",
+      proof_notable_customers: "test",
+      
+      // Section 4: Competitive Landscape
+      competitor_1: "test",
+      competitor_2: "test",
+      competitor_3: "test",
+      competitor_strengths: "test",
+      competitive_advantages: "test",
+      
+      // Section 5: Services
+      services_not_wanted_details: "test",
+      
+      // Section 6: Digital Presence
+      website_url: "test.com",
+      website_status_other: "test",
+      website_monthly_visitors: 1000,
+      website_conversion_rate: "test",
+      website_main_issues: "test",
+      social_strategy: "test",
+      
+      // Section 7: Analytics
+      analytics_other: "test",
+      crm_name: "test",
+      crm_features_used: "test",
+      lead_data_tracked: "test",
+      conversion_tracking_status: "Yes – Fully set up",
+      conversion_tracking_details: "test",
+      crm_integration_possible: "Yes – CRM supports integrations",
+      crm_integration_details: "test",
+      
+      // Section 8: Tech Stack
+      tools_other: "test",
+      
+      // Section 9: Team
+      poc_name: "test",
+      poc_title: "test",
+      poc_email: "test@test.com",
+      poc_phone: "123-456-7890",
+      poc_availability: "test",
+      final_decision_name: "test",
+      final_decision_title: "test",
+      decision_timeline: "test",
+      resources_other: "test",
+      internal_resources_other: "test",
+      
+      // Section 10: Timeline
+      urgency_level: "Moderate",
+      first_leads_timeframe: "test",
+      ramp_up_timeframe: "test",
+      full_results_timeframe: "test",
+      success_indicator_1: "test",
+      success_indicator_2: "test",
+      success_indicator_3: "test",
+      exceed_expectations: "test",
+      concern_1: "test",
+      concern_2: "test",
+      concern_3: "test",
+      
+      // Section 11: Additional
+      regulatory_other: "test",
+      industry_keywords: "test",
+      seasonality_peak: "test",
+      seasonality_slow: "test",
+      seasonality_strategy: "test",
+      anything_else: "test",
+      success_definition: "test",
+      case_study_consent: "Yes",
+    }
+    
+    setDoc(draftDoc)
+    setGeneratingDraft(false)
+  }
 
   const loadDocument = async () => {
     setLoading(true)
@@ -265,36 +435,79 @@ export function DiscoveryDocumentForm({ client, isPublicMode = false, editToken 
         </Button>
       </div>
 
-      {/* Shareable Edit Link */}
+      {/* Domain & Actions Row */}
       {!isPublicMode && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Link2 className="h-5 w-5" />
-              Shareable Edit Link
-            </CardTitle>
-            <CardDescription>Share this link to allow external users to edit this document</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {doc.edit_token ? (
-              <div className="flex items-center gap-2">
-                <Input
-                  readOnly
-                  value={`${typeof window !== 'undefined' ? window.location.origin : ''}/public/discovery-document/${doc.edit_token}`}
-                  className="font-mono text-sm"
-                />
-                <Button variant="outline" size="icon" onClick={handleCopyEditLink}>
-                  {copied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Domain Input + Generate Initial Draft */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Globe className="h-4 w-4" />
+                Client Domain
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <Input
+                placeholder="e.g. acme.com"
+                value={doc.domain || ""}
+                onChange={(e) => setDoc({ ...doc, domain: e.target.value })}
+              />
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="outline" className="w-full" disabled={generatingDraft}>
+                    {generatingDraft && <Spinner className="mr-2" />}
+                    <Wand2 className="h-4 w-4 mr-2" />
+                    Generate Initial Draft
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Generate Initial Draft?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will delete and replace the current discovery document content. Any existing data will be lost. This action cannot be undone.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleGenerateInitialDraft}>
+                      Generate Draft
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </CardContent>
+          </Card>
+
+          {/* Shareable Edit Link */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Link2 className="h-4 w-4" />
+                Shareable Edit Link
+              </CardTitle>
+              <CardDescription className="text-sm">Share this link to allow external users to edit this document</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {doc.edit_token ? (
+                <div className="flex items-center gap-2">
+                  <Input
+                    readOnly
+                    value={`${typeof window !== 'undefined' ? window.location.origin : ''}/public/discovery-document/${doc.edit_token}`}
+                    className="font-mono text-sm"
+                  />
+                  <Button variant="outline" size="icon" onClick={handleCopyEditLink}>
+                    {copied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+                  </Button>
+                </div>
+              ) : (
+                <Button onClick={handleGenerateEditToken} disabled={generatingToken}>
+                  {generatingToken && <Spinner className="mr-2" />}
+                  Generate Edit Link
                 </Button>
-              </div>
-            ) : (
-              <Button onClick={handleGenerateEditToken} disabled={generatingToken}>
-                {generatingToken && <Spinner className="mr-2" />}
-                Generate Edit Link
-              </Button>
-            )}
-          </CardContent>
-        </Card>
+              )}
+            </CardContent>
+          </Card>
+        </div>
       )}
 
       {error && (

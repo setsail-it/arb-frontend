@@ -39,10 +39,10 @@ async function fetchJson<T>(endpoint: string, options?: RequestInit): Promise<T>
 export const api = {
   // Clients
   getClients: () => fetchJson<Client[]>("/clients"),
-  createClient: (name: string) =>
+  createClient: (name: string, domain?: string) =>
     fetchJson<Client>("/clients", {
       method: "POST",
-      body: JSON.stringify({ name }),
+      body: JSON.stringify({ name, domain }),
     }),
   deleteClient: (clientId: string) =>
     fetchJson(`/clients/${clientId}`, {
