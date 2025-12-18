@@ -58,7 +58,7 @@ function LoginForm() {
         <div className="mx-auto w-16 h-16 rounded-full bg-slate-800 flex items-center justify-center">
           <Lock className="w-8 h-8 text-slate-400" />
         </div>
-        <CardTitle className="text-2xl text-slate-100">ABS Control Panel</CardTitle>
+        <CardTitle className="text-2xl text-slate-100">Setsail AI Panel</CardTitle>
         <CardDescription className="text-slate-400">
           Enter the password to access the control panel
         </CardDescription>
@@ -116,7 +116,7 @@ function LoginFormFallback() {
         <div className="mx-auto w-16 h-16 rounded-full bg-slate-800 flex items-center justify-center">
           <Lock className="w-8 h-8 text-slate-400" />
         </div>
-        <CardTitle className="text-2xl text-slate-100">ABS Control Panel</CardTitle>
+        <CardTitle className="text-2xl text-slate-100">Setsail AI Panel</CardTitle>
         <CardDescription className="text-slate-400">
           Enter the password to access the control panel
         </CardDescription>

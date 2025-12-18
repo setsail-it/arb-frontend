@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import type { Client } from "@/types"
 import { api } from "@/lib/api"
 import { DiscoveryDocumentForm } from "@/components/views/discovery-document-form"
@@ -18,7 +18,8 @@ import {
   FileStack,
   Globe,
   Zap,
-  ChevronRight
+  ChevronRight,
+  Clock
 } from "lucide-react"
 
 interface Props {
@@ -37,6 +38,15 @@ interface FlowState {
   serviceDocs: ComponentStatus
 }
 
+function formatTime(seconds: number): string {
+  const isNegative = seconds < 0
+  const absSeconds = Math.abs(seconds)
+  const mins = Math.floor(absSeconds / 60)
+  const secs = absSeconds % 60
+  const formatted = `${mins}:${secs.toString().padStart(2, '0')}`
+  return isNegative ? `-${formatted}` : formatted
+}
+
 export function ClientContextView({ client }: Props) {
   const [activeView, setActiveView] = useState<ActiveView>("admin")
   const [domainInput, setDomainInput] = useState("")
@@ -49,6 +59,35 @@ export function ClientContextView({ client }: Props) {
     gamma: "idle",
     serviceDocs: "idle",
   })
+  
+  // Timer state for research phase (3 minutes = 180 seconds)
+  const [researchTimer, setResearchTimer] = useState<number | null>(null)
+  const timerIntervalRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Start/stop timer based on research status
+  useEffect(() => {
+    const isResearching = flowState.discoveryDoc === "processing" || flowState.generalContext === "processing"
+    const isComplete = flowState.discoveryDoc !== "processing" && flowState.generalContext !== "processing"
+    
+    if (isResearching && researchTimer === null) {
+      // Start timer at 3 minutes (180 seconds)
+      setResearchTimer(180)
+      timerIntervalRef.current = setInterval(() => {
+        setResearchTimer(prev => prev !== null ? prev - 1 : null)
+      }, 1000)
+    } else if (isComplete && timerIntervalRef.current) {
+      // Stop timer when both are complete
+      clearInterval(timerIntervalRef.current)
+      timerIntervalRef.current = null
+      setResearchTimer(null)
+    }
+    
+    return () => {
+      if (timerIntervalRef.current) {
+        clearInterval(timerIntervalRef.current)
+      }
+    }
+  }, [flowState.discoveryDoc, flowState.generalContext])
 
   useEffect(() => {
     const loadExistingData = async () => {
@@ -184,9 +223,17 @@ export function ClientContextView({ client }: Props) {
   return (
     <div className="h-full overflow-auto p-8 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
       {/* Header */}
-      <div className="mb-10">
-        <h1 className="text-3xl font-bold text-white mb-2">Client Data Pipeline</h1>
-        <p className="text-slate-400">Orchestrate your client onboarding workflow</p>
+      <div className="mb-10 flex items-start justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-white mb-2">Client Data Pipeline</h1>
+          <p className="text-slate-400">Orchestrate your client onboarding workflow</p>
+        </div>
+        {/* Legend */}
+        <div className="flex gap-6 text-sm">
+          <LegendItem color="bg-slate-600" label="Not Started" />
+          <LegendItem color="bg-violet-500" pulse label="Processing" />
+          <LegendItem color="bg-emerald-500" label="Complete" />
+        </div>
       </div>
 
       {/* Main Pipeline Flow */}
@@ -228,23 +275,34 @@ export function ClientContextView({ client }: Props) {
         {/* Stage 2: Research */}
         <div className="flex items-start gap-6">
           <StageLabel number={2} label="Research" />
-          <div className="flex gap-4">
-            <PipelineCard
-              title="Discovery Document"
-              subtitle="Client research & profile"
-              icon={<FileText className="h-5 w-5" />}
-              status={flowState.discoveryDoc}
-              onClick={() => setActiveView("discovery")}
-              clickable
-            />
-            <PipelineCard
-              title="General Context"
-              subtitle="Writing rules & overview"
-              icon={<Database className="h-5 w-5" />}
-              status={flowState.generalContext}
-              onClick={() => setActiveView("general")}
-              clickable
-            />
+          <div className="space-y-3">
+            <div className="flex gap-4">
+              <PipelineCard
+                title="Discovery Document"
+                subtitle="Client research & profile"
+                icon={<FileText className="h-5 w-5" />}
+                status={flowState.discoveryDoc}
+                onClick={() => setActiveView("discovery")}
+                clickable
+              />
+              <PipelineCard
+                title="General Context"
+                subtitle="Writing rules & overview"
+                icon={<Database className="h-5 w-5" />}
+                status={flowState.generalContext}
+                onClick={() => setActiveView("general")}
+                clickable
+              />
+            </div>
+            {/* Research Timer */}
+            {researchTimer !== null && (
+              <div className={`flex items-center gap-2 text-sm ${researchTimer < 0 ? 'text-amber-400' : 'text-violet-400'}`}>
+                <Clock className="h-4 w-4 animate-pulse" />
+                <span className="font-mono">
+                  Loading: {formatTime(researchTimer)}
+                </span>
+              </div>
+            )}
           </div>
         </div>
 
@@ -291,24 +349,25 @@ export function ClientContextView({ client }: Props) {
         </div>
       </div>
 
-      {/* Ground Truth - Floating Card */}
-      <div className="fixed bottom-8 right-8">
-        <PipelineCard
-          title="Ground Truth"
-          subtitle="Manual override"
-          icon={<Shield className="h-5 w-5" />}
-          status="idle"
-          onClick={() => setActiveView("ground-truth")}
-          clickable
-          floating
-        />
-      </div>
-
-      {/* Legend */}
-      <div className="fixed bottom-8 left-8 flex gap-6 text-sm">
-        <LegendItem color="bg-slate-600" label="Not Started" />
-        <LegendItem color="bg-violet-500" pulse label="Processing" />
-        <LegendItem color="bg-emerald-500" label="Complete" />
+      {/* Ground Truth - Standalone Section */}
+      <div className="mt-12 pt-8 border-t border-slate-800">
+        <div className="flex items-center gap-6">
+          <div className="w-20 flex-shrink-0 text-center">
+            <div className="w-10 h-10 mx-auto rounded-full bg-slate-800 border-2 border-dashed border-slate-600 flex items-center justify-center text-slate-500">
+              <Shield className="h-4 w-4" />
+            </div>
+            <span className="text-xs text-slate-500 uppercase tracking-wider mt-1 block">Manual</span>
+          </div>
+          <PipelineCard
+            title="Ground Truth"
+            subtitle="Manual override & verification"
+            icon={<Shield className="h-5 w-5" />}
+            status="idle"
+            onClick={() => setActiveView("ground-truth")}
+            clickable
+            floating
+          />
+        </div>
       </div>
     </div>
   )

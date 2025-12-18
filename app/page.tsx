@@ -14,7 +14,7 @@ export default function ABSControlPanel() {
     <div className="flex h-screen w-screen overflow-hidden bg-background">
       {/* Left Sidebar */}
       <div className="w-64 border-r bg-muted/10 flex flex-col p-4 space-y-6">
-        <div className="font-bold text-xl tracking-tight">ABS Control Panel</div>
+        <div className="font-bold text-xl tracking-tight">Setsail AI Panel</div>
 
         <ClientSelector
           selectedClient={selectedClient}
