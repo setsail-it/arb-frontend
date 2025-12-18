@@ -115,6 +115,62 @@ export function ClientContextView({ client }: Props) {
     loadExistingData()
   }, [client.id])
 
+  // Polling interval refs
+  const ddPollingRef = useRef<NodeJS.Timeout | null>(null)
+  const gcPollingRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Cleanup polling on unmount
+  useEffect(() => {
+    return () => {
+      if (ddPollingRef.current) clearInterval(ddPollingRef.current)
+      if (gcPollingRef.current) clearInterval(gcPollingRef.current)
+    }
+  }, [])
+
+  const pollDDStatus = () => {
+    ddPollingRef.current = setInterval(async () => {
+      try {
+        const status = await api.getInitialDraftStatus(client.id)
+        console.log("[DD Poll] Status:", status.status)
+        
+        if (status.status === "complete") {
+          clearInterval(ddPollingRef.current!)
+          ddPollingRef.current = null
+          setFlowState(prev => ({ ...prev, discoveryDoc: "complete" }))
+        } else if (status.status === "error") {
+          clearInterval(ddPollingRef.current!)
+          ddPollingRef.current = null
+          console.error("DD job error:", status.error_message)
+          setFlowState(prev => ({ ...prev, discoveryDoc: "error" }))
+        }
+      } catch (e) {
+        console.error("DD poll error:", e)
+      }
+    }, 3000) // Poll every 3 seconds
+  }
+
+  const pollGCStatus = () => {
+    gcPollingRef.current = setInterval(async () => {
+      try {
+        const status = await api.getContextFetchStatus(client.id)
+        console.log("[GC Poll] Status:", status.status)
+        
+        if (status.status === "complete") {
+          clearInterval(gcPollingRef.current!)
+          gcPollingRef.current = null
+          setFlowState(prev => ({ ...prev, generalContext: "complete" }))
+        } else if (status.status === "error") {
+          clearInterval(gcPollingRef.current!)
+          gcPollingRef.current = null
+          console.error("GC job error:", status.error_message)
+          setFlowState(prev => ({ ...prev, generalContext: "error" }))
+        }
+      } catch (e) {
+        console.error("GC poll error:", e)
+      }
+    }, 3000) // Poll every 3 seconds
+  }
+
   const handleActivate = async () => {
     if (!domainInput.trim()) return
     
@@ -126,22 +182,29 @@ export function ClientContextView({ client }: Props) {
       generalContext: "processing",
     }))
 
+    // Start both jobs in parallel (they return immediately now)
     try {
-      await api.generateInitialDraft(client.id, domainInput.trim())
-      setFlowState(prev => ({ ...prev, discoveryDoc: "complete" }))
+      const [ddResponse, gcResponse] = await Promise.all([
+        api.generateInitialDraft(client.id, domainInput.trim()),
+        api.fetchContextFromSiteAsync(client.id, domainInput.trim()),
+      ])
+      
+      console.log("[Activate] DD job started:", ddResponse)
+      console.log("[Activate] GC job started:", gcResponse)
+      
+      // Start polling for both
+      pollDDStatus()
+      pollGCStatus()
+      
     } catch (e) {
-      console.error("Discovery doc generation failed:", e)
-      setFlowState(prev => ({ ...prev, discoveryDoc: "error" }))
+      console.error("Failed to start jobs:", e)
+      setFlowState(prev => ({
+        ...prev,
+        discoveryDoc: "error",
+        generalContext: "error",
+      }))
     }
-
-    try {
-      await api.fetchContextFromSite(client.id, domainInput.trim())
-      setFlowState(prev => ({ ...prev, generalContext: "complete" }))
-    } catch (e) {
-      console.error("General context fetch failed:", e)
-      setFlowState(prev => ({ ...prev, generalContext: "error" }))
-    }
-
+    
     setIsActivating(false)
   }
 

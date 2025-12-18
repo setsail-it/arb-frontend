@@ -106,7 +106,7 @@ export function DiscoveryDocumentForm({ client, isPublicMode = false, editToken,
     }
   }, [initialDomain])
 
-  // Call the DD agent to research and fill in the discovery document
+  // Call the DD agent to research and fill in the discovery document (async with polling)
   const handleGenerateInitialDraft = async () => {
     if (!doc.domain) {
       setError("Please enter a domain name before generating the initial draft.")
@@ -117,11 +117,34 @@ export function DiscoveryDocumentForm({ client, isPublicMode = false, editToken,
     setError(null)
     
     try {
-      await api.generateInitialDraft(client.id, doc.domain)
-      // Refresh the page to show the updated document
-      window.location.reload()
+      // Start the job (returns immediately)
+      const response = await api.generateInitialDraft(client.id, doc.domain)
+      console.log("[DD Form] Job started:", response)
+      
+      // Poll for completion
+      const pollInterval = setInterval(async () => {
+        try {
+          const status = await api.getInitialDraftStatus(client.id)
+          console.log("[DD Form] Status:", status.status)
+          
+          if (status.status === "complete") {
+            clearInterval(pollInterval)
+            // Refresh the page to show the updated document
+            window.location.reload()
+          } else if (status.status === "error") {
+            clearInterval(pollInterval)
+            setError(status.error_message || "Failed to generate initial draft")
+            setGeneratingDraft(false)
+          }
+          // Keep polling if still running or pending
+        } catch (e: any) {
+          console.error("Poll error:", e)
+          // Don't clear interval on poll error - might be temporary
+        }
+      }, 3000) // Poll every 3 seconds
+      
     } catch (e: any) {
-      setError(e.message || "Failed to generate initial draft")
+      setError(e.message || "Failed to start initial draft generation")
       setGeneratingDraft(false)
     }
   }

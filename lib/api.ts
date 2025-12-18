@@ -75,6 +75,14 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ domain }),
     }),
+  // Async General Context Fetch
+  fetchContextFromSiteAsync: (clientId: string, domain: string) =>
+    fetchJson<{ job_id: string; status: string; message: string }>(`/clients/${clientId}/context/fetch-async`, {
+      method: "POST",
+      body: JSON.stringify({ domain }),
+    }),
+  getContextFetchStatus: (clientId: string) =>
+    fetchJson<{ job_id: string; status: string; error_message: string | null }>(`/clients/${clientId}/context/fetch-async/status`),
   fetchContextFromSiteStream: async (
     clientId: string,
     domain: string,
@@ -572,11 +580,14 @@ export const api = {
     fetchJson<DiscoveryDocument>(`/clients/${clientId}/discovery-document/revoke-edit-token`, {
       method: "DELETE",
     }),
+  // Async Discovery Document Generation
   generateInitialDraft: (clientId: string, domain: string) =>
-    fetchJson<{ success: boolean; message: string }>(`/clients/${clientId}/discovery-document/generate-initial-draft`, {
+    fetchJson<{ job_id: string; status: string; message: string }>(`/clients/${clientId}/discovery-document/generate-initial-draft`, {
       method: "POST",
       body: JSON.stringify({ domain }),
     }),
+  getInitialDraftStatus: (clientId: string) =>
+    fetchJson<{ job_id: string; status: string; error_message: string | null }>(`/clients/${clientId}/discovery-document/generate-initial-draft/status`),
 
   // Context Edit Token Management
   generateContextEditToken: (clientId: string) =>
