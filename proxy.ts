@@ -12,7 +12,7 @@ const PUBLIC_ROUTES = [
   '/apple-icon',
 ]
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
   
   // Check if the route is public
