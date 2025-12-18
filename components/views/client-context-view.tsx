@@ -26,7 +26,7 @@ interface Props {
   client: Client
 }
 
-type ComponentStatus = "idle" | "processing" | "complete"
+type ComponentStatus = "idle" | "processing" | "complete" | "error"
 type ActiveView = "admin" | "discovery" | "general" | "ground-truth" | "strategy" | "gamma" | "service-docs"
 
 interface FlowState {
@@ -67,7 +67,7 @@ export function ClientContextView({ client }: Props) {
   // Start/stop timer based on research status
   useEffect(() => {
     const isResearching = flowState.discoveryDoc === "processing" || flowState.generalContext === "processing"
-    const isComplete = flowState.discoveryDoc !== "processing" && flowState.generalContext !== "processing"
+    const isDone = flowState.discoveryDoc !== "processing" && flowState.generalContext !== "processing"
     
     if (isResearching && researchTimer === null) {
       // Start timer at 3 minutes (180 seconds)
@@ -75,8 +75,8 @@ export function ClientContextView({ client }: Props) {
       timerIntervalRef.current = setInterval(() => {
         setResearchTimer(prev => prev !== null ? prev - 1 : null)
       }, 1000)
-    } else if (isComplete && timerIntervalRef.current) {
-      // Stop timer when both are complete
+    } else if (isDone && timerIntervalRef.current) {
+      // Stop timer when both are complete or errored
       clearInterval(timerIntervalRef.current)
       timerIntervalRef.current = null
       setResearchTimer(null)
@@ -131,7 +131,7 @@ export function ClientContextView({ client }: Props) {
       setFlowState(prev => ({ ...prev, discoveryDoc: "complete" }))
     } catch (e) {
       console.error("Discovery doc generation failed:", e)
-      setFlowState(prev => ({ ...prev, discoveryDoc: "idle" }))
+      setFlowState(prev => ({ ...prev, discoveryDoc: "error" }))
     }
 
     try {
@@ -139,7 +139,7 @@ export function ClientContextView({ client }: Props) {
       setFlowState(prev => ({ ...prev, generalContext: "complete" }))
     } catch (e) {
       console.error("General context fetch failed:", e)
-      setFlowState(prev => ({ ...prev, generalContext: "idle" }))
+      setFlowState(prev => ({ ...prev, generalContext: "error" }))
     }
 
     setIsActivating(false)
@@ -233,6 +233,7 @@ export function ClientContextView({ client }: Props) {
           <LegendItem color="bg-slate-600" label="Not Started" />
           <LegendItem color="bg-violet-500" pulse label="Processing" />
           <LegendItem color="bg-emerald-500" label="Complete" />
+          <LegendItem color="bg-red-500" label="Error" />
         </div>
       </div>
 
@@ -441,6 +442,13 @@ function PipelineCard({
       iconBg: "bg-emerald-600",
       iconColor: "text-white",
       glow: "shadow-lg shadow-emerald-500/10",
+    },
+    error: {
+      border: "border-red-500/50",
+      bg: "bg-red-950/20",
+      iconBg: "bg-red-600",
+      iconColor: "text-white",
+      glow: "shadow-lg shadow-red-500/20",
     },
   }
 
