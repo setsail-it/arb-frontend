@@ -673,11 +673,23 @@ export function DiscoveryDocumentForm({ client, isPublicMode = false, editToken 
                     <div key={idx} className="border rounded-lg p-4 space-y-3 relative group">
                       <Button variant="ghost" size="icon" className="absolute top-2 right-2 opacity-0 group-hover:opacity-100" onClick={() => removeMarketingEffort(idx)}><Trash2 className="h-4 w-4" /></Button>
                       <div className="grid grid-cols-2 gap-3">
-                        <Input placeholder="Channel / Tactic Name" value={effort.channel_name || ""} onChange={(e) => { const arr = [...(doc.previous_marketing_efforts || [])]; arr[idx] = { ...arr[idx], channel_name: e.target.value }; setDoc({ ...doc, previous_marketing_efforts: arr }); }} />
-                        <Input placeholder="Timeframe" value={effort.timeframe || ""} onChange={(e) => { const arr = [...(doc.previous_marketing_efforts || [])]; arr[idx] = { ...arr[idx], timeframe: e.target.value }; setDoc({ ...doc, previous_marketing_efforts: arr }); }} />
+                        <div className="grid gap-1">
+                          <label className="text-sm font-medium">Channel / Tactic Name</label>
+                          <Input placeholder="e.g., Google Ads, SEO" value={effort.channel_name || ""} onChange={(e) => { const arr = [...(doc.previous_marketing_efforts || [])]; arr[idx] = { ...arr[idx], channel_name: e.target.value }; setDoc({ ...doc, previous_marketing_efforts: arr }); }} />
+                        </div>
+                        <div className="grid gap-1">
+                          <label className="text-sm font-medium">Timeframe</label>
+                          <Input placeholder="e.g., Jan 2024 - Jun 2024" value={effort.timeframe || ""} onChange={(e) => { const arr = [...(doc.previous_marketing_efforts || [])]; arr[idx] = { ...arr[idx], timeframe: e.target.value }; setDoc({ ...doc, previous_marketing_efforts: arr }); }} />
+                        </div>
                       </div>
-                      <Textarea placeholder="Result" value={effort.result || ""} onChange={(e) => { const arr = [...(doc.previous_marketing_efforts || [])]; arr[idx] = { ...arr[idx], result: e.target.value }; setDoc({ ...doc, previous_marketing_efforts: arr }); }} rows={2} />
-                      <Textarea placeholder="Why it worked / didn't work" value={effort.why_worked || ""} onChange={(e) => { const arr = [...(doc.previous_marketing_efforts || [])]; arr[idx] = { ...arr[idx], why_worked: e.target.value }; setDoc({ ...doc, previous_marketing_efforts: arr }); }} rows={2} />
+                      <div className="grid gap-1">
+                        <label className="text-sm font-medium">Result</label>
+                        <Textarea placeholder="What were the outcomes?" value={effort.result || ""} onChange={(e) => { const arr = [...(doc.previous_marketing_efforts || [])]; arr[idx] = { ...arr[idx], result: e.target.value }; setDoc({ ...doc, previous_marketing_efforts: arr }); }} rows={2} />
+                      </div>
+                      <div className="grid gap-1">
+                        <label className="text-sm font-medium">Why it worked / didn&apos;t work</label>
+                        <Textarea placeholder="Analysis of success or failure" value={effort.why_worked || ""} onChange={(e) => { const arr = [...(doc.previous_marketing_efforts || [])]; arr[idx] = { ...arr[idx], why_worked: e.target.value }; setDoc({ ...doc, previous_marketing_efforts: arr }); }} rows={2} />
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -854,9 +866,18 @@ export function DiscoveryDocumentForm({ client, isPublicMode = false, editToken 
               {doc.secondary_audiences?.map((aud, idx) => (
                 <div key={idx} className="border rounded-lg p-4 space-y-3 relative group mb-3">
                   <Button variant="ghost" size="icon" className="absolute top-2 right-2 opacity-0 group-hover:opacity-100" onClick={() => removeSecondaryAudience(idx)}><Trash2 className="h-4 w-4" /></Button>
-                  <Textarea placeholder="Description" value={aud.description || ""} onChange={(e) => { const arr = [...(doc.secondary_audiences || [])]; arr[idx] = { ...arr[idx], description: e.target.value }; setDoc({ ...doc, secondary_audiences: arr }); }} rows={2} />
-                  <Textarea placeholder="Job Titles" value={aud.job_titles || ""} onChange={(e) => { const arr = [...(doc.secondary_audiences || [])]; arr[idx] = { ...arr[idx], job_titles: e.target.value }; setDoc({ ...doc, secondary_audiences: arr }); }} rows={2} />
-                  <Textarea placeholder="Why target them?" value={aud.why_target || ""} onChange={(e) => { const arr = [...(doc.secondary_audiences || [])]; arr[idx] = { ...arr[idx], why_target: e.target.value }; setDoc({ ...doc, secondary_audiences: arr }); }} rows={2} />
+                  <div className="grid gap-1">
+                    <label className="text-sm font-medium">Audience Description</label>
+                    <Textarea placeholder="Describe this secondary audience segment" value={aud.description || ""} onChange={(e) => { const arr = [...(doc.secondary_audiences || [])]; arr[idx] = { ...arr[idx], description: e.target.value }; setDoc({ ...doc, secondary_audiences: arr }); }} rows={2} />
+                  </div>
+                  <div className="grid gap-1">
+                    <label className="text-sm font-medium">Job Titles</label>
+                    <Textarea placeholder="List relevant job titles" value={aud.job_titles || ""} onChange={(e) => { const arr = [...(doc.secondary_audiences || [])]; arr[idx] = { ...arr[idx], job_titles: e.target.value }; setDoc({ ...doc, secondary_audiences: arr }); }} rows={2} />
+                  </div>
+                  <div className="grid gap-1">
+                    <label className="text-sm font-medium">Why target them?</label>
+                    <Textarea placeholder="Business rationale for targeting this segment" value={aud.why_target || ""} onChange={(e) => { const arr = [...(doc.secondary_audiences || [])]; arr[idx] = { ...arr[idx], why_target: e.target.value }; setDoc({ ...doc, secondary_audiences: arr }); }} rows={2} />
+                  </div>
                 </div>
               ))}
             </div>
@@ -998,15 +1019,27 @@ export function DiscoveryDocumentForm({ client, isPublicMode = false, editToken 
               {doc.competitor_channels?.map((comp, idx) => (
                 <div key={idx} className="border rounded-lg p-4 space-y-3 relative group mb-3">
                   <Button variant="ghost" size="icon" className="absolute top-2 right-2 opacity-0 group-hover:opacity-100" onClick={() => removeCompetitorChannel(idx)}><Trash2 className="h-4 w-4" /></Button>
-                  <Input placeholder="Competitor Name" value={comp.name || ""} onChange={(e) => { const arr = [...(doc.competitor_channels || [])]; arr[idx] = { ...arr[idx], name: e.target.value }; setDoc({ ...doc, competitor_channels: arr }); }} />
-                  <div className="flex flex-wrap gap-4 text-sm">
-                    <label className="flex items-center gap-2"><input type="checkbox" checked={comp.google_ads || false} onChange={(e) => { const arr = [...(doc.competitor_channels || [])]; arr[idx] = { ...arr[idx], google_ads: e.target.checked }; setDoc({ ...doc, competitor_channels: arr }); }} /> Google Ads</label>
-                    <label className="flex items-center gap-2"><input type="checkbox" checked={comp.meta_ads || false} onChange={(e) => { const arr = [...(doc.competitor_channels || [])]; arr[idx] = { ...arr[idx], meta_ads: e.target.checked }; setDoc({ ...doc, competitor_channels: arr }); }} /> Meta Ads</label>
-                    <label className="flex items-center gap-2"><input type="checkbox" checked={comp.social_media || false} onChange={(e) => { const arr = [...(doc.competitor_channels || [])]; arr[idx] = { ...arr[idx], social_media: e.target.checked }; setDoc({ ...doc, competitor_channels: arr }); }} /> Social Media</label>
-                    <label className="flex items-center gap-2"><input type="checkbox" checked={comp.seo_content || false} onChange={(e) => { const arr = [...(doc.competitor_channels || [])]; arr[idx] = { ...arr[idx], seo_content: e.target.checked }; setDoc({ ...doc, competitor_channels: arr }); }} /> SEO/Content</label>
+                  <div className="grid gap-1">
+                    <label className="text-sm font-medium">Competitor Name</label>
+                    <Input placeholder="e.g., Acme Corp" value={comp.name || ""} onChange={(e) => { const arr = [...(doc.competitor_channels || [])]; arr[idx] = { ...arr[idx], name: e.target.value }; setDoc({ ...doc, competitor_channels: arr }); }} />
                   </div>
-                  <Input placeholder="Website Quality (e.g., Strong, Outdated)" value={comp.website_quality || ""} onChange={(e) => { const arr = [...(doc.competitor_channels || [])]; arr[idx] = { ...arr[idx], website_quality: e.target.value }; setDoc({ ...doc, competitor_channels: arr }); }} />
-                  <Input placeholder="Other Channels" value={comp.other_channels || ""} onChange={(e) => { const arr = [...(doc.competitor_channels || [])]; arr[idx] = { ...arr[idx], other_channels: e.target.value }; setDoc({ ...doc, competitor_channels: arr }); }} />
+                  <div>
+                    <label className="text-sm font-medium">Marketing Channels Used</label>
+                    <div className="flex flex-wrap gap-4 text-sm mt-2">
+                      <label className="flex items-center gap-2"><input type="checkbox" checked={comp.google_ads || false} onChange={(e) => { const arr = [...(doc.competitor_channels || [])]; arr[idx] = { ...arr[idx], google_ads: e.target.checked }; setDoc({ ...doc, competitor_channels: arr }); }} /> Google Ads</label>
+                      <label className="flex items-center gap-2"><input type="checkbox" checked={comp.meta_ads || false} onChange={(e) => { const arr = [...(doc.competitor_channels || [])]; arr[idx] = { ...arr[idx], meta_ads: e.target.checked }; setDoc({ ...doc, competitor_channels: arr }); }} /> Meta Ads</label>
+                      <label className="flex items-center gap-2"><input type="checkbox" checked={comp.social_media || false} onChange={(e) => { const arr = [...(doc.competitor_channels || [])]; arr[idx] = { ...arr[idx], social_media: e.target.checked }; setDoc({ ...doc, competitor_channels: arr }); }} /> Social Media</label>
+                      <label className="flex items-center gap-2"><input type="checkbox" checked={comp.seo_content || false} onChange={(e) => { const arr = [...(doc.competitor_channels || [])]; arr[idx] = { ...arr[idx], seo_content: e.target.checked }; setDoc({ ...doc, competitor_channels: arr }); }} /> SEO/Content</label>
+                    </div>
+                  </div>
+                  <div className="grid gap-1">
+                    <label className="text-sm font-medium">Website Quality</label>
+                    <Input placeholder="e.g., Strong, Modern, Outdated" value={comp.website_quality || ""} onChange={(e) => { const arr = [...(doc.competitor_channels || [])]; arr[idx] = { ...arr[idx], website_quality: e.target.value }; setDoc({ ...doc, competitor_channels: arr }); }} />
+                  </div>
+                  <div className="grid gap-1">
+                    <label className="text-sm font-medium">Other Channels</label>
+                    <Input placeholder="e.g., Podcasts, Influencers, Events" value={comp.other_channels || ""} onChange={(e) => { const arr = [...(doc.competitor_channels || [])]; arr[idx] = { ...arr[idx], other_channels: e.target.value }; setDoc({ ...doc, competitor_channels: arr }); }} />
+                  </div>
                 </div>
               ))}
             </div>
@@ -1182,22 +1215,34 @@ export function DiscoveryDocumentForm({ client, isPublicMode = false, editToken 
                   <div key={idx} className="border rounded-lg p-4 space-y-3 relative group mb-3">
                     <Button variant="ghost" size="icon" className="absolute top-2 right-2 opacity-0 group-hover:opacity-100" onClick={() => removeSocialPlatform(idx)}><Trash2 className="h-4 w-4" /></Button>
                     <div className="grid grid-cols-2 gap-3">
-                      <Input placeholder="Platform (e.g., LinkedIn)" value={plat.platform || ""} onChange={(e) => { const arr = [...(doc.social_platforms || [])]; arr[idx] = { ...arr[idx], platform: e.target.value }; setDoc({ ...doc, social_platforms: arr }); }} />
-                      <Input type="number" placeholder="Followers" value={plat.followers || ""} onChange={(e) => { const arr = [...(doc.social_platforms || [])]; arr[idx] = { ...arr[idx], followers: parseInt(e.target.value) || 0 }; setDoc({ ...doc, social_platforms: arr }); }} />
+                      <div className="grid gap-1">
+                        <label className="text-sm font-medium">Platform</label>
+                        <Input placeholder="e.g., LinkedIn, Instagram" value={plat.platform || ""} onChange={(e) => { const arr = [...(doc.social_platforms || [])]; arr[idx] = { ...arr[idx], platform: e.target.value }; setDoc({ ...doc, social_platforms: arr }); }} />
+                      </div>
+                      <div className="grid gap-1">
+                        <label className="text-sm font-medium">Followers</label>
+                        <Input type="number" placeholder="0" value={plat.followers || ""} onChange={(e) => { const arr = [...(doc.social_platforms || [])]; arr[idx] = { ...arr[idx], followers: parseInt(e.target.value) || 0 }; setDoc({ ...doc, social_platforms: arr }); }} />
+                      </div>
                     </div>
                     <div className="grid grid-cols-2 gap-3">
-                      <select className="border rounded px-3 py-2" value={plat.activity_level || ""} onChange={(e) => { const arr = [...(doc.social_platforms || [])]; arr[idx] = { ...arr[idx], activity_level: e.target.value }; setDoc({ ...doc, social_platforms: arr }); }}>
-                        <option value="">Activity Level</option>
-                        <option value="High">High</option>
-                        <option value="Medium">Medium</option>
-                        <option value="Low">Low</option>
-                      </select>
-                      <select className="border rounded px-3 py-2" value={plat.primary_goal || ""} onChange={(e) => { const arr = [...(doc.social_platforms || [])]; arr[idx] = { ...arr[idx], primary_goal: e.target.value }; setDoc({ ...doc, social_platforms: arr }); }}>
-                        <option value="">Primary Goal</option>
-                        <option value="Growth">Growth</option>
-                        <option value="Engagement">Engagement</option>
-                        <option value="Leads">Leads</option>
-                      </select>
+                      <div className="grid gap-1">
+                        <label className="text-sm font-medium">Activity Level</label>
+                        <select className="border rounded px-3 py-2" value={plat.activity_level || ""} onChange={(e) => { const arr = [...(doc.social_platforms || [])]; arr[idx] = { ...arr[idx], activity_level: e.target.value }; setDoc({ ...doc, social_platforms: arr }); }}>
+                          <option value="">Select...</option>
+                          <option value="High">High</option>
+                          <option value="Medium">Medium</option>
+                          <option value="Low">Low</option>
+                        </select>
+                      </div>
+                      <div className="grid gap-1">
+                        <label className="text-sm font-medium">Primary Goal</label>
+                        <select className="border rounded px-3 py-2" value={plat.primary_goal || ""} onChange={(e) => { const arr = [...(doc.social_platforms || [])]; arr[idx] = { ...arr[idx], primary_goal: e.target.value }; setDoc({ ...doc, social_platforms: arr }); }}>
+                          <option value="">Select...</option>
+                          <option value="Growth">Growth</option>
+                          <option value="Engagement">Engagement</option>
+                          <option value="Leads">Leads</option>
+                        </select>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -1327,10 +1372,22 @@ export function DiscoveryDocumentForm({ client, isPublicMode = false, editToken 
                   <div key={idx} className="border rounded-lg p-4 space-y-3 relative group mb-3">
                     <Button variant="ghost" size="icon" className="absolute top-2 right-2 opacity-0 group-hover:opacity-100" onClick={() => removeStakeholder(idx)}><Trash2 className="h-4 w-4" /></Button>
                     <div className="grid grid-cols-2 gap-3">
-                      <Input placeholder="Name" value={sh.name || ""} onChange={(e) => { const arr = [...(doc.other_stakeholders || [])]; arr[idx] = { ...arr[idx], name: e.target.value }; setDoc({ ...doc, other_stakeholders: arr }); }} />
-                      <Input placeholder="Title" value={sh.title || ""} onChange={(e) => { const arr = [...(doc.other_stakeholders || [])]; arr[idx] = { ...arr[idx], title: e.target.value }; setDoc({ ...doc, other_stakeholders: arr }); }} />
-                      <Input placeholder="Role" value={sh.role || ""} onChange={(e) => { const arr = [...(doc.other_stakeholders || [])]; arr[idx] = { ...arr[idx], role: e.target.value }; setDoc({ ...doc, other_stakeholders: arr }); }} />
-                      <Input placeholder="Email" value={sh.email || ""} onChange={(e) => { const arr = [...(doc.other_stakeholders || [])]; arr[idx] = { ...arr[idx], email: e.target.value }; setDoc({ ...doc, other_stakeholders: arr }); }} />
+                      <div className="grid gap-1">
+                        <label className="text-sm font-medium">Name</label>
+                        <Input placeholder="Full name" value={sh.name || ""} onChange={(e) => { const arr = [...(doc.other_stakeholders || [])]; arr[idx] = { ...arr[idx], name: e.target.value }; setDoc({ ...doc, other_stakeholders: arr }); }} />
+                      </div>
+                      <div className="grid gap-1">
+                        <label className="text-sm font-medium">Title</label>
+                        <Input placeholder="Job title" value={sh.title || ""} onChange={(e) => { const arr = [...(doc.other_stakeholders || [])]; arr[idx] = { ...arr[idx], title: e.target.value }; setDoc({ ...doc, other_stakeholders: arr }); }} />
+                      </div>
+                      <div className="grid gap-1">
+                        <label className="text-sm font-medium">Role</label>
+                        <Input placeholder="Role in decision-making" value={sh.role || ""} onChange={(e) => { const arr = [...(doc.other_stakeholders || [])]; arr[idx] = { ...arr[idx], role: e.target.value }; setDoc({ ...doc, other_stakeholders: arr }); }} />
+                      </div>
+                      <div className="grid gap-1">
+                        <label className="text-sm font-medium">Email</label>
+                        <Input placeholder="email@example.com" value={sh.email || ""} onChange={(e) => { const arr = [...(doc.other_stakeholders || [])]; arr[idx] = { ...arr[idx], email: e.target.value }; setDoc({ ...doc, other_stakeholders: arr }); }} />
+                      </div>
                     </div>
                   </div>
                 ))}
