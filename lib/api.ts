@@ -572,6 +572,11 @@ export const api = {
     fetchJson<DiscoveryDocument>(`/clients/${clientId}/discovery-document/revoke-edit-token`, {
       method: "DELETE",
     }),
+  generateInitialDraft: (clientId: string, domain: string) =>
+    fetchJson<{ success: boolean; message: string }>(`/clients/${clientId}/discovery-document/generate-initial-draft`, {
+      method: "POST",
+      body: JSON.stringify({ domain }),
+    }),
 
   // Context Edit Token Management
   generateContextEditToken: (clientId: string) =>

@@ -98,162 +98,24 @@ export function DiscoveryDocumentForm({ client, isPublicMode = false, editToken 
   const [generatingToken, setGeneratingToken] = useState(false)
   const [generatingDraft, setGeneratingDraft] = useState(false)
 
-  // Stub function to generate initial draft - fills "test" in all text fields
+  // Call the DD agent to research and fill in the discovery document
   const handleGenerateInitialDraft = async () => {
-    setGeneratingDraft(true)
-    
-    // Stub: Fill all text fields with "test"
-    const draftDoc: DiscoveryDocument = {
-      ...doc,
-      // Keep existing domain and edit_token
-      domain: doc.domain,
-      edit_token: doc.edit_token,
-      
-      // Section 0: Meta/Header
-      client_name: "test",
-      contact_name: "test",
-      contact_title: "test",
-      contact_email: "test@test.com",
-      contact_phone: "123-456-7890",
-      industry: "test",
-      
-      // Section 1: Company Overview
-      primary_business: "test",
-      years_in_business: "test",
-      annual_revenue: "test",
-      num_employees: 10,
-      geographic_market: "test",
-      primary_goal_12_months: "test",
-      target_leads_per_month: 100,
-      target_leads_timeframe: "test",
-      target_cpl_amount: "test",
-      target_cpl_reasoning: "test",
-      qualified_lead_definition: "test",
-      customer_ltv: "test",
-      customer_ltv_calculation: "test",
-      sales_cycle_length: "test",
-      close_rate_percent: "test",
-      current_monthly_leads: 50,
-      current_lead_generation_method: "test",
-      current_sql_percent: "test",
-      what_is_working: "test",
-      budget_monthly: "test",
-      budget_quarterly: "test",
-      budget_annual: "test",
-      leadgen_budget_monthly: "test",
-      leadgen_budget_quarterly: "test",
-      leadgen_budget_annual: "test",
-      seasonal_peak_months: "test",
-      seasonal_slow_months: "test",
-      seasonal_details: "test",
-      
-      // Section 2: Target Audience
-      ideal_customer_description: "test",
-      decision_maker_titles: "test",
-      decision_authority_level: "C-Suite",
-      target_company_size: "test",
-      target_industries: "test",
-      geographic_focus: "test",
-      customer_age_range: "test",
-      customer_gender: "All",
-      customer_education: "Any",
-      customer_income_range: "test",
-      pain_point_1: "test",
-      pain_point_2: "test",
-      pain_point_3: "test",
-      goal_motivation_1: "test",
-      goal_motivation_2: "test",
-      goal_motivation_3: "test",
-      buying_process: "test",
-      
-      // Section 3: Value Proposition
-      differentiation: "test",
-      value_prop_1: "test",
-      value_prop_2: "test",
-      value_prop_3: "test",
-      why_choose_us: "test",
-      market_perception: "test",
-      brand_voice_other: "test",
-      messaging_theme_1: "test",
-      messaging_theme_2: "test",
-      messaging_theme_3: "test",
-      testimonials_available: "Yes",
-      testimonials_count: 5,
-      testimonials_examples: "test",
-      proof_customer_stories: "test",
-      proof_statistics: "test",
-      proof_awards: "test",
-      proof_notable_customers: "test",
-      
-      // Section 4: Competitive Landscape
-      competitor_1: "test",
-      competitor_2: "test",
-      competitor_3: "test",
-      competitor_strengths: "test",
-      competitive_advantages: "test",
-      
-      // Section 5: Services
-      services_not_wanted_details: "test",
-      
-      // Section 6: Digital Presence
-      website_url: "test.com",
-      website_status_other: "test",
-      website_monthly_visitors: 1000,
-      website_conversion_rate: "test",
-      website_main_issues: "test",
-      social_strategy: "test",
-      
-      // Section 7: Analytics
-      analytics_other: "test",
-      crm_name: "test",
-      crm_features_used: "test",
-      lead_data_tracked: "test",
-      conversion_tracking_status: "Yes – Fully set up",
-      conversion_tracking_details: "test",
-      crm_integration_possible: "Yes – CRM supports integrations",
-      crm_integration_details: "test",
-      
-      // Section 8: Tech Stack
-      tools_other: "test",
-      
-      // Section 9: Team
-      poc_name: "test",
-      poc_title: "test",
-      poc_email: "test@test.com",
-      poc_phone: "123-456-7890",
-      poc_availability: "test",
-      final_decision_name: "test",
-      final_decision_title: "test",
-      decision_timeline: "test",
-      resources_other: "test",
-      internal_resources_other: "test",
-      
-      // Section 10: Timeline
-      urgency_level: "Moderate",
-      first_leads_timeframe: "test",
-      ramp_up_timeframe: "test",
-      full_results_timeframe: "test",
-      success_indicator_1: "test",
-      success_indicator_2: "test",
-      success_indicator_3: "test",
-      exceed_expectations: "test",
-      concern_1: "test",
-      concern_2: "test",
-      concern_3: "test",
-      
-      // Section 11: Additional
-      regulatory_other: "test",
-      industry_keywords: "test",
-      seasonality_peak: "test",
-      seasonality_slow: "test",
-      seasonality_strategy: "test",
-      anything_else: "test",
-      success_definition: "test",
-      case_study_consent: "Yes",
+    if (!doc.domain) {
+      setError("Please enter a domain name before generating the initial draft.")
+      return
     }
     
-    setDoc(draftDoc)
-    setGeneratingDraft(false)
+    setGeneratingDraft(true)
+    setError(null)
+    
+    try {
+      await api.generateInitialDraft(client.id, doc.domain)
+      // Refresh the page to show the updated document
+      window.location.reload()
+    } catch (e: any) {
+      setError(e.message || "Failed to generate initial draft")
+      setGeneratingDraft(false)
+    }
   }
 
   const loadDocument = async () => {
