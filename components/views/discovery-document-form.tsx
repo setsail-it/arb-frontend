@@ -27,6 +27,7 @@ interface Props {
   client: Client
   isPublicMode?: boolean
   editToken?: string
+  initialDomain?: string
 }
 
 // Checkbox options
@@ -89,7 +90,7 @@ const REGULATORY_OPTIONS = [
   "None",
 ]
 
-export function DiscoveryDocumentForm({ client, isPublicMode = false, editToken }: Props) {
+export function DiscoveryDocumentForm({ client, isPublicMode = false, editToken, initialDomain }: Props) {
   const [doc, setDoc] = useState<DiscoveryDocument>({})
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -97,6 +98,13 @@ export function DiscoveryDocumentForm({ client, isPublicMode = false, editToken 
   const [copied, setCopied] = useState(false)
   const [generatingToken, setGeneratingToken] = useState(false)
   const [generatingDraft, setGeneratingDraft] = useState(false)
+
+  // Set initial domain from prop if provided and doc doesn't have one
+  useEffect(() => {
+    if (initialDomain && !doc.domain) {
+      setDoc(prev => ({ ...prev, domain: initialDomain }))
+    }
+  }, [initialDomain])
 
   // Call the DD agent to research and fill in the discovery document
   const handleGenerateInitialDraft = async () => {
