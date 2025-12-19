@@ -3,10 +3,11 @@ import type { NextRequest } from 'next/server'
 
 // Routes that don't require authentication
 const PUBLIC_ROUTES = [
-  '/public/',      // Public shareable edit links
-  '/login',        // Login page
-  '/api/auth/',    // Auth API routes
-  '/_next/',       // Next.js internals
+  '/public/',           // Public shareable edit links (pages)
+  '/api/proxy/public/', // Public API endpoints (data fetching)
+  '/login',             // Login page
+  '/api/auth/',         // Auth API routes
+  '/_next/',            // Next.js internals
   '/favicon.ico',
   '/icon',
   '/apple-icon',
