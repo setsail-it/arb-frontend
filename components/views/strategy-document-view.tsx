@@ -261,11 +261,11 @@ export function StrategyDocumentView({ client }: Props) {
 
       {/* Content */}
       {strategyDoc?.content ? (
-        <Card className="border-slate-700 bg-slate-800/40">
-          <CardHeader className="border-b border-slate-700">
+        <Card className="border-slate-700 bg-slate-900">
+          <CardHeader className="border-b border-slate-700 bg-slate-800/50">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+                <CheckCircle2 className="h-5 w-5 text-emerald-400" />
                 <CardTitle className="text-white">Generated Strategy</CardTitle>
               </div>
               {strategyDoc.updated_at && (
@@ -275,77 +275,92 @@ export function StrategyDocumentView({ client }: Props) {
               )}
             </div>
           </CardHeader>
-          <CardContent className="py-6">
+          <CardContent className="py-8 px-8">
             {/* Markdown Content */}
-            <div className="prose prose-invert prose-slate max-w-none">
+            <div className="prose prose-invert max-w-none">
               <ReactMarkdown
                 remarkPlugins={[remarkGfm]}
                 components={{
                   h1: ({ children }) => (
-                    <h1 className="text-2xl font-bold text-white border-b border-slate-700 pb-3 mb-4">{children}</h1>
+                    <h1 className="text-2xl font-bold text-white border-b border-emerald-500/30 pb-3 mb-6">{children}</h1>
                   ),
                   h2: ({ children }) => (
-                    <h2 className="text-xl font-semibold text-white mt-8 mb-4">{children}</h2>
+                    <h2 className="text-xl font-semibold text-emerald-400 mt-10 mb-4 flex items-center gap-2">
+                      <span className="w-1.5 h-6 bg-emerald-500 rounded-full"></span>
+                      {children}
+                    </h2>
                   ),
                   h3: ({ children }) => (
-                    <h3 className="text-lg font-medium text-slate-200 mt-6 mb-3">{children}</h3>
+                    <h3 className="text-lg font-medium text-white mt-6 mb-3">{children}</h3>
                   ),
                   p: ({ children }) => (
-                    <p className="text-slate-300 leading-relaxed mb-4">{children}</p>
+                    <p className="text-gray-200 leading-relaxed mb-4">{children}</p>
                   ),
                   ul: ({ children }) => (
-                    <ul className="list-disc list-inside space-y-2 text-slate-300 mb-4">{children}</ul>
+                    <ul className="list-disc list-outside ml-5 space-y-2 text-gray-200 mb-4">{children}</ul>
                   ),
                   ol: ({ children }) => (
-                    <ol className="list-decimal list-inside space-y-2 text-slate-300 mb-4">{children}</ol>
+                    <ol className="list-decimal list-outside ml-5 space-y-2 text-gray-200 mb-4">{children}</ol>
                   ),
                   li: ({ children }) => (
-                    <li className="text-slate-300">{children}</li>
+                    <li className="text-gray-200 pl-1">{children}</li>
                   ),
                   strong: ({ children }) => (
-                    <strong className="text-white font-semibold">{children}</strong>
+                    <strong className="text-emerald-300 font-semibold">{children}</strong>
+                  ),
+                  em: ({ children }) => (
+                    <em className="text-gray-300 italic">{children}</em>
                   ),
                   a: ({ href, children }) => (
                     <a 
                       href={href} 
                       target="_blank" 
                       rel="noopener noreferrer"
-                      className="text-violet-400 hover:text-violet-300 underline inline-flex items-center gap-1"
+                      className="text-emerald-400 hover:text-emerald-300 underline inline-flex items-center gap-1"
                     >
                       {children}
                       <ExternalLink className="h-3 w-3" />
                     </a>
                   ),
                   table: ({ children }) => (
-                    <div className="overflow-x-auto my-4">
-                      <table className="w-full border-collapse border border-slate-700">{children}</table>
+                    <div className="overflow-x-auto my-6 rounded-lg border border-slate-600">
+                      <table className="w-full border-collapse">{children}</table>
                     </div>
                   ),
                   thead: ({ children }) => (
                     <thead className="bg-slate-800">{children}</thead>
                   ),
+                  tbody: ({ children }) => (
+                    <tbody className="bg-slate-900/50">{children}</tbody>
+                  ),
+                  tr: ({ children }) => (
+                    <tr className="border-b border-slate-700 last:border-0">{children}</tr>
+                  ),
                   th: ({ children }) => (
-                    <th className="border border-slate-700 px-4 py-2 text-left text-white font-semibold">{children}</th>
+                    <th className="px-4 py-3 text-left text-emerald-400 font-semibold text-sm uppercase tracking-wide">{children}</th>
                   ),
                   td: ({ children }) => (
-                    <td className="border border-slate-700 px-4 py-2 text-slate-300">{children}</td>
+                    <td className="px-4 py-3 text-gray-200">{children}</td>
                   ),
                   blockquote: ({ children }) => (
-                    <blockquote className="border-l-4 border-violet-500 pl-4 italic text-slate-400 my-4">
+                    <blockquote className="border-l-4 border-emerald-500 pl-4 py-2 bg-emerald-950/30 rounded-r-lg italic text-gray-300 my-4">
                       {children}
                     </blockquote>
+                  ),
+                  hr: () => (
+                    <hr className="border-slate-700 my-8" />
                   ),
                   code: ({ className, children }) => {
                     const isInline = !className
                     if (isInline) {
                       return (
-                        <code className="bg-slate-700 px-1.5 py-0.5 rounded text-sm text-violet-300">
+                        <code className="bg-slate-700 px-1.5 py-0.5 rounded text-sm text-emerald-300">
                           {children}
                         </code>
                       )
                     }
                     return (
-                      <code className="block bg-slate-900 p-4 rounded-lg overflow-x-auto text-sm text-slate-300">
+                      <code className="block bg-slate-950 p-4 rounded-lg overflow-x-auto text-sm text-gray-200 border border-slate-700">
                         {children}
                       </code>
                     )
@@ -358,17 +373,20 @@ export function StrategyDocumentView({ client }: Props) {
 
             {/* Citations */}
             {strategyDoc.perplexity_citations && strategyDoc.perplexity_citations.length > 0 && (
-              <div className="mt-8 pt-6 border-t border-slate-700">
-                <h3 className="text-lg font-semibold text-white mb-4">Sources</h3>
-                <ul className="space-y-2">
+              <div className="mt-10 pt-6 border-t border-slate-700">
+                <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                  <span className="w-1.5 h-5 bg-emerald-500 rounded-full"></span>
+                  Sources
+                </h3>
+                <ul className="space-y-2 bg-slate-800/50 rounded-lg p-4">
                   {strategyDoc.perplexity_citations.map((url, index) => (
-                    <li key={index} className="flex items-start gap-2 text-sm">
-                      <span className="text-slate-500">[{index + 1}]</span>
+                    <li key={index} className="flex items-start gap-3 text-sm">
+                      <span className="text-emerald-500 font-mono">[{index + 1}]</span>
                       <a
                         href={url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-violet-400 hover:text-violet-300 underline flex items-center gap-1 break-all"
+                        className="text-gray-300 hover:text-emerald-400 underline flex items-center gap-1 break-all transition-colors"
                       >
                         {url}
                         <ExternalLink className="h-3 w-3 flex-shrink-0" />
