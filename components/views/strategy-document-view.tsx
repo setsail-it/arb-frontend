@@ -361,22 +361,18 @@ export function StrategyDocumentView({ client }: Props) {
               <div className="mt-8 pt-6 border-t border-slate-700">
                 <h3 className="text-lg font-semibold text-white mb-4">Sources</h3>
                 <ul className="space-y-2">
-                  {strategyDoc.perplexity_citations.map((citation, index) => (
+                  {strategyDoc.perplexity_citations.map((url, index) => (
                     <li key={index} className="flex items-start gap-2 text-sm">
                       <span className="text-slate-500">[{index + 1}]</span>
-                      {citation.url ? (
-                        <a
-                          href={citation.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-violet-400 hover:text-violet-300 underline flex items-center gap-1"
-                        >
-                          {citation.title || citation.url}
-                          <ExternalLink className="h-3 w-3" />
-                        </a>
-                      ) : (
-                        <span className="text-slate-400">{citation.title || JSON.stringify(citation)}</span>
-                      )}
+                      <a
+                        href={url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-violet-400 hover:text-violet-300 underline flex items-center gap-1 break-all"
+                      >
+                        {url}
+                        <ExternalLink className="h-3 w-3 flex-shrink-0" />
+                      </a>
                     </li>
                   ))}
                 </ul>

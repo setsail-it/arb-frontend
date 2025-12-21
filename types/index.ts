@@ -391,7 +391,7 @@ export interface StrategyDocument {
   id?: number
   client_id?: number
   content?: string | null
-  perplexity_citations?: Array<{ url?: string; title?: string }> | null
+  perplexity_citations?: string[] | null
   created_at?: string
   updated_at?: string
 }
