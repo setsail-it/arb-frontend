@@ -214,7 +214,7 @@ export function ClientContextView({ client }: Props) {
           // Check if context data exists
           try {
             const context = await api.getContext(client.id)
-            if (context && (context.overview || context.writing_rules)) {
+            if (context && (context.about || context.author_tone)) {
               gcState = "complete"
             }
           } catch (e) {
