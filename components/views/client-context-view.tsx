@@ -204,22 +204,21 @@ export function ClientContextView({ client }: Props) {
         
         // Determine GC state based on job status first, then data
         let gcState: ComponentStatus = "idle"
+        let contextData: any = null
+        try {
+          contextData = await api.getContext(client.id)
+        } catch (e) {
+          // No context data
+        }
+        
         if (gcJobStatus === "running" || gcJobStatus === "pending") {
           gcState = "processing"
           // Resume polling for this job
           pollGCStatus()
         } else if (gcJobStatus === "error") {
           gcState = "error"
-        } else {
-          // Check if context data exists
-          try {
-            const context = await api.getContext(client.id)
-            if (context && (context.about || context.author_tone)) {
-              gcState = "complete"
-            }
-          } catch (e) {
-            // No context data
-          }
+        } else if (gcJobStatus === "complete" || (contextData && (contextData.about || contextData.author_tone))) {
+          gcState = "complete"
         }
         
         // Check strategy document status
