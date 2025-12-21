@@ -1,5 +1,5 @@
 import { BACKEND_BASE_URL } from "./config"
-import type { Client, ClientContext, DiscoveryDocument, KeywordIdea, KeywordCluster, KeywordSet, BlogIdea, BlogIdeaDebug, BestAlternateResult } from "@/types"
+import type { Client, ClientContext, DiscoveryDocument, KeywordIdea, KeywordCluster, KeywordSet, BlogIdea, BlogIdeaDebug, BestAlternateResult, StrategyDocument } from "@/types"
 
 class ApiError extends Error {
   status: number
@@ -614,4 +614,26 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(data),
     }),
+
+  // Strategy Document
+  getStrategyDocument: async (clientId: string) => {
+    try {
+      return await fetchJson<StrategyDocument>(`/clients/${clientId}/strategy-document`)
+    } catch (e: any) {
+      if (e.status === 404) {
+        return {}
+      }
+      throw e
+    }
+  },
+  generateStrategyDocument: (clientId: string) =>
+    fetchJson<{ job_id: string; status: string; message: string }>(`/clients/${clientId}/strategy-document/generate`, {
+      method: "POST",
+    }),
+  getStrategyGenerationStatus: (clientId: string) =>
+    fetchJson<{ job_id: string; status: string; error_message: string | null }>(`/clients/${clientId}/strategy-document/generate/status`),
+  getStrategyDocumentPdfUrl: (clientId: string) => {
+    const baseUrl = BACKEND_BASE_URL.replace(/\/$/, "")
+    return `${baseUrl}/clients/${clientId}/strategy-document/pdf`
+  },
 }

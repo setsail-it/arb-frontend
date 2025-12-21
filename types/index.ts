@@ -386,3 +386,12 @@ export interface BestAlternateResult {
   created_at: string
   updated_at: string
 }
+
+export interface StrategyDocument {
+  id?: number
+  client_id?: number
+  content?: string | null
+  perplexity_citations?: Array<{ url?: string; title?: string }> | null
+  created_at?: string
+  updated_at?: string
+}

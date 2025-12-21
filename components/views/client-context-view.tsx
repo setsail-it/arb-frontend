@@ -5,11 +5,12 @@ import type { Client } from "@/types"
 import { api } from "@/lib/api"
 import { DiscoveryDocumentForm } from "@/components/views/discovery-document-form"
 import { GeneralContextForm } from "@/components/views/general-context-form"
+import { StrategyDocumentView } from "@/components/views/strategy-document-view"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent } from "@/components/ui/card"
 import { Spinner } from "@/components/ui/spinner"
-import { 
+import {
   ArrowLeft,
   FileText, 
   Database, 
@@ -221,11 +222,35 @@ export function ClientContextView({ client }: Props) {
           }
         }
         
+        // Check strategy document status
+        let strategyState: ComponentStatus = "idle"
+        try {
+          const strategyStatus = await api.getStrategyGenerationStatus(client.id)
+          if (strategyStatus.status === "running" || strategyStatus.status === "pending") {
+            strategyState = "processing"
+          } else if (strategyStatus.status === "error") {
+            strategyState = "error"
+          } else if (strategyStatus.status === "complete") {
+            strategyState = "complete"
+          }
+        } catch (e) {
+          // No job found, check if document exists
+          try {
+            const strategyDoc = await api.getStrategyDocument(client.id)
+            if (strategyDoc && strategyDoc.content) {
+              strategyState = "complete"
+            }
+          } catch (e2) {
+            // No document
+          }
+        }
+        
         setFlowState(prev => ({
           ...prev,
           domain: doc?.domain ? "complete" : "idle",
           discoveryDoc: ddState,
           generalContext: gcState,
+          strategyDoc: strategyState,
         }))
         
       } catch (e) {
@@ -317,13 +342,7 @@ export function ClientContextView({ client }: Props) {
           />
         )}
         {activeView === "strategy" && (
-          <StubView 
-            title="Strategy Document" 
-            description="AI-powered strategic analysis using Perplexity"
-            icon={<FileStack className="h-8 w-8" />}
-            onGenerate={handleStrategyGenerate}
-            status={flowState.strategyDoc}
-          />
+          <StrategyDocumentView client={client} />
         )}
         {activeView === "gamma" && (
           <StubView 
@@ -376,7 +395,7 @@ export function ClientContextView({ client }: Props) {
             status={flowState.domain}
             className="flex-1 max-w-md"
           >
-            <Textarea
+              <Textarea
               placeholder="Enter domain (e.g., acme.com) or company description..."
               value={domainInput}
               onChange={(e) => setDomainInput(e.target.value)}
@@ -395,7 +414,7 @@ export function ClientContextView({ client }: Props) {
               {(isActivating || flowState.discoveryDoc === "processing" || flowState.generalContext === "processing") ? "Processing..." : "Activate Pipeline"}
             </Button>
           </PipelineCard>
-        </div>
+            </div>
 
         {/* Connection Line */}
         <ConnectionLine active={flowState.domain === "complete"} />
@@ -429,7 +448,7 @@ export function ClientContextView({ client }: Props) {
                 <span className="font-mono">
                   Loading: {formatTime(researchTimer)}
                 </span>
-              </div>
+            </div>
             )}
           </div>
         </div>
@@ -447,8 +466,8 @@ export function ClientContextView({ client }: Props) {
             status={flowState.strategyDoc}
             onClick={() => setActiveView("strategy")}
             clickable
-          />
-        </div>
+            />
+          </div>
 
         {/* Connection Line */}
         <ConnectionLine active={flowState.strategyDoc === "complete"} />
@@ -474,7 +493,7 @@ export function ClientContextView({ client }: Props) {
               clickable
             />
           </div>
-        </div>
+          </div>
       </div>
 
       {/* Ground Truth - Standalone Section */}
@@ -494,8 +513,8 @@ export function ClientContextView({ client }: Props) {
             onClick={() => setActiveView("ground-truth")}
             clickable
             floating
-          />
-        </div>
+              />
+            </div>
       </div>
     </div>
   )
@@ -510,7 +529,7 @@ function StageLabel({ number, label }: { number: number; label: string }) {
         {number}
       </div>
       <span className="text-xs text-slate-500 uppercase tracking-wider">{label}</span>
-    </div>
+            </div>
   )
 }
 
@@ -521,7 +540,7 @@ function ConnectionLine({ active }: { active: boolean }) {
         <div className={`w-0.5 h-8 ${active ? "bg-gradient-to-b from-emerald-500 to-emerald-500/20" : "bg-slate-700"}`} />
       </div>
       <ChevronRight className={`h-4 w-4 ${active ? "text-emerald-500" : "text-slate-700"}`} />
-    </div>
+            </div>
   )
 }
 
@@ -606,10 +625,10 @@ function PipelineCard({
           </div>
           {clickable && (
             <ChevronRight className="h-4 w-4 text-slate-500 flex-shrink-0 mt-1" />
-          )}
-        </div>
-      </CardContent>
-    </Card>
+            )}
+          </div>
+        </CardContent>
+      </Card>
   )
 }
 
@@ -618,7 +637,7 @@ function LegendItem({ color, label, pulse }: { color: string; label: string; pul
     <div className="flex items-center gap-2 text-slate-400">
       <div className={`w-2.5 h-2.5 rounded-full ${color} ${pulse ? "animate-pulse" : ""}`} />
       <span>{label}</span>
-    </div>
+          </div>
   )
 }
 
@@ -641,7 +660,7 @@ function StubView({ title, description, icon, onGenerate, status }: StubViewProp
           <h2 className="text-2xl font-bold text-white mb-2">{title}</h2>
           <p className="text-slate-400 mb-8">{description}</p>
           {onGenerate && (
-            <Button 
+                  <Button
               onClick={onGenerate}
               disabled={status === "processing"}
               className="bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500"
@@ -656,7 +675,7 @@ function StubView({ title, description, icon, onGenerate, status }: StubViewProp
               ) : (
                 "Generate"
               )}
-            </Button>
+                  </Button>
           )}
           {status === "complete" && (
             <p className="mt-4 text-sm text-emerald-400">✓ Generated successfully (stub)</p>
