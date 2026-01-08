@@ -7,10 +7,11 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Spinner } from "@/components/ui/spinner"
-import { Phone, ExternalLink, CheckCircle, AlertCircle, HelpCircle } from "lucide-react"
+import { Phone, ExternalLink, CheckCircle, AlertCircle, HelpCircle, Search } from "lucide-react"
 
 interface Props {
   client: Client
+  isDeepDive?: boolean
 }
 
 const CERTAINTY_CONFIG = {
@@ -19,7 +20,7 @@ const CERTAINTY_CONFIG = {
   "3": { label: "Unknown", color: "bg-slate-500/20 text-slate-400 border-slate-500/30", icon: HelpCircle },
 }
 
-export function DiscoveryCallView({ client }: Props) {
+export function DiscoveryCallView({ client, isDeepDive = false }: Props) {
   const [result, setResult] = useState<DiscoveryCallResult | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -27,7 +28,9 @@ export function DiscoveryCallView({ client }: Props) {
   useEffect(() => {
     const fetchResult = async () => {
       try {
-        const data = await api.getDiscoveryCallResult(client.id)
+        const data = isDeepDive 
+          ? await api.getDeepDiveResult(client.id)
+          : await api.getDiscoveryCallResult(client.id)
         if (data && data.id) {
           setResult(data)
         }
@@ -40,7 +43,7 @@ export function DiscoveryCallView({ client }: Props) {
       }
     }
     fetchResult()
-  }, [client.id])
+  }, [client.id, isDeepDive])
 
   if (loading) {
     return (
@@ -59,11 +62,18 @@ export function DiscoveryCallView({ client }: Props) {
   }
 
   if (!result || !result.answers_data || result.answers_data.length === 0) {
+    const Icon = isDeepDive ? Search : Phone
     return (
       <div className="text-center py-12">
-        <Phone className="h-12 w-12 mx-auto text-slate-500 mb-4" />
-        <p className="text-slate-400">No discovery call results available.</p>
-        <p className="text-slate-500 text-sm mt-2">Process a Fathom call from the pipeline to see results here.</p>
+        <Icon className="h-12 w-12 mx-auto text-slate-500 mb-4" />
+        <p className="text-slate-400">
+          {isDeepDive ? "No deep dive results available." : "No discovery call results available."}
+        </p>
+        <p className="text-slate-500 text-sm mt-2">
+          {isDeepDive 
+            ? "Run a deep dive from the pipeline to see updated results here."
+            : "Process a Fathom call from the pipeline to see results here."}
+        </p>
       </div>
     )
   }
@@ -73,9 +83,13 @@ export function DiscoveryCallView({ client }: Props) {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-white">Discovery Call Results</h2>
+          <h2 className="text-2xl font-bold text-white">
+            {isDeepDive ? "Deep Dive Results" : "Discovery Call Results"}
+          </h2>
           <p className="text-slate-400 mt-1">
-            Analyzed transcript from your discovery call
+            {isDeepDive 
+              ? "Updated Q&A from deep dive call analysis"
+              : "Analyzed transcript from your discovery call"}
           </p>
         </div>
         {result.fathom_url && (

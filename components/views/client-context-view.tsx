@@ -22,7 +22,8 @@ import {
   Zap,
   ChevronRight,
   Clock,
-  Phone
+  Phone,
+  Search
 } from "lucide-react"
 
 interface Props {
@@ -30,13 +31,14 @@ interface Props {
 }
 
 type ComponentStatus = "idle" | "processing" | "complete" | "error"
-type ActiveView = "admin" | "discovery" | "discovery-call" | "general" | "ground-truth" | "strategy" | "gamma" | "service-docs"
+type ActiveView = "admin" | "discovery" | "discovery-call" | "deep-dive" | "general" | "ground-truth" | "strategy" | "gamma" | "service-docs"
 
 interface FlowState {
   domain: ComponentStatus
   discoveryCall: ComponentStatus
   discoveryDoc: ComponentStatus
   generalContext: ComponentStatus
+  deepDive: ComponentStatus
   strategyDoc: ComponentStatus
   gamma: ComponentStatus
   serviceDocs: ComponentStatus
@@ -61,22 +63,25 @@ export function ClientContextView({ client }: Props) {
     discoveryCall: "idle",
     discoveryDoc: "idle",
     generalContext: "idle",
+    deepDive: "idle",
     strategyDoc: "idle",
     gamma: "idle",
     serviceDocs: "idle",
   })
+  const [deepDiveUrl, setDeepDiveUrl] = useState("")
   
   // Timer state for research phase (3 minutes = 180 seconds)
   const [researchTimer, setResearchTimer] = useState<number | null>(null)
   const timerIntervalRef = useRef<NodeJS.Timeout | null>(null)
   
-  // Polling interval for discovery call
+  // Polling interval for discovery call and deep dive
   const dcPollingRef = useRef<NodeJS.Timeout | null>(null)
+  const ddivePollingRef = useRef<NodeJS.Timeout | null>(null)
 
   // Start/stop timer based on research status
   useEffect(() => {
-    const isResearching = flowState.discoveryCall === "processing" || flowState.generalContext === "processing"
-    const isDone = flowState.discoveryCall !== "processing" && flowState.generalContext !== "processing"
+    const isResearching = flowState.discoveryCall === "processing" || flowState.discoveryDoc === "processing" || flowState.generalContext === "processing"
+    const isDone = flowState.discoveryCall !== "processing" && flowState.discoveryDoc !== "processing" && flowState.generalContext !== "processing"
     
     if (isResearching && researchTimer === null) {
       // Start timer at 3 minutes (180 seconds)
@@ -96,7 +101,7 @@ export function ClientContextView({ client }: Props) {
         clearInterval(timerIntervalRef.current)
       }
     }
-  }, [flowState.discoveryCall, flowState.generalContext])
+  }, [flowState.discoveryCall, flowState.discoveryDoc, flowState.generalContext])
 
   // Polling interval refs
   const ddPollingRef = useRef<NodeJS.Timeout | null>(null)
@@ -108,6 +113,7 @@ export function ClientContextView({ client }: Props) {
       if (ddPollingRef.current) clearInterval(ddPollingRef.current)
       if (gcPollingRef.current) clearInterval(gcPollingRef.current)
       if (dcPollingRef.current) clearInterval(dcPollingRef.current)
+      if (ddivePollingRef.current) clearInterval(ddivePollingRef.current)
     }
   }, [])
 
@@ -188,6 +194,32 @@ export function ClientContextView({ client }: Props) {
         console.error("DC poll error:", e)
       }
     }, 5000) // Poll every 5 seconds (this job takes longer)
+  }
+
+  const pollDeepDiveStatus = () => {
+    // Clear any existing polling first
+    if (ddivePollingRef.current) {
+      clearInterval(ddivePollingRef.current)
+    }
+    ddivePollingRef.current = setInterval(async () => {
+      try {
+        const status = await api.getDeepDiveProcessStatus(client.id)
+        console.log("[DeepDive Poll] Status:", status.status)
+        
+        if (status.status === "complete") {
+          clearInterval(ddivePollingRef.current!)
+          ddivePollingRef.current = null
+          setFlowState(prev => ({ ...prev, deepDive: "complete" }))
+        } else if (status.status === "error") {
+          clearInterval(ddivePollingRef.current!)
+          ddivePollingRef.current = null
+          console.error("DeepDive job error:", status.error_message)
+          setFlowState(prev => ({ ...prev, deepDive: "error" }))
+        }
+      } catch (e) {
+        console.error("DeepDive poll error:", e)
+      }
+    }, 5000)
   }
 
   // Load existing data AND check for in-progress jobs on mount
@@ -337,13 +369,15 @@ export function ClientContextView({ client }: Props) {
       ...prev,
       domain: "complete",
       discoveryCall: hasDiscoveryCallUrl ? "processing" : prev.discoveryCall,
+      discoveryDoc: "processing",
       generalContext: "processing",
     }))
 
-    // Start jobs in parallel (they return immediately now)
+    // Start all 3 jobs in parallel (they return immediately now)
     try {
       const promises: Promise<any>[] = [
         api.fetchContextFromSiteAsync(client.id, domainInput.trim()),
+        api.generateInitialDraft(client.id, domainInput.trim()),
       ]
       
       if (hasDiscoveryCallUrl) {
@@ -353,12 +387,14 @@ export function ClientContextView({ client }: Props) {
       const results = await Promise.all(promises)
       
       console.log("[Activate] GC job started:", results[0])
+      console.log("[Activate] DD job started:", results[1])
       if (hasDiscoveryCallUrl) {
-        console.log("[Activate] DC job started:", results[1])
+        console.log("[Activate] DC job started:", results[2])
       }
       
-      // Start polling
+      // Start polling for all
       pollGCStatus()
+      pollDDStatus()
       if (hasDiscoveryCallUrl) {
         pollDCStatus()
       }
@@ -368,11 +404,31 @@ export function ClientContextView({ client }: Props) {
       setFlowState(prev => ({
         ...prev,
         discoveryCall: hasDiscoveryCallUrl ? "error" : prev.discoveryCall,
+        discoveryDoc: "error",
         generalContext: "error",
       }))
     }
     
     setIsActivating(false)
+  }
+
+  const handleDeepDive = async () => {
+    if (!deepDiveUrl.trim()) return
+    if (flowState.discoveryCall !== "complete") {
+      alert("Discovery Call Results must be completed first")
+      return
+    }
+    
+    setFlowState(prev => ({ ...prev, deepDive: "processing" }))
+    
+    try {
+      const result = await api.processDeepDive(client.id, deepDiveUrl.trim())
+      console.log("[DeepDive] Job started:", result)
+      pollDeepDiveStatus()
+    } catch (e) {
+      console.error("Failed to start deep dive:", e)
+      setFlowState(prev => ({ ...prev, deepDive: "error" }))
+    }
   }
 
   const handleStrategyGenerate = async () => {
@@ -411,6 +467,9 @@ export function ClientContextView({ client }: Props) {
         )}
         {activeView === "discovery-call" && (
           <DiscoveryCallView client={client} />
+        )}
+        {activeView === "deep-dive" && (
+          <DiscoveryCallView client={client} isDeepDive />
         )}
         {activeView === "general" && (
           <GeneralContextForm client={client} />
@@ -505,15 +564,15 @@ export function ClientContextView({ client }: Props) {
           <div className="w-20" />
           <Button
             onClick={handleActivate}
-            disabled={!domainInput.trim() || isActivating || flowState.discoveryCall === "processing" || flowState.generalContext === "processing"}
+            disabled={!domainInput.trim() || isActivating || flowState.discoveryCall === "processing" || flowState.discoveryDoc === "processing" || flowState.generalContext === "processing"}
             className="px-8 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white border-0"
           >
-            {(isActivating || flowState.discoveryCall === "processing" || flowState.generalContext === "processing") ? (
+            {(isActivating || flowState.discoveryCall === "processing" || flowState.discoveryDoc === "processing" || flowState.generalContext === "processing") ? (
               <Spinner className="h-4 w-4 mr-2" />
             ) : (
               <Zap className="h-4 w-4 mr-2" />
             )}
-            {(isActivating || flowState.discoveryCall === "processing" || flowState.generalContext === "processing") ? "Processing..." : "Activate Pipeline"}
+            {(isActivating || flowState.discoveryCall === "processing" || flowState.discoveryDoc === "processing" || flowState.generalContext === "processing") ? "Processing..." : "Activate Pipeline"}
           </Button>
         </div>
 
@@ -531,6 +590,14 @@ export function ClientContextView({ client }: Props) {
                 icon={<Phone className="h-5 w-5" />}
                 status={flowState.discoveryCall}
                 onClick={() => setActiveView("discovery-call")}
+                clickable
+              />
+              <PipelineCard
+                title="Auto Discovery Document"
+                subtitle="AI client research"
+                icon={<FileText className="h-5 w-5" />}
+                status={flowState.discoveryDoc}
+                onClick={() => setActiveView("discovery")}
                 clickable
               />
               <PipelineCard
@@ -555,7 +622,51 @@ export function ClientContextView({ client }: Props) {
         </div>
 
         {/* Connection Line */}
-        <ConnectionLine active={flowState.discoveryCall === "complete"} />
+        <ConnectionLine active={flowState.discoveryCall === "complete" || flowState.discoveryDoc === "complete" || flowState.generalContext === "complete"} />
+
+        {/* Stage 2.5: Deep Dive (Optional) */}
+        <div className="flex items-start gap-6">
+          <div className="w-20 flex-shrink-0 text-center">
+            <div className="w-10 h-10 mx-auto rounded-full bg-slate-800 border-2 border-dashed border-slate-600 flex items-center justify-center text-slate-500 font-mono text-xs mb-1">
+              2.5
+            </div>
+            <span className="text-xs text-slate-500 uppercase tracking-wider">Optional</span>
+          </div>
+          <PipelineCard
+            title="Deep Dive"
+            subtitle="Additional call analysis"
+            icon={<Search className="h-5 w-5" />}
+            status={flowState.deepDive}
+            onClick={() => setActiveView("deep-dive")}
+            clickable={flowState.deepDive === "complete"}
+            floating
+            className="w-80"
+          >
+            <Textarea
+              placeholder="Deep Dive Fathom URL (optional)"
+              value={deepDiveUrl}
+              onChange={(e) => setDeepDiveUrl(e.target.value)}
+              className="bg-slate-800/50 border-slate-700 text-white placeholder:text-slate-500 min-h-[40px] resize-none text-sm"
+              disabled={flowState.discoveryCall !== "complete"}
+            />
+            <Button
+              onClick={handleDeepDive}
+              disabled={!deepDiveUrl.trim() || flowState.discoveryCall !== "complete" || flowState.deepDive === "processing"}
+              size="sm"
+              className="w-full mt-2 bg-slate-700 hover:bg-slate-600 text-white border-0"
+            >
+              {flowState.deepDive === "processing" ? (
+                <Spinner className="h-3 w-3 mr-2" />
+              ) : (
+                <Search className="h-3 w-3 mr-2" />
+              )}
+              {flowState.deepDive === "processing" ? "Processing..." : "Run Deep Dive"}
+            </Button>
+          </PipelineCard>
+        </div>
+
+        {/* Connection Line */}
+        <ConnectionLine active={flowState.discoveryCall === "complete" || flowState.deepDive === "complete"} />
 
         {/* Stage 3: Strategy */}
         <div className="flex items-center gap-6">

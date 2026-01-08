@@ -655,4 +655,23 @@ export const api = {
     }),
   getDiscoveryCallProcessStatus: (clientId: string) =>
     fetchJson<{ job_id: string; status: string; error_message: string | null }>(`/clients/${clientId}/discovery-call/process/status`),
+
+  // Deep Dive Processing
+  getDeepDiveResult: async (clientId: string) => {
+    try {
+      return await fetchJson<DiscoveryCallResult>(`/clients/${clientId}/deep-dive`)
+    } catch (e: any) {
+      if (e.status === 404) {
+        return {}
+      }
+      throw e
+    }
+  },
+  processDeepDive: (clientId: string, fathomUrl: string) =>
+    fetchJson<{ job_id: string; status: string; message: string }>(`/clients/${clientId}/deep-dive/process`, {
+      method: "POST",
+      body: JSON.stringify({ fathom_url: fathomUrl }),
+    }),
+  getDeepDiveProcessStatus: (clientId: string) =>
+    fetchJson<{ job_id: string; status: string; error_message: string | null }>(`/clients/${clientId}/deep-dive/process/status`),
 }
