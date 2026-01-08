@@ -160,6 +160,11 @@ export function ClientContextView({ client }: Props) {
           ddPollingRef.current = null
           console.error("DD job error:", status.error_message)
           setFlowState(prev => ({ ...prev, discoveryDoc: "error" }))
+        } else if (status.status === "cancelled") {
+          clearInterval(ddPollingRef.current!)
+          ddPollingRef.current = null
+          console.log("DD job cancelled")
+          setFlowState(prev => ({ ...prev, discoveryDoc: "idle" }))
         }
       } catch (e) {
         console.error("DD poll error:", e)
@@ -186,6 +191,11 @@ export function ClientContextView({ client }: Props) {
           gcPollingRef.current = null
           console.error("GC job error:", status.error_message)
           setFlowState(prev => ({ ...prev, generalContext: "error" }))
+        } else if (status.status === "cancelled") {
+          clearInterval(gcPollingRef.current!)
+          gcPollingRef.current = null
+          console.log("GC job cancelled")
+          setFlowState(prev => ({ ...prev, generalContext: "idle" }))
         }
       } catch (e) {
         console.error("GC poll error:", e)
@@ -212,6 +222,11 @@ export function ClientContextView({ client }: Props) {
           dcPollingRef.current = null
           console.error("DC job error:", status.error_message)
           setFlowState(prev => ({ ...prev, discoveryCall: "error" }))
+        } else if (status.status === "cancelled") {
+          clearInterval(dcPollingRef.current!)
+          dcPollingRef.current = null
+          console.log("DC job cancelled")
+          setFlowState(prev => ({ ...prev, discoveryCall: "idle" }))
         }
       } catch (e) {
         console.error("DC poll error:", e)
@@ -339,6 +354,8 @@ export function ClientContextView({ client }: Props) {
           pollDDStatus()
         } else if (ddJobStatus === "error") {
           ddState = "error"
+        } else if (ddJobStatus === "cancelled") {
+          ddState = "idle"  // Cancelled jobs show as idle, allowing restart
         } else if (ddJobStatus === "complete" || (doc && doc.client_name)) {
           ddState = "complete"
         }
@@ -359,6 +376,8 @@ export function ClientContextView({ client }: Props) {
           pollDCStatus()
         } else if (dcJobStatus === "error") {
           dcState = "error"
+        } else if (dcJobStatus === "cancelled") {
+          dcState = "idle"  // Cancelled jobs show as idle, allowing restart
         } else {
           // Check if results actually exist (job status "complete" doesn't guarantee data was saved)
           try {
@@ -390,6 +409,8 @@ export function ClientContextView({ client }: Props) {
           pollGCStatus()
         } else if (gcJobStatus === "error") {
           gcState = "error"
+        } else if (gcJobStatus === "cancelled") {
+          gcState = "idle"  // Cancelled jobs show as idle, allowing restart
         } else if (gcJobStatus === "complete" || (contextData && (contextData.about || contextData.author_tone))) {
           gcState = "complete"
         }
@@ -561,8 +582,20 @@ export function ClientContextView({ client }: Props) {
     setIsActivating(false)
   }
 
-  const handleAbortResearch = () => {
+  const handleAbortResearch = async () => {
     console.log("[Abort] Aborting research...")
+    
+    // Cancel jobs on the backend first
+    try {
+      const result = await api.cancelJobs(client.id, [
+        "discovery_call",
+        "discovery_document", 
+        "general_context"
+      ])
+      console.log("[Abort] Backend cancel result:", result)
+    } catch (e) {
+      console.error("[Abort] Failed to cancel backend jobs:", e)
+    }
     
     // Stop all polling
     if (dcPollingRef.current) {
@@ -585,12 +618,12 @@ export function ClientContextView({ client }: Props) {
     }
     setResearchTimer(null)
     
-    // Set all processing states to error
+    // Set all processing states to idle (cancelled)
     setFlowState(prev => ({
       ...prev,
-      discoveryCall: prev.discoveryCall === "processing" ? "error" : prev.discoveryCall,
-      discoveryDoc: prev.discoveryDoc === "processing" ? "error" : prev.discoveryDoc,
-      generalContext: prev.generalContext === "processing" ? "error" : prev.generalContext,
+      discoveryCall: prev.discoveryCall === "processing" ? "idle" : prev.discoveryCall,
+      discoveryDoc: prev.discoveryDoc === "processing" ? "idle" : prev.discoveryDoc,
+      generalContext: prev.generalContext === "processing" ? "idle" : prev.generalContext,
     }))
     
     setIsActivating(false)

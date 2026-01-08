@@ -65,6 +65,11 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify({ name }),
     }),
+  cancelJobs: (clientId: number, jobTypes?: string[]) =>
+    fetchJson<{ cancelled_count: number; message: string }>(`/clients/${clientId}/cancel-jobs`, {
+      method: "POST",
+      body: JSON.stringify({ job_types: jobTypes || null }),
+    }),
 
   // Context
   getContext: async (clientId: string) => {
