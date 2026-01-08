@@ -6,6 +6,7 @@ import { api } from "@/lib/api"
 import { DiscoveryDocumentForm } from "@/components/views/discovery-document-form"
 import { GeneralContextForm } from "@/components/views/general-context-form"
 import { StrategyDocumentView } from "@/components/views/strategy-document-view"
+import { PainPointStrategyView } from "@/components/views/pain-point-strategy-view"
 import { DiscoveryCallView } from "@/components/views/discovery-call-view"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
@@ -33,7 +34,7 @@ interface Props {
 }
 
 type ComponentStatus = "idle" | "processing" | "complete" | "error"
-type ActiveView = "admin" | "discovery" | "discovery-call" | "deep-dive" | "general" | "ground-truth" | "strategy" | "gamma" | "service-docs"
+type ActiveView = "admin" | "discovery" | "discovery-call" | "deep-dive" | "general" | "ground-truth" | "strategy" | "pain-point" | "gamma" | "service-docs"
 
 interface FlowState {
   domain: ComponentStatus
@@ -667,6 +668,9 @@ export function ClientContextView({ client }: Props) {
         {activeView === "strategy" && (
           <StrategyDocumentView client={client} />
         )}
+        {activeView === "pain-point" && (
+          <PainPointStrategyView client={client} />
+        )}
         {activeView === "gamma" && (
           <StubView 
             title="Gamma Presentation" 
@@ -912,7 +916,8 @@ export function ClientContextView({ client }: Props) {
             subtitle="Refine strategy messaging"
             icon={<Sparkles className="h-5 w-5" />}
             status={flowState.painPointStrategy}
-            clickable={false}
+            onClick={() => flowState.painPointStrategy === "complete" ? setActiveView("pain-point") : undefined}
+            clickable={flowState.painPointStrategy === "complete"}
             className="w-80"
           >
             <Button
