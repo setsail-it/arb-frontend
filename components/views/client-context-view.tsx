@@ -270,6 +270,43 @@ export function ClientContextView({ client, readOnly = false }: Props) {
     }, 5000)
   }
 
+  // Check for running jobs when returning to admin view (e.g., after manual fetch from General Context)
+  useEffect(() => {
+    if (activeView !== "admin") return
+    
+    const checkRunningJobs = async () => {
+      try {
+        // Check GC status
+        const gcStatus = await api.getContextFetchStatus(client.id).catch(() => null)
+        if (gcStatus && (gcStatus.status === "running" || gcStatus.status === "pending")) {
+          console.log("[View Change] GC job is running, resuming poll")
+          setFlowState(prev => ({ ...prev, generalContext: "processing" }))
+          pollGCStatus()
+        }
+        
+        // Check DD status
+        const ddStatus = await api.getInitialDraftStatus(client.id).catch(() => null)
+        if (ddStatus && (ddStatus.status === "running" || ddStatus.status === "pending")) {
+          console.log("[View Change] DD job is running, resuming poll")
+          setFlowState(prev => ({ ...prev, discoveryDoc: "processing" }))
+          pollDDStatus()
+        }
+        
+        // Check DC status
+        const dcStatus = await api.getDiscoveryCallProcessStatus(client.id).catch(() => null)
+        if (dcStatus && (dcStatus.status === "running" || dcStatus.status === "pending")) {
+          console.log("[View Change] DC job is running, resuming poll")
+          setFlowState(prev => ({ ...prev, discoveryCall: "processing" }))
+          pollDCStatus()
+        }
+      } catch (e) {
+        console.error("[View Change] Error checking job status:", e)
+      }
+    }
+    
+    checkRunningJobs()
+  }, [activeView, client.id])
+
   // Load existing data AND check for in-progress jobs on mount
   useEffect(() => {
     // Reset all state when client changes
