@@ -33,6 +33,13 @@ async function fetchJson<T>(endpoint: string, options?: RequestInit): Promise<T>
     }
     throw new ApiError(errorMessage, res.status)
   }
+  
+  // Handle case where response is not JSON (e.g., HTML error page)
+  const contentType = res.headers.get("content-type")
+  if (!contentType || !contentType.includes("application/json")) {
+    throw new ApiError("Server returned non-JSON response", 500)
+  }
+  
   return res.json()
 }
 

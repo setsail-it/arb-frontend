@@ -292,17 +292,15 @@ export function ClientContextView({ client }: Props) {
           pollDCStatus()
         } else if (dcJobStatus === "error") {
           dcState = "error"
-        } else if (dcJobStatus === "complete") {
-          dcState = "complete"
         } else {
-          // Check if results exist
+          // Check if results actually exist (job status "complete" doesn't guarantee data was saved)
           try {
             const dcResult = await api.getDiscoveryCallResult(client.id)
-            if (dcResult && dcResult.id) {
+            if (dcResult && dcResult.id && dcResult.answers_data) {
               dcState = "complete"
             }
           } catch (e) {
-            // No results
+            // No results - stay idle
           }
         }
         

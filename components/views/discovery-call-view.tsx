@@ -35,8 +35,14 @@ export function DiscoveryCallView({ client, isDeepDive = false }: Props) {
           setResult(data)
         }
       } catch (e: any) {
-        if (e.status !== 404) {
+        // 404 means no results yet - not an error
+        // 500 or other errors should show a message
+        if (e.status && e.status !== 404) {
           setError(e.message || "Failed to fetch results")
+        } else if (!e.status) {
+          // Network error or parsing error - show generic message
+          console.error("Error fetching discovery call results:", e)
+          setError("Unable to load results. Please try again.")
         }
       } finally {
         setLoading(false)
