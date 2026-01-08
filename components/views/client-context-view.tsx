@@ -72,6 +72,7 @@ export function ClientContextView({ client }: Props) {
     serviceDocs: "idle",
   })
   const [deepDiveUrl, setDeepDiveUrl] = useState("")
+  const [gammaUrl, setGammaUrl] = useState<string | null>(null)
   
   // Timer state for research phase (3 minutes = 180 seconds)
   const [researchTimer, setResearchTimer] = useState<number | null>(null)
@@ -525,9 +526,29 @@ export function ClientContextView({ client }: Props) {
   }
 
   const handleGammaGenerate = async () => {
+    if (flowState.strategyDoc !== "complete") {
+      alert("Strategy Document must be completed first")
+      return
+    }
+    
     setFlowState(prev => ({ ...prev, gamma: "processing" }))
-    await new Promise(resolve => setTimeout(resolve, 2000))
-    setFlowState(prev => ({ ...prev, gamma: "complete" }))
+    
+    try {
+      const response = await api.generateGammaPresentation(client.id)
+      
+      if (response.success && response.presentation_url) {
+        setGammaUrl(response.presentation_url)
+        setFlowState(prev => ({ ...prev, gamma: "complete" }))
+        // Open the presentation in a new tab
+        window.open(response.presentation_url, "_blank")
+      } else {
+        console.error("Gamma generation failed:", response.message)
+        setFlowState(prev => ({ ...prev, gamma: "error" }))
+      }
+    } catch (e) {
+      console.error("Failed to generate Gamma presentation:", e)
+      setFlowState(prev => ({ ...prev, gamma: "error" }))
+    }
   }
 
   const handleServiceDocsGenerate = async () => {
@@ -812,9 +833,37 @@ export function ClientContextView({ client }: Props) {
               subtitle="Slide deck"
               icon={<Presentation className="h-5 w-5" />}
               status={flowState.gamma}
-              onClick={() => setActiveView("gamma")}
-              clickable
-            />
+              onClick={() => gammaUrl ? window.open(gammaUrl, "_blank") : undefined}
+              clickable={flowState.gamma === "complete" && !!gammaUrl}
+              className="w-64"
+            >
+              <Button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleGammaGenerate()
+                }}
+                disabled={flowState.strategyDoc !== "complete" || flowState.gamma === "processing"}
+                size="sm"
+                className="w-full bg-teal-600 hover:bg-teal-500 text-white border-0"
+              >
+                {flowState.gamma === "processing" ? (
+                  <>
+                    <Spinner className="h-3 w-3 mr-2" />
+                    Generating...
+                  </>
+                ) : flowState.gamma === "complete" ? (
+                  <>
+                    <RefreshCw className="h-3 w-3 mr-2" />
+                    Regenerate
+                  </>
+                ) : (
+                  <>
+                    <Presentation className="h-3 w-3 mr-2" />
+                    Create Slides
+                  </>
+                )}
+              </Button>
+            </PipelineCard>
             <PipelineCard
               title="Service Documents"
               subtitle="Deliverables"
