@@ -26,7 +26,8 @@ import {
   Phone,
   Search,
   RefreshCw,
-  Sparkles
+  Sparkles,
+  X
 } from "lucide-react"
 
 interface Props {
@@ -78,9 +79,10 @@ export function ClientContextView({ client }: Props) {
   const [deepDiveUrl, setDeepDiveUrl] = useState("")
   const [gammaUrl, setGammaUrl] = useState<string | null>(null)
   
-  // Timer state for research phase (3 minutes = 180 seconds)
+  // Timer state for research phase (7 minutes = 420 seconds)
   const [researchTimer, setResearchTimer] = useState<number | null>(null)
   const timerIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  const RESEARCH_TIMEOUT_SECONDS = 420 // 7 minutes
   
   // Polling interval for discovery call and deep dive
   const dcPollingRef = useRef<NodeJS.Timeout | null>(null)
@@ -92,10 +94,17 @@ export function ClientContextView({ client }: Props) {
     const isDone = flowState.discoveryCall !== "processing" && flowState.discoveryDoc !== "processing" && flowState.generalContext !== "processing"
     
     if (isResearching && researchTimer === null) {
-      // Start timer at 3 minutes (180 seconds)
-      setResearchTimer(180)
+      // Start timer at 7 minutes (420 seconds)
+      setResearchTimer(RESEARCH_TIMEOUT_SECONDS)
       timerIntervalRef.current = setInterval(() => {
-        setResearchTimer(prev => prev !== null ? prev - 1 : null)
+        setResearchTimer(prev => {
+          if (prev !== null && prev <= -60) {
+            // Auto-abort after 1 minute past timeout (8 minutes total)
+            handleAbortResearch()
+            return null
+          }
+          return prev !== null ? prev - 1 : null
+        })
       }, 1000)
     } else if (isDone && timerIntervalRef.current) {
       // Stop timer when both are complete or errored
@@ -501,6 +510,42 @@ export function ClientContextView({ client }: Props) {
     setIsActivating(false)
   }
 
+  const handleAbortResearch = () => {
+    console.log("[Abort] Aborting research...")
+    
+    // Stop all polling
+    if (dcPollingRef.current) {
+      clearInterval(dcPollingRef.current)
+      dcPollingRef.current = null
+    }
+    if (ddPollingRef.current) {
+      clearInterval(ddPollingRef.current)
+      ddPollingRef.current = null
+    }
+    if (gcPollingRef.current) {
+      clearInterval(gcPollingRef.current)
+      gcPollingRef.current = null
+    }
+    
+    // Stop timer
+    if (timerIntervalRef.current) {
+      clearInterval(timerIntervalRef.current)
+      timerIntervalRef.current = null
+    }
+    setResearchTimer(null)
+    
+    // Set all processing states to error
+    setFlowState(prev => ({
+      ...prev,
+      discoveryCall: prev.discoveryCall === "processing" ? "error" : prev.discoveryCall,
+      discoveryDoc: prev.discoveryDoc === "processing" ? "error" : prev.discoveryDoc,
+      generalContext: prev.generalContext === "processing" ? "error" : prev.generalContext,
+    }))
+    
+    setIsActivating(false)
+    setInputsActivated(false)
+  }
+
   const handleDeepDive = async () => {
     if (!deepDiveUrl.trim()) return
     if (flowState.discoveryCall !== "complete") {
@@ -749,18 +794,34 @@ export function ClientContextView({ client }: Props) {
         {/* Activate Button */}
         <div className="flex items-center gap-6">
           <div className="w-20" />
-          <Button
-            onClick={handleActivate}
-            disabled={!domainInput.trim() || isActivating || flowState.discoveryCall === "processing" || flowState.discoveryDoc === "processing" || flowState.generalContext === "processing"}
-            className="px-8 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white border-0"
-          >
-            {(isActivating || flowState.discoveryCall === "processing" || flowState.discoveryDoc === "processing" || flowState.generalContext === "processing") ? (
-              <Spinner className="h-4 w-4 mr-2" />
-            ) : (
+          {(isActivating || flowState.discoveryCall === "processing" || flowState.discoveryDoc === "processing" || flowState.generalContext === "processing") ? (
+            <div className="flex items-center gap-2">
+              <Button
+                disabled
+                className="px-8 bg-gradient-to-r from-violet-600 to-indigo-600 text-white border-0 cursor-not-allowed"
+              >
+                <Spinner className="h-4 w-4 mr-2" />
+                Processing...
+              </Button>
+              <Button
+                onClick={handleAbortResearch}
+                variant="outline"
+                className="px-4 border-red-500/50 text-red-400 hover:bg-red-900/30 hover:text-red-300"
+              >
+                <X className="h-4 w-4 mr-1" />
+                Abort
+              </Button>
+            </div>
+          ) : (
+            <Button
+              onClick={handleActivate}
+              disabled={!domainInput.trim()}
+              className="px-8 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white border-0"
+            >
               <Zap className="h-4 w-4 mr-2" />
-            )}
-            {(isActivating || flowState.discoveryCall === "processing" || flowState.discoveryDoc === "processing" || flowState.generalContext === "processing") ? "Processing..." : "Activate Pipeline"}
-          </Button>
+              Activate Pipeline
+            </Button>
+          )}
         </div>
 
         {/* Connection Line */}
