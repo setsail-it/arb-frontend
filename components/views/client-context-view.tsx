@@ -23,7 +23,8 @@ import {
   ChevronRight,
   Clock,
   Phone,
-  Search
+  Search,
+  RefreshCw
 } from "lucide-react"
 
 interface Props {
@@ -109,6 +110,9 @@ export function ClientContextView({ client }: Props) {
   const ddPollingRef = useRef<NodeJS.Timeout | null>(null)
   const gcPollingRef = useRef<NodeJS.Timeout | null>(null)
 
+  // Polling ref for strategy (defined early so cleanup can reference it)
+  const stratPollingRef = useRef<NodeJS.Timeout | null>(null)
+
   // Cleanup polling on unmount
   useEffect(() => {
     return () => {
@@ -116,6 +120,7 @@ export function ClientContextView({ client }: Props) {
       if (gcPollingRef.current) clearInterval(gcPollingRef.current)
       if (dcPollingRef.current) clearInterval(dcPollingRef.current)
       if (ddivePollingRef.current) clearInterval(ddivePollingRef.current)
+      if (stratPollingRef.current) clearInterval(stratPollingRef.current)
     }
   }, [])
 
@@ -434,10 +439,40 @@ export function ClientContextView({ client }: Props) {
     }
   }
 
+  const pollStrategyStatus = () => {
+    if (stratPollingRef.current) clearInterval(stratPollingRef.current)
+    stratPollingRef.current = setInterval(async () => {
+      try {
+        const status = await api.getStrategyGenerationStatus(client.id)
+        console.log("[Strategy Poll] Status:", status.status)
+        
+        if (status.status === "complete") {
+          clearInterval(stratPollingRef.current!)
+          stratPollingRef.current = null
+          setFlowState(prev => ({ ...prev, strategyDoc: "complete" }))
+        } else if (status.status === "error") {
+          clearInterval(stratPollingRef.current!)
+          stratPollingRef.current = null
+          console.error("Strategy job error:", status.error_message)
+          setFlowState(prev => ({ ...prev, strategyDoc: "error" }))
+        }
+      } catch (e) {
+        console.error("Strategy poll error:", e)
+      }
+    }, 5000)
+  }
+
   const handleStrategyGenerate = async () => {
     setFlowState(prev => ({ ...prev, strategyDoc: "processing" }))
-    await new Promise(resolve => setTimeout(resolve, 2000))
-    setFlowState(prev => ({ ...prev, strategyDoc: "complete" }))
+    
+    try {
+      const response = await api.generateStrategyDocument(client.id)
+      console.log("[Strategy] Generation started:", response)
+      pollStrategyStatus()
+    } catch (e) {
+      console.error("Failed to start strategy generation:", e)
+      setFlowState(prev => ({ ...prev, strategyDoc: "error" }))
+    }
   }
 
   const handleGammaGenerate = async () => {
@@ -676,13 +711,41 @@ export function ClientContextView({ client }: Props) {
           <StageLabel number={3} label="Strategy" />
           <PipelineCard
             title="Strategy Document"
-            subtitle="Perplexity AI analysis"
+            subtitle="GTM strategy generation"
             icon={<FileStack className="h-5 w-5" />}
             status={flowState.strategyDoc}
-            onClick={() => setActiveView("strategy")}
-            clickable
-            />
-          </div>
+            onClick={() => flowState.strategyDoc === "complete" ? setActiveView("strategy") : undefined}
+            clickable={flowState.strategyDoc === "complete"}
+            className="w-80"
+          >
+            <Button
+              onClick={(e) => {
+                e.stopPropagation()
+                handleStrategyGenerate()
+              }}
+              disabled={flowState.strategyDoc === "processing" || flowState.discoveryDoc !== "complete"}
+              size="sm"
+              className="w-full bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white border-0"
+            >
+              {flowState.strategyDoc === "processing" ? (
+                <>
+                  <Spinner className="h-3 w-3 mr-2" />
+                  Generating...
+                </>
+              ) : flowState.strategyDoc === "complete" ? (
+                <>
+                  <RefreshCw className="h-3 w-3 mr-2" />
+                  Regenerate
+                </>
+              ) : (
+                <>
+                  <Zap className="h-3 w-3 mr-2" />
+                  Generate Strategy
+                </>
+              )}
+            </Button>
+          </PipelineCard>
+        </div>
 
         {/* Connection Line */}
         <ConnectionLine active={flowState.strategyDoc === "complete"} />
