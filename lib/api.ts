@@ -1,5 +1,5 @@
 import { BACKEND_BASE_URL } from "./config"
-import type { Client, ClientContext, DiscoveryDocument, KeywordIdea, KeywordCluster, KeywordSet, BlogIdea, BlogIdeaDebug, BestAlternateResult, StrategyDocument } from "@/types"
+import type { Client, ClientContext, DiscoveryDocument, KeywordIdea, KeywordCluster, KeywordSet, BlogIdea, BlogIdeaDebug, BestAlternateResult, StrategyDocument, DiscoveryCallResult } from "@/types"
 
 class ApiError extends Error {
   status: number
@@ -636,4 +636,23 @@ export const api = {
     const baseUrl = BACKEND_BASE_URL.replace(/\/$/, "")
     return `${baseUrl}/clients/${clientId}/strategy-document/pdf`
   },
+
+  // Discovery Call Processing
+  getDiscoveryCallResult: async (clientId: string) => {
+    try {
+      return await fetchJson<DiscoveryCallResult>(`/clients/${clientId}/discovery-call`)
+    } catch (e: any) {
+      if (e.status === 404) {
+        return {}
+      }
+      throw e
+    }
+  },
+  processDiscoveryCall: (clientId: string, fathomUrl: string) =>
+    fetchJson<{ job_id: string; status: string; message: string }>(`/clients/${clientId}/discovery-call/process`, {
+      method: "POST",
+      body: JSON.stringify({ fathom_url: fathomUrl }),
+    }),
+  getDiscoveryCallProcessStatus: (clientId: string) =>
+    fetchJson<{ job_id: string; status: string; error_message: string | null }>(`/clients/${clientId}/discovery-call/process/status`),
 }

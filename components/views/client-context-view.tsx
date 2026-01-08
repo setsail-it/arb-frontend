@@ -6,6 +6,7 @@ import { api } from "@/lib/api"
 import { DiscoveryDocumentForm } from "@/components/views/discovery-document-form"
 import { GeneralContextForm } from "@/components/views/general-context-form"
 import { StrategyDocumentView } from "@/components/views/strategy-document-view"
+import { DiscoveryCallView } from "@/components/views/discovery-call-view"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent } from "@/components/ui/card"
@@ -20,7 +21,8 @@ import {
   Globe,
   Zap,
   ChevronRight,
-  Clock
+  Clock,
+  Phone
 } from "lucide-react"
 
 interface Props {
@@ -28,10 +30,11 @@ interface Props {
 }
 
 type ComponentStatus = "idle" | "processing" | "complete" | "error"
-type ActiveView = "admin" | "discovery" | "general" | "ground-truth" | "strategy" | "gamma" | "service-docs"
+type ActiveView = "admin" | "discovery" | "discovery-call" | "general" | "ground-truth" | "strategy" | "gamma" | "service-docs"
 
 interface FlowState {
   domain: ComponentStatus
+  discoveryCall: ComponentStatus
   discoveryDoc: ComponentStatus
   generalContext: ComponentStatus
   strategyDoc: ComponentStatus
@@ -51,9 +54,11 @@ function formatTime(seconds: number): string {
 export function ClientContextView({ client }: Props) {
   const [activeView, setActiveView] = useState<ActiveView>("admin")
   const [domainInput, setDomainInput] = useState("")
+  const [discoveryCallUrl, setDiscoveryCallUrl] = useState("")
   const [isActivating, setIsActivating] = useState(false)
   const [flowState, setFlowState] = useState<FlowState>({
     domain: "idle",
+    discoveryCall: "idle",
     discoveryDoc: "idle",
     generalContext: "idle",
     strategyDoc: "idle",
@@ -64,11 +69,14 @@ export function ClientContextView({ client }: Props) {
   // Timer state for research phase (3 minutes = 180 seconds)
   const [researchTimer, setResearchTimer] = useState<number | null>(null)
   const timerIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  
+  // Polling interval for discovery call
+  const dcPollingRef = useRef<NodeJS.Timeout | null>(null)
 
   // Start/stop timer based on research status
   useEffect(() => {
-    const isResearching = flowState.discoveryDoc === "processing" || flowState.generalContext === "processing"
-    const isDone = flowState.discoveryDoc !== "processing" && flowState.generalContext !== "processing"
+    const isResearching = flowState.discoveryCall === "processing" || flowState.generalContext === "processing"
+    const isDone = flowState.discoveryCall !== "processing" && flowState.generalContext !== "processing"
     
     if (isResearching && researchTimer === null) {
       // Start timer at 3 minutes (180 seconds)
@@ -88,7 +96,7 @@ export function ClientContextView({ client }: Props) {
         clearInterval(timerIntervalRef.current)
       }
     }
-  }, [flowState.discoveryDoc, flowState.generalContext])
+  }, [flowState.discoveryCall, flowState.generalContext])
 
   // Polling interval refs
   const ddPollingRef = useRef<NodeJS.Timeout | null>(null)
@@ -99,6 +107,7 @@ export function ClientContextView({ client }: Props) {
     return () => {
       if (ddPollingRef.current) clearInterval(ddPollingRef.current)
       if (gcPollingRef.current) clearInterval(gcPollingRef.current)
+      if (dcPollingRef.current) clearInterval(dcPollingRef.current)
     }
   }, [])
 
@@ -155,6 +164,32 @@ export function ClientContextView({ client }: Props) {
     }, 3000) // Poll every 3 seconds
   }
 
+  const pollDCStatus = () => {
+    // Clear any existing polling first
+    if (dcPollingRef.current) {
+      clearInterval(dcPollingRef.current)
+    }
+    dcPollingRef.current = setInterval(async () => {
+      try {
+        const status = await api.getDiscoveryCallProcessStatus(client.id)
+        console.log("[DC Poll] Status:", status.status)
+        
+        if (status.status === "complete") {
+          clearInterval(dcPollingRef.current!)
+          dcPollingRef.current = null
+          setFlowState(prev => ({ ...prev, discoveryCall: "complete" }))
+        } else if (status.status === "error") {
+          clearInterval(dcPollingRef.current!)
+          dcPollingRef.current = null
+          console.error("DC job error:", status.error_message)
+          setFlowState(prev => ({ ...prev, discoveryCall: "error" }))
+        }
+      } catch (e) {
+        console.error("DC poll error:", e)
+      }
+    }, 5000) // Poll every 5 seconds (this job takes longer)
+  }
+
   // Load existing data AND check for in-progress jobs on mount
   useEffect(() => {
     const loadExistingDataAndJobStatus = async () => {
@@ -202,6 +237,36 @@ export function ClientContextView({ client }: Props) {
           ddState = "complete"
         }
         
+        // Check discovery call status
+        let dcJobStatus: string | null = null
+        let dcState: ComponentStatus = "idle"
+        try {
+          const dcStatus = await api.getDiscoveryCallProcessStatus(client.id)
+          dcJobStatus = dcStatus.status
+          console.log("[Load] DC job status:", dcJobStatus)
+        } catch (e) {
+          // No DC job found
+        }
+        
+        if (dcJobStatus === "running" || dcJobStatus === "pending") {
+          dcState = "processing"
+          pollDCStatus()
+        } else if (dcJobStatus === "error") {
+          dcState = "error"
+        } else if (dcJobStatus === "complete") {
+          dcState = "complete"
+        } else {
+          // Check if results exist
+          try {
+            const dcResult = await api.getDiscoveryCallResult(client.id)
+            if (dcResult && dcResult.id) {
+              dcState = "complete"
+            }
+          } catch (e) {
+            // No results
+          }
+        }
+        
         // Determine GC state based on job status first, then data
         let gcState: ComponentStatus = "idle"
         let contextData: any = null
@@ -247,6 +312,7 @@ export function ClientContextView({ client }: Props) {
         setFlowState(prev => ({
           ...prev,
           domain: doc?.domain ? "complete" : "idle",
+          discoveryCall: dcState,
           discoveryDoc: ddState,
           generalContext: gcState,
           strategyDoc: strategyState,
@@ -263,32 +329,45 @@ export function ClientContextView({ client }: Props) {
     if (!domainInput.trim()) return
     
     setIsActivating(true)
+    
+    // Determine which jobs to start
+    const hasDiscoveryCallUrl = discoveryCallUrl.trim().length > 0
+    
     setFlowState(prev => ({
       ...prev,
       domain: "complete",
-      discoveryDoc: "processing",
+      discoveryCall: hasDiscoveryCallUrl ? "processing" : prev.discoveryCall,
       generalContext: "processing",
     }))
 
-    // Start both jobs in parallel (they return immediately now)
+    // Start jobs in parallel (they return immediately now)
     try {
-      const [ddResponse, gcResponse] = await Promise.all([
-        api.generateInitialDraft(client.id, domainInput.trim()),
+      const promises: Promise<any>[] = [
         api.fetchContextFromSiteAsync(client.id, domainInput.trim()),
-      ])
+      ]
       
-      console.log("[Activate] DD job started:", ddResponse)
-      console.log("[Activate] GC job started:", gcResponse)
+      if (hasDiscoveryCallUrl) {
+        promises.push(api.processDiscoveryCall(client.id, discoveryCallUrl.trim()))
+      }
       
-      // Start polling for both
-      pollDDStatus()
+      const results = await Promise.all(promises)
+      
+      console.log("[Activate] GC job started:", results[0])
+      if (hasDiscoveryCallUrl) {
+        console.log("[Activate] DC job started:", results[1])
+      }
+      
+      // Start polling
       pollGCStatus()
+      if (hasDiscoveryCallUrl) {
+        pollDCStatus()
+      }
       
     } catch (e) {
       console.error("Failed to start jobs:", e)
       setFlowState(prev => ({
         ...prev,
-        discoveryDoc: "error",
+        discoveryCall: hasDiscoveryCallUrl ? "error" : prev.discoveryCall,
         generalContext: "error",
       }))
     }
@@ -329,6 +408,9 @@ export function ClientContextView({ client }: Props) {
         
         {activeView === "discovery" && (
           <DiscoveryDocumentForm client={client} initialDomain={domainInput} />
+        )}
+        {activeView === "discovery-call" && (
+          <DiscoveryCallView client={client} />
         )}
         {activeView === "general" && (
           <GeneralContextForm client={client} />
@@ -386,34 +468,54 @@ export function ClientContextView({ client }: Props) {
       <div className="space-y-8">
         
         {/* Stage 1: Input */}
-        <div className="flex items-center gap-6">
+        <div className="flex items-start gap-6">
           <StageLabel number={1} label="Input" />
-          <PipelineCard
-            title="Domain / Company Info"
-            icon={<Globe className="h-5 w-5" />}
-            status={flowState.domain}
-            className="flex-1 max-w-md"
-          >
-              <Textarea
-              placeholder="Enter domain (e.g., acme.com) or company description..."
-              value={domainInput}
-              onChange={(e) => setDomainInput(e.target.value)}
-              className="bg-slate-800/50 border-slate-700 text-white placeholder:text-slate-500 min-h-[60px] resize-none"
-            />
-            <Button
-              onClick={handleActivate}
-              disabled={!domainInput.trim() || isActivating || flowState.discoveryDoc === "processing" || flowState.generalContext === "processing"}
-              className="w-full mt-3 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white border-0"
+          <div className="flex gap-4">
+            <PipelineCard
+              title="Domain / Company Info"
+              icon={<Globe className="h-5 w-5" />}
+              status={flowState.domain}
+              className="w-80"
             >
-              {(isActivating || flowState.discoveryDoc === "processing" || flowState.generalContext === "processing") ? (
-                <Spinner className="h-4 w-4 mr-2" />
-              ) : (
-                <Zap className="h-4 w-4 mr-2" />
-              )}
-              {(isActivating || flowState.discoveryDoc === "processing" || flowState.generalContext === "processing") ? "Processing..." : "Activate Pipeline"}
-            </Button>
-          </PipelineCard>
-            </div>
+              <Textarea
+                placeholder="Enter domain (e.g., acme.com) or company description..."
+                value={domainInput}
+                onChange={(e) => setDomainInput(e.target.value)}
+                className="bg-slate-800/50 border-slate-700 text-white placeholder:text-slate-500 min-h-[60px] resize-none"
+              />
+            </PipelineCard>
+            <PipelineCard
+              title="Discovery Call URL"
+              icon={<Phone className="h-5 w-5" />}
+              status={discoveryCallUrl.trim() ? (flowState.discoveryCall === "complete" ? "complete" : "idle") : "idle"}
+              className="w-80"
+            >
+              <Textarea
+                placeholder="Fathom URL (e.g., https://fathom.video/calls/...)"
+                value={discoveryCallUrl}
+                onChange={(e) => setDiscoveryCallUrl(e.target.value)}
+                className="bg-slate-800/50 border-slate-700 text-white placeholder:text-slate-500 min-h-[60px] resize-none"
+              />
+            </PipelineCard>
+          </div>
+        </div>
+        
+        {/* Activate Button */}
+        <div className="flex items-center gap-6">
+          <div className="w-20" />
+          <Button
+            onClick={handleActivate}
+            disabled={!domainInput.trim() || isActivating || flowState.discoveryCall === "processing" || flowState.generalContext === "processing"}
+            className="px-8 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white border-0"
+          >
+            {(isActivating || flowState.discoveryCall === "processing" || flowState.generalContext === "processing") ? (
+              <Spinner className="h-4 w-4 mr-2" />
+            ) : (
+              <Zap className="h-4 w-4 mr-2" />
+            )}
+            {(isActivating || flowState.discoveryCall === "processing" || flowState.generalContext === "processing") ? "Processing..." : "Activate Pipeline"}
+          </Button>
+        </div>
 
         {/* Connection Line */}
         <ConnectionLine active={flowState.domain === "complete"} />
@@ -424,11 +526,11 @@ export function ClientContextView({ client }: Props) {
           <div className="space-y-3">
             <div className="flex gap-4">
               <PipelineCard
-                title="Discovery Document"
-                subtitle="Client research & profile"
-                icon={<FileText className="h-5 w-5" />}
-                status={flowState.discoveryDoc}
-                onClick={() => setActiveView("discovery")}
+                title="Discovery Call Results"
+                subtitle="Fathom transcript analysis"
+                icon={<Phone className="h-5 w-5" />}
+                status={flowState.discoveryCall}
+                onClick={() => setActiveView("discovery-call")}
                 clickable
               />
               <PipelineCard
@@ -453,7 +555,7 @@ export function ClientContextView({ client }: Props) {
         </div>
 
         {/* Connection Line */}
-        <ConnectionLine active={flowState.discoveryDoc === "complete"} />
+        <ConnectionLine active={flowState.discoveryCall === "complete"} />
 
         {/* Stage 3: Strategy */}
         <div className="flex items-center gap-6">

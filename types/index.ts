@@ -395,3 +395,22 @@ export interface StrategyDocument {
   created_at?: string
   updated_at?: string
 }
+
+export interface DiscoveryCallAnswer {
+  question_number: number | string
+  question: string
+  answer: string
+  certainty: string
+}
+
+export interface DiscoveryCallResult {
+  id?: number
+  client_id?: number
+  fathom_url?: string | null
+  recording_id?: string | null
+  raw_analysis?: string | null
+  json_output?: string | null
+  answers_data?: DiscoveryCallAnswer[] | null
+  created_at?: string
+  updated_at?: string
+}
