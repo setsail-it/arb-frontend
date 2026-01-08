@@ -247,6 +247,57 @@ export function ClientContextView({ client }: Props) {
 
   // Load existing data AND check for in-progress jobs on mount
   useEffect(() => {
+    // Reset all state when client changes
+    setDomainInput("")
+    setDiscoveryCallUrl("")
+    setIsActivating(false)
+    setInputsActivated(false)
+    setDeepDiveUrl("")
+    setGammaUrl(null)
+    setResearchTimer(null)
+    setActiveView("admin")
+    setFlowState({
+      domain: "idle",
+      discoveryCall: "idle",
+      discoveryDoc: "idle",
+      generalContext: "idle",
+      deepDive: "idle",
+      strategyDoc: "idle",
+      painPointStrategy: "idle",
+      gamma: "idle",
+      serviceDocs: "idle",
+    })
+    
+    // Clear any existing polling intervals
+    if (timerIntervalRef.current) {
+      clearInterval(timerIntervalRef.current)
+      timerIntervalRef.current = null
+    }
+    if (dcPollingRef.current) {
+      clearInterval(dcPollingRef.current)
+      dcPollingRef.current = null
+    }
+    if (ddPollingRef.current) {
+      clearInterval(ddPollingRef.current)
+      ddPollingRef.current = null
+    }
+    if (gcPollingRef.current) {
+      clearInterval(gcPollingRef.current)
+      gcPollingRef.current = null
+    }
+    if (ddivePollingRef.current) {
+      clearInterval(ddivePollingRef.current)
+      ddivePollingRef.current = null
+    }
+    if (stratPollingRef.current) {
+      clearInterval(stratPollingRef.current)
+      stratPollingRef.current = null
+    }
+    if (painPointPollingRef.current) {
+      clearInterval(painPointPollingRef.current)
+      painPointPollingRef.current = null
+    }
+    
     const loadExistingDataAndJobStatus = async () => {
       try {
         // First check job statuses
