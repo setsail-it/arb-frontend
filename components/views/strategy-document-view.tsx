@@ -48,6 +48,7 @@ export function StrategyDocumentView({ client }: Props) {
   // Gamma presentation state
   const [gammaStatus, setGammaStatus] = useState<"idle" | "generating" | "complete" | "error">("idle")
   const [gammaUrl, setGammaUrl] = useState<string | null>(null)
+  const [gammaPdfUrl, setGammaPdfUrl] = useState<string | null>(null)
   const [gammaError, setGammaError] = useState<string | null>(null)
 
   // Cleanup on unmount
@@ -164,13 +165,11 @@ export function StrategyDocumentView({ client }: Props) {
     setGammaError(null)
     
     try {
-      const response = await api.generateGammaPresentation(client.id, {
-        num_cards: 15,
-        theme_id: "Oasis"
-      })
+      const response = await api.generateGammaPresentation(client.id)
       
       if (response.success && response.presentation_url) {
         setGammaUrl(response.presentation_url)
+        setGammaPdfUrl(response.pdf_url)
         setGammaStatus("complete")
         // Open the presentation in a new tab
         window.open(response.presentation_url, "_blank")
@@ -371,14 +370,26 @@ export function StrategyDocumentView({ client }: Props) {
                   Open in Gamma <ExternalLink className="h-3 w-3" />
                 </a>
               </div>
-              <Button
-                onClick={() => window.open(gammaUrl, "_blank")}
-                variant="outline"
-                className="border-teal-500/50 hover:bg-teal-900/30 text-teal-300"
-              >
-                <ExternalLink className="h-4 w-4 mr-2" />
-                View Slides
-              </Button>
+              <div className="flex items-center gap-2">
+                {gammaPdfUrl && (
+                  <Button
+                    onClick={() => window.open(gammaPdfUrl, "_blank")}
+                    variant="outline"
+                    className="border-slate-600 hover:bg-slate-800 text-slate-300"
+                  >
+                    <Download className="h-4 w-4 mr-2" />
+                    PDF
+                  </Button>
+                )}
+                <Button
+                  onClick={() => window.open(gammaUrl, "_blank")}
+                  variant="outline"
+                  className="border-teal-500/50 hover:bg-teal-900/30 text-teal-300"
+                >
+                  <ExternalLink className="h-4 w-4 mr-2" />
+                  View Slides
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>
