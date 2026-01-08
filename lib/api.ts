@@ -34,6 +34,11 @@ async function fetchJson<T>(endpoint: string, options?: RequestInit): Promise<T>
     throw new ApiError(errorMessage, res.status)
   }
   
+  // Handle 204 No Content responses (e.g., DELETE)
+  if (res.status === 204) {
+    return undefined as T
+  }
+  
   // Handle case where response is not JSON (e.g., HTML error page)
   const contentType = res.headers.get("content-type")
   if (!contentType || !contentType.includes("application/json")) {
