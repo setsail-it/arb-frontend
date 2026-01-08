@@ -7,9 +7,10 @@ import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Spinner } from "@/components/ui/spinner"
-import { Lock, AlertCircle } from "lucide-react"
+import { Lock, AlertCircle, User } from "lucide-react"
 
 function LoginForm() {
+  const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -34,7 +35,7 @@ function LoginForm() {
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password }),
+        body: JSON.stringify({ username, password }),
       })
       
       if (res.ok) {
@@ -43,7 +44,7 @@ function LoginForm() {
         router.refresh()
       } else {
         const data = await res.json()
-        setError(data.error || "Invalid password")
+        setError(data.error || "Invalid username or password")
       }
     } catch (e) {
       setError("Failed to authenticate. Please try again.")
@@ -60,7 +61,7 @@ function LoginForm() {
         </div>
         <CardTitle className="text-2xl text-slate-100">Setsail AI Panel</CardTitle>
         <CardDescription className="text-slate-400">
-          Enter the password to access the control panel
+          Sign in to access the control panel
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -83,26 +84,37 @@ function LoginForm() {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <Input
+              type="text"
+              placeholder="Username"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              className="bg-slate-800 border-slate-700 text-slate-100 placeholder:text-slate-500"
+              autoFocus
+              autoComplete="username"
+            />
+          </div>
+          <div>
+            <Input
               type="password"
-              placeholder="Enter password"
+              placeholder="Password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="bg-slate-800 border-slate-700 text-slate-100 placeholder:text-slate-500"
-              autoFocus
+              autoComplete="current-password"
             />
           </div>
           <Button 
             type="submit" 
-            className="w-full bg-blue-600 hover:bg-blue-700"
-            disabled={loading || !password}
+            className="w-full bg-violet-600 hover:bg-violet-700"
+            disabled={loading || !username || !password}
           >
             {loading && <Spinner className="mr-2 h-4 w-4" />}
-            {loading ? "Authenticating..." : "Access Control Panel"}
+            {loading ? "Signing in..." : "Sign In"}
           </Button>
         </form>
         
         <p className="mt-4 text-xs text-center text-slate-500">
-          Session expires after 1 hour of inactivity
+          Session expires after 4 hours
         </p>
       </CardContent>
     </Card>

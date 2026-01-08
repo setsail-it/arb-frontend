@@ -1,5 +1,5 @@
 import { BACKEND_BASE_URL } from "./config"
-import type { Client, ClientContext, DiscoveryDocument, KeywordIdea, KeywordCluster, KeywordSet, BlogIdea, BlogIdeaDebug, BestAlternateResult, StrategyDocument, DiscoveryCallResult } from "@/types"
+import type { Client, User, ClientContext, DiscoveryDocument, KeywordIdea, KeywordCluster, KeywordSet, BlogIdea, BlogIdeaDebug, BestAlternateResult, StrategyDocument, DiscoveryCallResult } from "@/types"
 
 class ApiError extends Error {
   status: number
@@ -49,21 +49,29 @@ async function fetchJson<T>(endpoint: string, options?: RequestInit): Promise<T>
 }
 
 export const api = {
+  // Auth / Users
+  getUsers: () => fetchJson<User[]>("/auth/users"),
+  
   // Clients
   getClients: () => fetchJson<Client[]>("/clients"),
-  createClient: (name: string, domain?: string) =>
+  createClient: (name: string, domain?: string, ownerId?: number) =>
     fetchJson<Client>("/clients", {
       method: "POST",
-      body: JSON.stringify({ name, domain }),
+      body: JSON.stringify({ name, domain, owner_id: ownerId }),
     }),
-  deleteClient: (clientId: string) =>
+  deleteClient: (clientId: number) =>
     fetchJson(`/clients/${clientId}`, {
       method: "DELETE",
     }),
-  renameClient: (clientId: string, name: string) =>
+  renameClient: (clientId: number, name: string) =>
     fetchJson<Client>(`/clients/${clientId}/rename`, {
       method: "PATCH",
       body: JSON.stringify({ name }),
+    }),
+  assignClient: (clientId: number, ownerId: number | null) =>
+    fetchJson<Client>(`/clients/${clientId}/assign`, {
+      method: "PATCH",
+      body: JSON.stringify({ owner_id: ownerId }),
     }),
   cancelJobs: (clientId: number, jobTypes?: string[]) =>
     fetchJson<{ cancelled_count: number; message: string }>(`/clients/${clientId}/cancel-jobs`, {

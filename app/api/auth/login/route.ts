@@ -1,32 +1,43 @@
 import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 
-// Password is set via environment variable
-const AUTH_PASSWORD = process.env.ARB_PANEL_PASSWORD || 'changeme'
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
 export async function POST(request: Request) {
   try {
     const body = await request.json()
-    const { password } = body
+    const { username, password } = body
     
-    if (!password) {
+    if (!username || !password) {
       return NextResponse.json(
-        { error: 'Password is required' },
+        { error: 'Username and password are required' },
         { status: 400 }
       )
     }
     
-    if (password !== AUTH_PASSWORD) {
+    // Call backend auth API
+    const backendResponse = await fetch(`${API_BASE_URL}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password }),
+    })
+    
+    if (!backendResponse.ok) {
+      const errorData = await backendResponse.json().catch(() => ({}))
       return NextResponse.json(
-        { error: 'Invalid password' },
+        { error: errorData.detail || 'Invalid username or password' },
         { status: 401 }
       )
     }
     
-    // Create auth cookie with timestamp for expiration tracking
+    const data = await backendResponse.json()
+    
+    // Create auth cookie with user info and JWT token
     const authData = {
       authenticated: true,
       timestamp: Date.now(),
+      user: data.user,
+      token: data.access_token,
     }
     
     const cookieStore = await cookies()
@@ -34,12 +45,16 @@ export async function POST(request: Request) {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
-      maxAge: 60 * 60, // 1 hour in seconds
+      maxAge: 60 * 60 * 4, // 4 hours in seconds
       path: '/',
     })
     
-    return NextResponse.json({ success: true })
+    return NextResponse.json({ 
+      success: true,
+      user: data.user,
+    })
   } catch (e) {
+    console.error('Login error:', e)
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

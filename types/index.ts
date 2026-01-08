@@ -1,7 +1,17 @@
 export interface Client {
-  id: string
+  id: number
   name: string
+  slug?: string | null
+  notes?: string | null
+  owner_id?: number | null
+  owner_username?: string | null
   created_at?: string
+}
+
+export interface User {
+  id: number
+  username: string
+  is_admin: boolean
 }
 
 export interface ClientContext {

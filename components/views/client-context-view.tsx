@@ -32,6 +32,7 @@ import {
 
 interface Props {
   client: Client
+  readOnly?: boolean
 }
 
 type ComponentStatus = "idle" | "processing" | "complete" | "error"
@@ -58,7 +59,7 @@ function formatTime(seconds: number): string {
   return isNegative ? `-${formatted}` : formatted
 }
 
-export function ClientContextView({ client }: Props) {
+export function ClientContextView({ client, readOnly = false }: Props) {
   const [activeView, setActiveView] = useState<ActiveView>("admin")
   const [domainInput, setDomainInput] = useState("")
   const [discoveryCallUrl, setDiscoveryCallUrl] = useState("")
@@ -936,11 +937,11 @@ export function ClientContextView({ client }: Props) {
           ) : (
             <Button
               onClick={handleActivate}
-              disabled={!domainInput.trim()}
-              className="px-8 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white border-0"
+              disabled={!domainInput.trim() || readOnly}
+              className="px-8 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white border-0 disabled:opacity-50"
             >
               <Zap className="h-4 w-4 mr-2" />
-              Activate Pipeline
+              {readOnly ? "View Only" : "Activate Pipeline"}
             </Button>
           )}
         </div>
@@ -1012,30 +1013,34 @@ export function ClientContextView({ client }: Props) {
             floating
             className="w-80"
           >
-            <Textarea
-              placeholder="Deep Dive Fathom URL (optional)"
-              value={deepDiveUrl}
-              onChange={(e) => setDeepDiveUrl(e.target.value)}
-              onClick={(e) => e.stopPropagation()}
-              className="bg-slate-800/50 border-slate-700 text-white placeholder:text-slate-500 min-h-[40px] resize-none text-sm"
-              disabled={flowState.discoveryCall !== "complete"}
-            />
-            <Button
-              onClick={(e) => {
-                e.stopPropagation()
-                handleDeepDive()
-              }}
-              disabled={!deepDiveUrl.trim() || flowState.discoveryCall !== "complete" || flowState.deepDive === "processing"}
-              size="sm"
-              className="w-full mt-2 bg-slate-700 hover:bg-slate-600 text-white border-0"
-            >
-              {flowState.deepDive === "processing" ? (
-                <Spinner className="h-3 w-3 mr-2" />
-              ) : (
-                <Search className="h-3 w-3 mr-2" />
-              )}
-              {flowState.deepDive === "processing" ? "Processing..." : "Run Deep Dive"}
-            </Button>
+            {!readOnly && (
+              <>
+                <Textarea
+                  placeholder="Deep Dive Fathom URL (optional)"
+                  value={deepDiveUrl}
+                  onChange={(e) => setDeepDiveUrl(e.target.value)}
+                  onClick={(e) => e.stopPropagation()}
+                  className="bg-slate-800/50 border-slate-700 text-white placeholder:text-slate-500 min-h-[40px] resize-none text-sm"
+                  disabled={flowState.discoveryCall !== "complete"}
+                />
+                <Button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handleDeepDive()
+                  }}
+                  disabled={!deepDiveUrl.trim() || flowState.discoveryCall !== "complete" || flowState.deepDive === "processing"}
+                  size="sm"
+                  className="w-full mt-2 bg-slate-700 hover:bg-slate-600 text-white border-0"
+                >
+                  {flowState.deepDive === "processing" ? (
+                    <Spinner className="h-3 w-3 mr-2" />
+                  ) : (
+                    <Search className="h-3 w-3 mr-2" />
+                  )}
+                  {flowState.deepDive === "processing" ? "Processing..." : "Run Deep Dive"}
+                </Button>
+              </>
+            )}
           </PipelineCard>
         </div>
 
@@ -1054,32 +1059,34 @@ export function ClientContextView({ client }: Props) {
             clickable={flowState.strategyDoc === "complete"}
             className="w-80"
           >
-            <Button
-              onClick={(e) => {
-                e.stopPropagation()
-                handleStrategyGenerate()
-              }}
-              disabled={flowState.strategyDoc === "processing" || flowState.discoveryDoc !== "complete"}
-              size="sm"
-              className="w-full bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white border-0"
-            >
-              {flowState.strategyDoc === "processing" ? (
-                <>
-                  <Spinner className="h-3 w-3 mr-2" />
-                  Generating...
-                </>
-              ) : flowState.strategyDoc === "complete" ? (
-                <>
-                  <RefreshCw className="h-3 w-3 mr-2" />
-                  Regenerate
-                </>
-              ) : (
-                <>
-                  <Zap className="h-3 w-3 mr-2" />
-                  Generate Strategy
-                </>
-              )}
-            </Button>
+            {!readOnly && (
+              <Button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleStrategyGenerate()
+                }}
+                disabled={flowState.strategyDoc === "processing" || flowState.discoveryDoc !== "complete"}
+                size="sm"
+                className="w-full bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white border-0"
+              >
+                {flowState.strategyDoc === "processing" ? (
+                  <>
+                    <Spinner className="h-3 w-3 mr-2" />
+                    Generating...
+                  </>
+                ) : flowState.strategyDoc === "complete" ? (
+                  <>
+                    <RefreshCw className="h-3 w-3 mr-2" />
+                    Regenerate
+                  </>
+                ) : (
+                  <>
+                    <Zap className="h-3 w-3 mr-2" />
+                    Generate Strategy
+                  </>
+                )}
+              </Button>
+            )}
           </PipelineCard>
         </div>
 
@@ -1103,36 +1110,38 @@ export function ClientContextView({ client }: Props) {
             clickable={flowState.painPointStrategy === "complete"}
             className="w-80"
           >
-            <Button
-              onClick={(e) => {
-                e.stopPropagation()
-                handlePainPointGenerate()
-              }}
-              disabled={
-                flowState.painPointStrategy === "processing" || 
-                flowState.strategyDoc !== "complete" ||
-                flowState.discoveryCall !== "complete"
-              }
-              size="sm"
-              className="w-full bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white border-0"
-            >
-              {flowState.painPointStrategy === "processing" ? (
-                <>
-                  <Spinner className="h-3 w-3 mr-2" />
-                  Rewriting...
-                </>
-              ) : flowState.painPointStrategy === "complete" ? (
-                <>
-                  <RefreshCw className="h-3 w-3 mr-2" />
-                  Re-run
-                </>
-              ) : (
-                <>
-                  <Sparkles className="h-3 w-3 mr-2" />
-                  Rewrite Strategy
-                </>
-              )}
-            </Button>
+            {!readOnly && (
+              <Button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handlePainPointGenerate()
+                }}
+                disabled={
+                  flowState.painPointStrategy === "processing" || 
+                  flowState.strategyDoc !== "complete" ||
+                  flowState.discoveryCall !== "complete"
+                }
+                size="sm"
+                className="w-full bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white border-0"
+              >
+                {flowState.painPointStrategy === "processing" ? (
+                  <>
+                    <Spinner className="h-3 w-3 mr-2" />
+                    Rewriting...
+                  </>
+                ) : flowState.painPointStrategy === "complete" ? (
+                  <>
+                    <RefreshCw className="h-3 w-3 mr-2" />
+                    Re-run
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="h-3 w-3 mr-2" />
+                    Rewrite Strategy
+                  </>
+                )}
+              </Button>
+            )}
           </PipelineCard>
         </div>
 
@@ -1152,32 +1161,34 @@ export function ClientContextView({ client }: Props) {
               clickable={flowState.gamma === "complete" && !!gammaUrl}
               className="w-64"
             >
-              <Button
-                onClick={(e) => {
-                  e.stopPropagation()
-                  handleGammaGenerate()
-                }}
-                disabled={flowState.painPointStrategy !== "complete" || flowState.gamma === "processing"}
-                size="sm"
-                className="w-full bg-teal-600 hover:bg-teal-500 text-white border-0"
-              >
-                {flowState.gamma === "processing" ? (
-                  <>
-                    <Spinner className="h-3 w-3 mr-2" />
-                    Generating...
-                  </>
-                ) : flowState.gamma === "complete" ? (
-                  <>
-                    <RefreshCw className="h-3 w-3 mr-2" />
-                    Regenerate
-                  </>
-                ) : (
-                  <>
-                    <Presentation className="h-3 w-3 mr-2" />
-                    Create Slides
-                  </>
-                )}
-              </Button>
+              {!readOnly && (
+                <Button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handleGammaGenerate()
+                  }}
+                  disabled={flowState.painPointStrategy !== "complete" || flowState.gamma === "processing"}
+                  size="sm"
+                  className="w-full bg-teal-600 hover:bg-teal-500 text-white border-0"
+                >
+                  {flowState.gamma === "processing" ? (
+                    <>
+                      <Spinner className="h-3 w-3 mr-2" />
+                      Generating...
+                    </>
+                  ) : flowState.gamma === "complete" ? (
+                    <>
+                      <RefreshCw className="h-3 w-3 mr-2" />
+                      Regenerate
+                    </>
+                  ) : (
+                    <>
+                      <Presentation className="h-3 w-3 mr-2" />
+                      Create Slides
+                    </>
+                  )}
+                </Button>
+              )}
             </PipelineCard>
             <PipelineCard
               title="Service Documents"
