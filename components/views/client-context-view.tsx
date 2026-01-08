@@ -79,8 +79,9 @@ export function ClientContextView({ client }: Props) {
   const [deepDiveUrl, setDeepDiveUrl] = useState("")
   const [gammaUrl, setGammaUrl] = useState<string | null>(null)
   
-  // Timer state for research phase (7 minutes = 420 seconds)
+  // Timer state for research phase - tracks elapsed seconds since job started
   const [researchTimer, setResearchTimer] = useState<number | null>(null)
+  const [researchStartTime, setResearchStartTime] = useState<Date | null>(null)
   const timerIntervalRef = useRef<NodeJS.Timeout | null>(null)
   const RESEARCH_TIMEOUT_SECONDS = 420 // 7 minutes
   
@@ -88,29 +89,37 @@ export function ClientContextView({ client }: Props) {
   const dcPollingRef = useRef<NodeJS.Timeout | null>(null)
   const ddivePollingRef = useRef<NodeJS.Timeout | null>(null)
 
-  // Start/stop timer based on research status
+  // Start/stop timer based on research status - counts UP from start time
   useEffect(() => {
     const isResearching = flowState.discoveryCall === "processing" || flowState.discoveryDoc === "processing" || flowState.generalContext === "processing"
     const isDone = flowState.discoveryCall !== "processing" && flowState.discoveryDoc !== "processing" && flowState.generalContext !== "processing"
     
-    if (isResearching && researchTimer === null) {
-      // Start timer at 7 minutes (420 seconds)
-      setResearchTimer(RESEARCH_TIMEOUT_SECONDS)
+    if (isResearching && !timerIntervalRef.current) {
+      // Start timer - if we have a start time, use it; otherwise use now
+      const startTime = researchStartTime || new Date()
+      if (!researchStartTime) {
+        setResearchStartTime(startTime)
+      }
+      
+      // Calculate initial elapsed time
+      const initialElapsed = Math.floor((Date.now() - startTime.getTime()) / 1000)
+      setResearchTimer(initialElapsed)
+      
       timerIntervalRef.current = setInterval(() => {
-        setResearchTimer(prev => {
-          if (prev !== null && prev <= -60) {
-            // Auto-abort after 1 minute past timeout (8 minutes total)
-            handleAbortResearch()
-            return null
-          }
-          return prev !== null ? prev - 1 : null
-        })
+        const elapsed = Math.floor((Date.now() - startTime.getTime()) / 1000)
+        setResearchTimer(elapsed)
+        
+        // Auto-abort after 8 minutes (480 seconds)
+        if (elapsed >= 480) {
+          handleAbortResearch()
+        }
       }, 1000)
     } else if (isDone && timerIntervalRef.current) {
-      // Stop timer when both are complete or errored
+      // Stop timer when all are complete or errored
       clearInterval(timerIntervalRef.current)
       timerIntervalRef.current = null
       setResearchTimer(null)
+      setResearchStartTime(null)
     }
     
     return () => {
@@ -118,7 +127,7 @@ export function ClientContextView({ client }: Props) {
         clearInterval(timerIntervalRef.current)
       }
     }
-  }, [flowState.discoveryCall, flowState.discoveryDoc, flowState.generalContext])
+  }, [flowState.discoveryCall, flowState.discoveryDoc, flowState.generalContext, researchStartTime])
 
   // Polling interval refs
   const ddPollingRef = useRef<NodeJS.Timeout | null>(null)
@@ -270,6 +279,7 @@ export function ClientContextView({ client }: Props) {
     setDeepDiveUrl("")
     setGammaUrl(null)
     setResearchTimer(null)
+    setResearchStartTime(null)
     setActiveView("admin")
     setFlowState({
       domain: "idle",
@@ -315,14 +325,18 @@ export function ClientContextView({ client }: Props) {
     
     const loadExistingDataAndJobStatus = async () => {
       try {
-        // First check job statuses
+        // First check job statuses and collect start times
         let ddJobStatus: string | null = null
         let gcJobStatus: string | null = null
+        let ddStartedAt: string | null = null
+        let gcStartedAt: string | null = null
+        let dcStartedAt: string | null = null
         
         try {
           const ddStatus = await api.getInitialDraftStatus(client.id)
           ddJobStatus = ddStatus.status
-          console.log("[Load] DD job status:", ddJobStatus)
+          ddStartedAt = ddStatus.started_at
+          console.log("[Load] DD job status:", ddJobStatus, "started_at:", ddStartedAt)
         } catch (e) {
           // No DD job found
         }
@@ -330,7 +344,8 @@ export function ClientContextView({ client }: Props) {
         try {
           const gcStatus = await api.getContextFetchStatus(client.id)
           gcJobStatus = gcStatus.status
-          console.log("[Load] GC job status:", gcJobStatus)
+          gcStartedAt = gcStatus.started_at
+          console.log("[Load] GC job status:", gcJobStatus, "started_at:", gcStartedAt)
         } catch (e) {
           // No GC job found
         }
@@ -366,7 +381,8 @@ export function ClientContextView({ client }: Props) {
         try {
           const dcStatus = await api.getDiscoveryCallProcessStatus(client.id)
           dcJobStatus = dcStatus.status
-          console.log("[Load] DC job status:", dcJobStatus)
+          dcStartedAt = dcStatus.started_at
+          console.log("[Load] DC job status:", dcJobStatus, "started_at:", dcStartedAt)
         } catch (e) {
           // No DC job found
         }
@@ -507,6 +523,26 @@ export function ClientContextView({ client }: Props) {
           painPointStrategy: painPointState,
         }))
         
+        // If any research jobs are running, find the earliest start time for the timer
+        const runningStartTimes: Date[] = []
+        if ((ddState === "processing") && ddStartedAt) {
+          runningStartTimes.push(new Date(ddStartedAt))
+        }
+        if ((gcState === "processing") && gcStartedAt) {
+          runningStartTimes.push(new Date(gcStartedAt))
+        }
+        if ((dcState === "processing") && dcStartedAt) {
+          runningStartTimes.push(new Date(dcStartedAt))
+        }
+        
+        if (runningStartTimes.length > 0) {
+          // Use the earliest start time
+          const earliestStart = new Date(Math.min(...runningStartTimes.map(d => d.getTime())))
+          console.log("[Load] Setting research start time to:", earliestStart)
+          setResearchStartTime(earliestStart)
+          setIsActivating(true)
+        }
+        
       } catch (e) {
         console.error("Error loading existing data:", e)
       }
@@ -617,6 +653,7 @@ export function ClientContextView({ client }: Props) {
       timerIntervalRef.current = null
     }
     setResearchTimer(null)
+    setResearchStartTime(null)
     
     // Set all processing states to idle (cancelled)
     setFlowState(prev => ({
@@ -941,12 +978,13 @@ export function ClientContextView({ client }: Props) {
                 clickable
               />
             </div>
-            {/* Research Timer */}
+            {/* Research Timer - counts up, shows warning after 7 min */}
             {researchTimer !== null && (
-              <div className={`flex items-center gap-2 text-sm ${researchTimer < 0 ? 'text-amber-400' : 'text-violet-400'}`}>
+              <div className={`flex items-center gap-2 text-sm ${researchTimer >= RESEARCH_TIMEOUT_SECONDS ? 'text-amber-400' : 'text-violet-400'}`}>
                 <Clock className="h-4 w-4 animate-pulse" />
                 <span className="font-mono">
-                  Loading: {formatTime(researchTimer)}
+                  Elapsed: {formatTime(researchTimer)}
+                  {researchTimer >= RESEARCH_TIMEOUT_SECONDS && " (over 7min)"}
                 </span>
             </div>
             )}

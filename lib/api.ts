@@ -99,7 +99,7 @@ export const api = {
       body: JSON.stringify({ domain }),
     }),
   getContextFetchStatus: (clientId: string) =>
-    fetchJson<{ job_id: string; status: string; error_message: string | null }>(`/clients/${clientId}/context/fetch-async/status`),
+    fetchJson<{ job_id: string; status: string; error_message: string | null; started_at: string | null }>(`/clients/${clientId}/context/fetch-async/status`),
   fetchContextFromSiteStream: async (
     clientId: string,
     domain: string,
@@ -604,7 +604,7 @@ export const api = {
       body: JSON.stringify({ domain }),
     }),
   getInitialDraftStatus: (clientId: string) =>
-    fetchJson<{ job_id: string; status: string; error_message: string | null }>(`/clients/${clientId}/discovery-document/generate-initial-draft/status`),
+    fetchJson<{ job_id: string; status: string; error_message: string | null; started_at: string | null }>(`/clients/${clientId}/discovery-document/generate-initial-draft/status`),
 
   // Context Edit Token Management
   generateContextEditToken: (clientId: string) =>
@@ -699,7 +699,7 @@ export const api = {
       body: JSON.stringify({ fathom_url: fathomUrl }),
     }),
   getDiscoveryCallProcessStatus: (clientId: string) =>
-    fetchJson<{ job_id: string; status: string; error_message: string | null }>(`/clients/${clientId}/discovery-call/process/status`),
+    fetchJson<{ job_id: string; status: string; error_message: string | null; started_at: string | null }>(`/clients/${clientId}/discovery-call/process/status`),
 
   // Deep Dive Processing
   getDeepDiveResult: async (clientId: string) => {
