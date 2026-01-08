@@ -58,6 +58,8 @@ export function ClientContextView({ client }: Props) {
   const [domainInput, setDomainInput] = useState("")
   const [discoveryCallUrl, setDiscoveryCallUrl] = useState("")
   const [isActivating, setIsActivating] = useState(false)
+  // Input states are session-only (reset on refresh), modules poll database
+  const [inputsActivated, setInputsActivated] = useState(false)
   const [flowState, setFlowState] = useState<FlowState>({
     domain: "idle",
     discoveryCall: "idle",
@@ -341,9 +343,10 @@ export function ClientContextView({ client }: Props) {
           }
         }
         
+        // Note: domain/inputs are session-only (don't persist green on refresh)
+        // Only research modules check database for status
         setFlowState(prev => ({
           ...prev,
-          domain: doc?.domain ? "complete" : "idle",
           discoveryCall: dcState,
           discoveryDoc: ddState,
           generalContext: gcState,
@@ -361,13 +364,13 @@ export function ClientContextView({ client }: Props) {
     if (!domainInput.trim()) return
     
     setIsActivating(true)
+    setInputsActivated(true) // Mark inputs as activated (session-only, resets on refresh)
     
     // Determine which jobs to start
     const hasDiscoveryCallUrl = discoveryCallUrl.trim().length > 0
     
     setFlowState(prev => ({
       ...prev,
-      domain: "complete",
       discoveryCall: hasDiscoveryCallUrl ? "processing" : prev.discoveryCall,
       discoveryDoc: "processing",
       generalContext: "processing",
@@ -533,7 +536,7 @@ export function ClientContextView({ client }: Props) {
             <PipelineCard
               title="Domain / Company Info"
               icon={<Globe className="h-5 w-5" />}
-              status={flowState.domain}
+              status={inputsActivated ? "complete" : "idle"}
               className="w-80"
             >
               <Textarea
@@ -546,7 +549,7 @@ export function ClientContextView({ client }: Props) {
             <PipelineCard
               title="Discovery Call URL"
               icon={<Phone className="h-5 w-5" />}
-              status={discoveryCallUrl.trim() ? (flowState.discoveryCall === "complete" ? "complete" : "idle") : "idle"}
+              status={inputsActivated && discoveryCallUrl.trim() ? "complete" : "idle"}
               className="w-80"
             >
               <Textarea
@@ -577,7 +580,7 @@ export function ClientContextView({ client }: Props) {
         </div>
 
         {/* Connection Line */}
-        <ConnectionLine active={flowState.domain === "complete"} />
+        <ConnectionLine active={inputsActivated} />
 
         {/* Stage 2: Research */}
         <div className="flex items-start gap-6">
