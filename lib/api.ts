@@ -643,6 +643,14 @@ export const api = {
     const baseUrl = BACKEND_BASE_URL.replace(/\/$/, "")
     return `${baseUrl}/clients/${clientId}/strategy-document/pdf`
   },
+  generateGammaPresentation: (clientId: string, options?: { num_cards?: number; theme_id?: string }) =>
+    fetchJson<{ success: boolean; presentation_url: string | null; gamma_id: string | null; message: string | null }>(
+      `/clients/${clientId}/strategy-document/gamma-presentation`,
+      {
+        method: "POST",
+        body: JSON.stringify(options || {}),
+      }
+    ),
 
   // Discovery Call Processing
   getDiscoveryCallResult: async (clientId: string) => {

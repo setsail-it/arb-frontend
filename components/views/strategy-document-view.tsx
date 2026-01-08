@@ -14,6 +14,7 @@ import {
   Clock,
   CheckCircle2,
   AlertCircle,
+  Presentation,
 } from "lucide-react"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
@@ -43,6 +44,11 @@ export function StrategyDocumentView({ client }: Props) {
   const [timer, setTimer] = useState<number | null>(null)
   const timerIntervalRef = useRef<NodeJS.Timeout | null>(null)
   const pollingRef = useRef<NodeJS.Timeout | null>(null)
+  
+  // Gamma presentation state
+  const [gammaStatus, setGammaStatus] = useState<"idle" | "generating" | "complete" | "error">("idle")
+  const [gammaUrl, setGammaUrl] = useState<string | null>(null)
+  const [gammaError, setGammaError] = useState<string | null>(null)
 
   // Cleanup on unmount
   useEffect(() => {
@@ -153,6 +159,32 @@ export function StrategyDocumentView({ client }: Props) {
     window.open(pdfUrl, "_blank")
   }
 
+  const handleGenerateGamma = async () => {
+    setGammaStatus("generating")
+    setGammaError(null)
+    
+    try {
+      const response = await api.generateGammaPresentation(client.id, {
+        num_cards: 15,
+        theme_id: "Oasis"
+      })
+      
+      if (response.success && response.presentation_url) {
+        setGammaUrl(response.presentation_url)
+        setGammaStatus("complete")
+        // Open the presentation in a new tab
+        window.open(response.presentation_url, "_blank")
+      } else {
+        setGammaStatus("error")
+        setGammaError(response.message || "Failed to generate presentation")
+      }
+    } catch (e: any) {
+      console.error("Gamma generation error:", e)
+      setGammaStatus("error")
+      setGammaError(e.message || "Failed to generate presentation")
+    }
+  }
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -177,14 +209,34 @@ export function StrategyDocumentView({ client }: Props) {
         
         <div className="flex items-center gap-3">
           {status === "complete" && strategyDoc?.content && (
-            <Button
-              onClick={handleDownloadPdf}
-              variant="outline"
-              className="gap-2 border-slate-600 hover:bg-slate-800"
-            >
-              <Download className="h-4 w-4" />
-              Download PDF
-            </Button>
+            <>
+              <Button
+                onClick={handleGenerateGamma}
+                disabled={gammaStatus === "generating"}
+                variant="outline"
+                className="gap-2 border-teal-600 text-teal-400 hover:bg-teal-900/30 hover:text-teal-300"
+              >
+                {gammaStatus === "generating" ? (
+                  <>
+                    <Spinner className="h-4 w-4" />
+                    Generating...
+                  </>
+                ) : (
+                  <>
+                    <Presentation className="h-4 w-4" />
+                    Generate Slides
+                  </>
+                )}
+              </Button>
+              <Button
+                onClick={handleDownloadPdf}
+                variant="outline"
+                className="gap-2 border-slate-600 hover:bg-slate-800"
+              >
+                <Download className="h-4 w-4" />
+                Download PDF
+              </Button>
+            </>
           )}
           
           <Button
@@ -253,6 +305,79 @@ export function StrategyDocumentView({ client }: Props) {
                 className="border-red-500/50 hover:bg-red-900/30"
               >
                 Retry
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Gamma Status */}
+      {gammaStatus === "generating" && (
+        <Card className="border-teal-500/50 bg-teal-950/20">
+          <CardContent className="py-4">
+            <div className="flex items-center gap-4">
+              <div className="p-2 rounded-full bg-teal-600 animate-pulse">
+                <Presentation className="h-5 w-5 text-white" />
+              </div>
+              <div className="flex-1">
+                <p className="text-white font-medium">Generating Slide Deck...</p>
+                <p className="text-sm text-teal-300">
+                  Gamma is creating your presentation (this may take 1-2 minutes)
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {gammaStatus === "error" && gammaError && (
+        <Card className="border-red-500/50 bg-red-950/20">
+          <CardContent className="py-4">
+            <div className="flex items-center gap-4">
+              <div className="p-2 rounded-full bg-red-600">
+                <AlertCircle className="h-5 w-5 text-white" />
+              </div>
+              <div className="flex-1">
+                <p className="text-white font-medium">Presentation Generation Failed</p>
+                <p className="text-sm text-red-300">{gammaError}</p>
+              </div>
+              <Button
+                onClick={handleGenerateGamma}
+                variant="outline"
+                className="border-red-500/50 hover:bg-red-900/30"
+              >
+                Retry
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {gammaStatus === "complete" && gammaUrl && (
+        <Card className="border-teal-500/50 bg-teal-950/20">
+          <CardContent className="py-4">
+            <div className="flex items-center gap-4">
+              <div className="p-2 rounded-full bg-teal-600">
+                <CheckCircle2 className="h-5 w-5 text-white" />
+              </div>
+              <div className="flex-1">
+                <p className="text-white font-medium">Presentation Ready!</p>
+                <a 
+                  href={gammaUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm text-teal-300 hover:text-teal-200 flex items-center gap-1"
+                >
+                  Open in Gamma <ExternalLink className="h-3 w-3" />
+                </a>
+              </div>
+              <Button
+                onClick={() => window.open(gammaUrl, "_blank")}
+                variant="outline"
+                className="border-teal-500/50 hover:bg-teal-900/30 text-teal-300"
+              >
+                <ExternalLink className="h-4 w-4 mr-2" />
+                View Slides
               </Button>
             </div>
           </CardContent>
