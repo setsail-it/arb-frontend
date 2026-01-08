@@ -327,6 +327,39 @@ export function ClientContextView({ client }: Props) {
           gcState = "complete"
         }
         
+        // Check deep dive status
+        let deepDiveState: ComponentStatus = "idle"
+        try {
+          const ddiveStatus = await api.getDeepDiveProcessStatus(client.id)
+          console.log("[Load] Deep dive job status:", ddiveStatus.status)
+          if (ddiveStatus.status === "running" || ddiveStatus.status === "pending") {
+            deepDiveState = "processing"
+            pollDeepDiveStatus()
+          } else if (ddiveStatus.status === "error") {
+            deepDiveState = "error"
+          } else {
+            // Check if results exist
+            try {
+              const ddiveResult = await api.getDeepDiveResult(client.id)
+              if (ddiveResult && ddiveResult.id && ddiveResult.answers_data) {
+                deepDiveState = "complete"
+              }
+            } catch (e2) {
+              // No results
+            }
+          }
+        } catch (e) {
+          // No job found, check if results exist
+          try {
+            const ddiveResult = await api.getDeepDiveResult(client.id)
+            if (ddiveResult && ddiveResult.id && ddiveResult.answers_data) {
+              deepDiveState = "complete"
+            }
+          } catch (e2) {
+            // No results
+          }
+        }
+
         // Check strategy document status
         let strategyState: ComponentStatus = "idle"
         try {
@@ -357,6 +390,7 @@ export function ClientContextView({ client }: Props) {
           discoveryCall: dcState,
           discoveryDoc: ddState,
           generalContext: gcState,
+          deepDive: deepDiveState,
           strategyDoc: strategyState,
         }))
         
