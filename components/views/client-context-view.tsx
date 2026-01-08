@@ -311,6 +311,10 @@ export function ClientContextView({ client }: Props) {
         let contextData: any = null
         try {
           contextData = await api.getContext(client.id)
+          // Load persisted discovery call URL
+          if (contextData && contextData.discovery_call_url) {
+            setDiscoveryCallUrl(contextData.discovery_call_url)
+          }
         } catch (e) {
           // No context data
         }
@@ -380,6 +384,19 @@ export function ClientContextView({ client }: Props) {
       discoveryDoc: "processing",
       generalContext: "processing",
     }))
+
+    // Save discovery call URL to context if provided
+    if (hasDiscoveryCallUrl) {
+      try {
+        await api.saveContext(client.id, { 
+          domain: domainInput.trim(),
+          discovery_call_url: discoveryCallUrl.trim() 
+        })
+        console.log("[Activate] Discovery call URL saved to context")
+      } catch (e) {
+        console.error("Failed to save discovery call URL:", e)
+      }
+    }
 
     // Start all 3 jobs in parallel (they return immediately now)
     try {
