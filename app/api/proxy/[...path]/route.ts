@@ -46,6 +46,15 @@ async function handleRequest(request: NextRequest, params: { path: string[] }) {
     // Ensure CORS headers are handled by the proxy if needed, or just forward everything
     // Usually Next.js handles the client-side CORS for the /api route automatically (same origin).
 
+    // Handle 204 No Content responses (no body allowed)
+    if (response.status === 204) {
+      return new NextResponse(null, {
+        status: 204,
+        statusText: response.statusText,
+        headers: responseHeaders,
+      })
+    }
+
     if (isStreaming && response.body) {
       // For streaming responses, pipe the stream directly
       return new NextResponse(response.body, {
