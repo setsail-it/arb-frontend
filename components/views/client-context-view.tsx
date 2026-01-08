@@ -83,7 +83,7 @@ export function ClientContextView({ client }: Props) {
   const [researchTimer, setResearchTimer] = useState<number | null>(null)
   const [researchStartTime, setResearchStartTime] = useState<Date | null>(null)
   const timerIntervalRef = useRef<NodeJS.Timeout | null>(null)
-  const RESEARCH_TIMEOUT_SECONDS = 420 // 7 minutes
+  const RESEARCH_TIMEOUT_SECONDS = 1800 // 30 minutes
   
   // Polling interval for discovery call and deep dive
   const dcPollingRef = useRef<NodeJS.Timeout | null>(null)
@@ -109,8 +109,8 @@ export function ClientContextView({ client }: Props) {
         const elapsed = Math.floor((Date.now() - startTime.getTime()) / 1000)
         setResearchTimer(elapsed)
         
-        // Auto-abort after 8 minutes (480 seconds)
-        if (elapsed >= 480) {
+        // Auto-abort after 30 minutes (1800 seconds)
+        if (elapsed >= RESEARCH_TIMEOUT_SECONDS) {
           handleAbortResearch()
         }
       }, 1000)
@@ -978,14 +978,14 @@ export function ClientContextView({ client }: Props) {
                 clickable
               />
             </div>
-            {/* Research Timer - counts up, shows warning after 7 min */}
+            {/* Research Timer - counts up from start */}
             {researchTimer !== null && (
-              <div className={`flex items-center gap-2 text-sm ${researchTimer >= RESEARCH_TIMEOUT_SECONDS ? 'text-amber-400' : 'text-violet-400'}`}>
+              <div className="flex items-center gap-2 text-sm text-violet-400">
                 <Clock className="h-4 w-4 animate-pulse" />
                 <span className="font-mono">
                   Elapsed: {formatTime(researchTimer)}
-                  {researchTimer >= RESEARCH_TIMEOUT_SECONDS && " (over 7min)"}
                 </span>
+                <span className="text-slate-500 text-xs">(may take 10-15 minutes)</span>
             </div>
             )}
           </div>
