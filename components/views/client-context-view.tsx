@@ -472,7 +472,7 @@ export function ClientContextView({ client }: Props) {
   const handleDeepDive = async () => {
     if (!deepDiveUrl.trim()) return
     if (flowState.discoveryCall !== "complete") {
-      alert("Discovery Call Results must be completed first")
+      alert("Discovery Call must be completed first")
       return
     }
     
@@ -672,7 +672,7 @@ export function ClientContextView({ client }: Props) {
           <div className="space-y-3">
             <div className="flex gap-4">
               <PipelineCard
-                title="Discovery Call Results"
+                title="Discovery Call"
                 subtitle="Fathom transcript analysis"
                 icon={<Phone className="h-5 w-5" />}
                 status={flowState.discoveryCall}
@@ -733,11 +733,15 @@ export function ClientContextView({ client }: Props) {
               placeholder="Deep Dive Fathom URL (optional)"
               value={deepDiveUrl}
               onChange={(e) => setDeepDiveUrl(e.target.value)}
+              onClick={(e) => e.stopPropagation()}
               className="bg-slate-800/50 border-slate-700 text-white placeholder:text-slate-500 min-h-[40px] resize-none text-sm"
               disabled={flowState.discoveryCall !== "complete"}
             />
             <Button
-              onClick={handleDeepDive}
+              onClick={(e) => {
+                e.stopPropagation()
+                handleDeepDive()
+              }}
               disabled={!deepDiveUrl.trim() || flowState.discoveryCall !== "complete" || flowState.deepDive === "processing"}
               size="sm"
               className="w-full mt-2 bg-slate-700 hover:bg-slate-600 text-white border-0"

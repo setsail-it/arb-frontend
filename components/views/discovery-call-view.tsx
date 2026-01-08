@@ -90,7 +90,7 @@ export function DiscoveryCallView({ client, isDeepDive = false }: Props) {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold text-white">
-            {isDeepDive ? "Deep Dive Results" : "Discovery Call Results"}
+            {isDeepDive ? "Deep Dive Results" : "Discovery Call"}
           </h2>
           <p className="text-slate-400 mt-1">
             {isDeepDive 
