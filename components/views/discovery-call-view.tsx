@@ -15,9 +15,27 @@ interface Props {
 }
 
 const CERTAINTY_CONFIG = {
-  "1": { label: "Verified", color: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30", icon: CheckCircle },
-  "2": { label: "Likely", color: "bg-amber-500/20 text-amber-400 border-amber-500/30", icon: AlertCircle },
-  "3": { label: "Unknown", color: "bg-slate-500/20 text-slate-400 border-slate-500/30", icon: HelpCircle },
+  "1": { 
+    label: "Verified", 
+    color: "bg-emerald-500 text-white border-emerald-400", 
+    cardBg: "bg-emerald-950/50 border-emerald-700/50",
+    icon: CheckCircle,
+    iconColor: "text-emerald-400"
+  },
+  "2": { 
+    label: "Likely", 
+    color: "bg-amber-500 text-white border-amber-400", 
+    cardBg: "bg-amber-950/30 border-amber-700/40",
+    icon: AlertCircle,
+    iconColor: "text-amber-400"
+  },
+  "3": { 
+    label: "Unknown", 
+    color: "bg-slate-600 text-white border-slate-500", 
+    cardBg: "bg-slate-800/50 border-slate-600/50",
+    icon: HelpCircle,
+    iconColor: "text-slate-400"
+  },
 }
 
 export function DiscoveryCallView({ client, isDeepDive = false }: Props) {
@@ -85,14 +103,14 @@ export function DiscoveryCallView({ client, isDeepDive = false }: Props) {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8 p-2">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-white">
+          <h2 className="text-3xl font-bold text-white tracking-tight">
             {isDeepDive ? "Deep Dive Results" : "Discovery Call"}
           </h2>
-          <p className="text-slate-400 mt-1">
+          <p className="text-slate-300 mt-2 text-lg">
             {isDeepDive 
               ? "Updated Q&A from deep dive call analysis"
               : "Analyzed transcript from your discovery call"}
@@ -103,7 +121,7 @@ export function DiscoveryCallView({ client, isDeepDive = false }: Props) {
             href={result.fathom_url}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-2 text-violet-400 hover:text-violet-300"
+            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-violet-600 hover:bg-violet-500 text-white font-medium transition-colors"
           >
             <ExternalLink className="h-4 w-4" />
             View in Fathom
@@ -112,68 +130,69 @@ export function DiscoveryCallView({ client, isDeepDive = false }: Props) {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-3 gap-6">
         {["1", "2", "3"].map((certainty) => {
           const config = CERTAINTY_CONFIG[certainty as keyof typeof CERTAINTY_CONFIG]
           const count = result.answers_data?.filter(a => String(a.certainty) === certainty).length || 0
           const Icon = config.icon
           return (
-            <Card key={certainty} className="border-slate-700 bg-slate-800/40">
-              <CardContent className="py-4">
-                <div className="flex items-center gap-3">
-                  <div className={`p-2 rounded-lg ${config.color}`}>
-                    <Icon className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold text-white">{count}</p>
-                    <p className="text-sm text-slate-400">{config.label}</p>
-                  </div>
+            <div 
+              key={certainty} 
+              className={`rounded-xl border-2 p-6 ${config.cardBg}`}
+            >
+              <div className="flex items-center gap-4">
+                <div className={`p-3 rounded-xl bg-slate-900/50`}>
+                  <Icon className={`h-6 w-6 ${config.iconColor}`} />
                 </div>
-              </CardContent>
-            </Card>
+                <div>
+                  <p className="text-4xl font-bold text-white">{count}</p>
+                  <p className="text-base font-medium text-slate-200">{config.label}</p>
+                </div>
+              </div>
+            </div>
           )
         })}
       </div>
 
-      {/* Answers Table */}
-      <Card className="border-slate-700 bg-slate-800/40">
-        <CardHeader>
-          <CardTitle className="text-white">Questions & Answers</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4 max-h-[600px] overflow-y-auto pr-2">
-            {result.answers_data?.map((answer, idx) => {
-              const certaintyKey = String(answer.certainty) as keyof typeof CERTAINTY_CONFIG
-              const config = CERTAINTY_CONFIG[certaintyKey] || CERTAINTY_CONFIG["3"]
-              return (
-                <div
-                  key={idx}
-                  className="p-4 rounded-lg bg-slate-900/50 border border-slate-700"
-                >
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-2">
-                        <span className="text-violet-400 font-mono text-sm">
-                          Q{answer.question_number}
-                        </span>
-                        <Badge variant="outline" className={config.color}>
-                          {config.label}
-                        </Badge>
-                      </div>
-                      <p className="text-white font-medium mb-2">
+      {/* Answers List */}
+      <div className="rounded-xl border-2 border-slate-700 bg-slate-900/80 overflow-hidden">
+        <div className="px-6 py-4 border-b border-slate-700 bg-slate-800/50">
+          <h3 className="text-xl font-semibold text-white">Questions & Answers</h3>
+        </div>
+        <div className="divide-y divide-slate-700/50 max-h-[700px] overflow-y-auto">
+          {result.answers_data?.map((answer, idx) => {
+            const certaintyKey = String(answer.certainty) as keyof typeof CERTAINTY_CONFIG
+            const config = CERTAINTY_CONFIG[certaintyKey] || CERTAINTY_CONFIG["3"]
+            return (
+              <div
+                key={idx}
+                className="p-6 hover:bg-slate-800/30 transition-colors"
+              >
+                <div className="flex items-start gap-4">
+                  <div className="flex-shrink-0 w-12 h-12 rounded-xl bg-violet-600/20 flex items-center justify-center">
+                    <span className="text-violet-400 font-bold text-lg">
+                      {answer.question_number}
+                    </span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-3 mb-3">
+                      <h4 className="text-lg font-semibold text-white">
                         {answer.question}
-                      </p>
-                      <p className="text-slate-300 text-sm whitespace-pre-wrap">
-                        {answer.answer || "No answer provided"}
-                      </p>
+                      </h4>
+                      <Badge className={`${config.color} px-3 py-1 text-xs font-bold`}>
+                        {config.label}
+                      </Badge>
                     </div>
+                    <p className="text-slate-100 leading-relaxed text-base">
+                      {answer.answer || <span className="text-slate-500 italic">No answer provided</span>}
+                    </p>
                   </div>
                 </div>
-              )
-            })}
-          </div>
-        </CardContent>
-      </Card>
+              </div>
+            )
+          })}
+        </div>
+      </div>
     </div>
   )
 }
