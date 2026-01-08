@@ -24,7 +24,8 @@ import {
   Clock,
   Phone,
   Search,
-  RefreshCw
+  RefreshCw,
+  Sparkles
 } from "lucide-react"
 
 interface Props {
@@ -41,6 +42,7 @@ interface FlowState {
   generalContext: ComponentStatus
   deepDive: ComponentStatus
   strategyDoc: ComponentStatus
+  painPointStrategy: ComponentStatus
   gamma: ComponentStatus
   serviceDocs: ComponentStatus
 }
@@ -68,6 +70,7 @@ export function ClientContextView({ client }: Props) {
     generalContext: "idle",
     deepDive: "idle",
     strategyDoc: "idle",
+    painPointStrategy: "idle",
     gamma: "idle",
     serviceDocs: "idle",
   })
@@ -113,6 +116,7 @@ export function ClientContextView({ client }: Props) {
 
   // Polling ref for strategy (defined early so cleanup can reference it)
   const stratPollingRef = useRef<NodeJS.Timeout | null>(null)
+  const painPointPollingRef = useRef<NodeJS.Timeout | null>(null)
 
   // Cleanup polling on unmount
   useEffect(() => {
@@ -122,6 +126,7 @@ export function ClientContextView({ client }: Props) {
       if (dcPollingRef.current) clearInterval(dcPollingRef.current)
       if (ddivePollingRef.current) clearInterval(ddivePollingRef.current)
       if (stratPollingRef.current) clearInterval(stratPollingRef.current)
+      if (painPointPollingRef.current) clearInterval(painPointPollingRef.current)
     }
   }, [])
 
@@ -383,7 +388,31 @@ export function ClientContextView({ client }: Props) {
             // No document
           }
         }
-        
+
+        // Check pain point strategy status
+        let painPointState: ComponentStatus = "idle"
+        try {
+          const painPointStatus = await api.getPainPointStrategyStatus(client.id)
+          if (painPointStatus.status === "running" || painPointStatus.status === "pending") {
+            painPointState = "processing"
+            pollPainPointStatus()
+          } else if (painPointStatus.status === "error") {
+            painPointState = "error"
+          } else if (painPointStatus.status === "complete") {
+            painPointState = "complete"
+          }
+        } catch (e) {
+          // No job found, check if document exists
+          try {
+            const painPointDoc = await api.getPainPointStrategy(client.id)
+            if (painPointDoc && painPointDoc.content) {
+              painPointState = "complete"
+            }
+          } catch (e2) {
+            // No document
+          }
+        }
+
         // Note: domain/inputs are session-only (don't persist green on refresh)
         // Only research modules check database for status
         setFlowState(prev => ({
@@ -393,6 +422,7 @@ export function ClientContextView({ client }: Props) {
           generalContext: gcState,
           deepDive: deepDiveState,
           strategyDoc: strategyState,
+          painPointStrategy: painPointState,
         }))
         
       } catch (e) {
@@ -525,9 +555,54 @@ export function ClientContextView({ client }: Props) {
     }
   }
 
-  const handleGammaGenerate = async () => {
+  const pollPainPointStatus = () => {
+    if (painPointPollingRef.current) clearInterval(painPointPollingRef.current)
+    painPointPollingRef.current = setInterval(async () => {
+      try {
+        const status = await api.getPainPointStrategyStatus(client.id)
+        console.log("[PainPoint Poll] Status:", status.status)
+        
+        if (status.status === "complete") {
+          clearInterval(painPointPollingRef.current!)
+          painPointPollingRef.current = null
+          setFlowState(prev => ({ ...prev, painPointStrategy: "complete" }))
+        } else if (status.status === "error") {
+          clearInterval(painPointPollingRef.current!)
+          painPointPollingRef.current = null
+          console.error("Pain point job error:", status.error_message)
+          setFlowState(prev => ({ ...prev, painPointStrategy: "error" }))
+        }
+      } catch (e) {
+        console.error("Pain point poll error:", e)
+      }
+    }, 5000)
+  }
+
+  const handlePainPointGenerate = async () => {
     if (flowState.strategyDoc !== "complete") {
       alert("Strategy Document must be completed first")
+      return
+    }
+    if (flowState.discoveryCall !== "complete") {
+      alert("Discovery Call must be completed first")
+      return
+    }
+    
+    setFlowState(prev => ({ ...prev, painPointStrategy: "processing" }))
+    
+    try {
+      const response = await api.generatePainPointStrategy(client.id)
+      console.log("[PainPoint] Generation started:", response)
+      pollPainPointStatus()
+    } catch (e) {
+      console.error("Failed to start pain point rewrite:", e)
+      setFlowState(prev => ({ ...prev, painPointStrategy: "error" }))
+    }
+  }
+
+  const handleGammaGenerate = async () => {
+    if (flowState.painPointStrategy !== "complete") {
+      alert("Pain Point Rewriter must be completed first")
       return
     }
     
@@ -824,6 +899,58 @@ export function ClientContextView({ client }: Props) {
         {/* Connection Line */}
         <ConnectionLine active={flowState.strategyDoc === "complete"} />
 
+        {/* Stage 3.5: Pain Point Rewriter */}
+        <div className="flex items-start gap-6">
+          <div className="w-20 flex-shrink-0 text-center">
+            <div className="w-10 h-10 mx-auto rounded-full bg-slate-800 border-2 border-amber-500/50 flex items-center justify-center text-amber-400 font-mono text-xs mb-1">
+              3.5
+            </div>
+            <span className="text-xs text-slate-500 uppercase tracking-wider">Refine</span>
+          </div>
+          <PipelineCard
+            title="Pain Point Rewriter"
+            subtitle="Refine strategy messaging"
+            icon={<Sparkles className="h-5 w-5" />}
+            status={flowState.painPointStrategy}
+            clickable={false}
+            className="w-80"
+          >
+            <Button
+              onClick={(e) => {
+                e.stopPropagation()
+                handlePainPointGenerate()
+              }}
+              disabled={
+                flowState.painPointStrategy === "processing" || 
+                flowState.strategyDoc !== "complete" ||
+                flowState.discoveryCall !== "complete"
+              }
+              size="sm"
+              className="w-full bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white border-0"
+            >
+              {flowState.painPointStrategy === "processing" ? (
+                <>
+                  <Spinner className="h-3 w-3 mr-2" />
+                  Rewriting...
+                </>
+              ) : flowState.painPointStrategy === "complete" ? (
+                <>
+                  <RefreshCw className="h-3 w-3 mr-2" />
+                  Re-run
+                </>
+              ) : (
+                <>
+                  <Sparkles className="h-3 w-3 mr-2" />
+                  Rewrite Strategy
+                </>
+              )}
+            </Button>
+          </PipelineCard>
+        </div>
+
+        {/* Connection Line */}
+        <ConnectionLine active={flowState.painPointStrategy === "complete"} />
+
         {/* Stage 4: Output */}
         <div className="flex items-start gap-6">
           <StageLabel number={4} label="Output" />
@@ -842,7 +969,7 @@ export function ClientContextView({ client }: Props) {
                   e.stopPropagation()
                   handleGammaGenerate()
                 }}
-                disabled={flowState.strategyDoc !== "complete" || flowState.gamma === "processing"}
+                disabled={flowState.painPointStrategy !== "complete" || flowState.gamma === "processing"}
                 size="sm"
                 className="w-full bg-teal-600 hover:bg-teal-500 text-white border-0"
               >

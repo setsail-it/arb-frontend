@@ -643,6 +643,27 @@ export const api = {
     const baseUrl = BACKEND_BASE_URL.replace(/\/$/, "")
     return `${baseUrl}/clients/${clientId}/strategy-document/pdf`
   },
+
+  // Pain Point Strategy
+  getPainPointStrategy: async (clientId: string) => {
+    try {
+      return await fetchJson<{ id: number; client_id: number; content: string | null; created_at: string; updated_at: string }>(
+        `/clients/${clientId}/pain-point-strategy`
+      )
+    } catch (e: any) {
+      if (e.status === 404) {
+        return null
+      }
+      throw e
+    }
+  },
+  generatePainPointStrategy: (clientId: string) =>
+    fetchJson<{ job_id: string; status: string; message: string }>(`/clients/${clientId}/pain-point-strategy/generate`, {
+      method: "POST",
+    }),
+  getPainPointStrategyStatus: (clientId: string) =>
+    fetchJson<{ job_id: string; status: string; error_message: string | null }>(`/clients/${clientId}/pain-point-strategy/generate/status`),
+
   generateGammaPresentation: (clientId: string) =>
     fetchJson<{ success: boolean; presentation_url: string | null; pdf_url: string | null; gamma_id: string | null; message: string | null }>(
       `/clients/${clientId}/strategy-document/gamma-presentation`,
