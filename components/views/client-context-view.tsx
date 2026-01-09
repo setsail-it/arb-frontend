@@ -5,7 +5,7 @@ import type { Client } from "@/types"
 import { api } from "@/lib/api"
 import { DiscoveryDocumentForm } from "@/components/views/discovery-document-form"
 import { GeneralContextForm } from "@/components/views/general-context-form"
-import { StrategyDocumentView } from "@/components/views/strategy-document-view"
+import { CarsonStrategyView } from "@/components/views/carson-strategy-view"
 import { PainPointStrategyView } from "@/components/views/pain-point-strategy-view"
 import { DiscoveryCallView } from "@/components/views/discovery-call-view"
 import { Button } from "@/components/ui/button"
@@ -27,7 +27,8 @@ import {
   Search,
   RefreshCw,
   Sparkles,
-  X
+  X,
+  ChefHat,
 } from "lucide-react"
 
 interface Props {
@@ -876,7 +877,7 @@ export function ClientContextView({ client, readOnly = false }: Props) {
           />
         )}
         {activeView === "strategy" && (
-          <StrategyDocumentView client={client} />
+          <CarsonStrategyView client={client} onBack={() => setActiveView("admin")} />
         )}
         {activeView === "pain-point" && (
           <PainPointStrategyView client={client} />
@@ -1094,9 +1095,9 @@ export function ClientContextView({ client, readOnly = false }: Props) {
         <div className="flex items-center gap-6">
           <StageLabel number={3} label="Strategy" />
           <PipelineCard
-            title="Strategy Document"
-            subtitle="GTM strategy generation"
-            icon={<FileStack className="h-5 w-5" />}
+            title="Carson Strategy System"
+            subtitle="4-stage AI strategy pipeline"
+            icon={<ChefHat className="h-5 w-5" />}
             status={flowState.strategyDoc}
             onClick={() => flowState.strategyDoc === "complete" ? setActiveView("strategy") : undefined}
             clickable={flowState.strategyDoc === "complete"}

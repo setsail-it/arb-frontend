@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Spinner } from "@/components/ui/spinner"
-import { Phone, ExternalLink, CheckCircle, AlertCircle, HelpCircle, Search } from "lucide-react"
+import { Phone, ExternalLink, CheckCircle, AlertCircle, HelpCircle, Search, Download } from "lucide-react"
 
 interface Props {
   client: Client
@@ -42,6 +42,38 @@ export function DiscoveryCallView({ client, isDeepDive = false }: Props) {
   const [result, setResult] = useState<DiscoveryCallResult | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  const downloadCSV = () => {
+    if (!result?.answers_data) return
+    
+    // CSV header
+    const headers = ["Question Number", "Question", "Answer", "Certainty", "Certainty Label"]
+    
+    // Convert answers to CSV rows
+    const rows = result.answers_data.map(a => {
+      const certaintyLabel = a.certainty === 1 ? "Verified" : a.certainty === 2 ? "Likely" : "Unknown"
+      return [
+        a.question_number,
+        `"${(a.question || "").replace(/"/g, '""')}"`,
+        `"${(a.answer || "").replace(/"/g, '""')}"`,
+        a.certainty,
+        certaintyLabel
+      ].join(",")
+    })
+    
+    const csvContent = [headers.join(","), ...rows].join("\n")
+    
+    // Create and trigger download
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    link.setAttribute("href", url)
+    link.setAttribute("download", `${client.name}_${isDeepDive ? "deep_dive" : "discovery_call"}_results.csv`)
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+  }
 
   useEffect(() => {
     const fetchResult = async () => {
@@ -116,17 +148,27 @@ export function DiscoveryCallView({ client, isDeepDive = false }: Props) {
               : "Analyzed transcript from your discovery call"}
           </p>
         </div>
-        {result.fathom_url && (
-          <a
-            href={result.fathom_url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-violet-600 hover:bg-violet-500 text-white font-medium transition-colors"
+        <div className="flex items-center gap-3">
+          <Button
+            onClick={downloadCSV}
+            variant="outline"
+            className="flex items-center gap-2 border-slate-600 hover:bg-slate-800"
           >
-            <ExternalLink className="h-4 w-4" />
-            View in Fathom
-          </a>
-        )}
+            <Download className="h-4 w-4" />
+            Download CSV
+          </Button>
+          {result.fathom_url && (
+            <a
+              href={result.fathom_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-violet-600 hover:bg-violet-500 text-white font-medium transition-colors"
+            >
+              <ExternalLink className="h-4 w-4" />
+              View in Fathom
+            </a>
+          )}
+        </div>
       </div>
 
       {/* Stats */}
