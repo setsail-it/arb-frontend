@@ -404,20 +404,38 @@ export function CarsonStrategyView({ client, onBack }: Props) {
           </p>
         </div>
 
-        {/* Call Results (DDR or DCR) */}
+        {/* Call Transcript (Raw Analysis) */}
         <div className="rounded-lg border border-cyan-500/50 bg-slate-900/50 overflow-hidden">
           <div className="border-b border-cyan-500/30 px-4 py-3 bg-cyan-950/30">
             <h2 className="font-semibold text-cyan-300">
-              {inputData.callSource === "DDR" ? "Deep Dive Results (DDR)" : "Discovery Call Results (DCR)"}
+              Call Transcript & Analysis ({inputData.callSource || "None"})
             </h2>
           </div>
-          <div className="p-4 max-h-96 overflow-auto">
+          <div className="p-4 max-h-[400px] overflow-auto">
+            {inputData.callResults?.raw_analysis ? (
+              <pre className="text-xs text-slate-300 font-mono whitespace-pre-wrap">
+                {inputData.callResults.raw_analysis}
+              </pre>
+            ) : (
+              <p className="text-slate-500 italic">No call transcript available</p>
+            )}
+          </div>
+        </div>
+
+        {/* Call Q&A (Parsed JSON) */}
+        <div className="rounded-lg border border-cyan-500/50 bg-slate-900/50 overflow-hidden">
+          <div className="border-b border-cyan-500/30 px-4 py-3 bg-cyan-950/30">
+            <h2 className="font-semibold text-cyan-300">
+              Parsed Q&A ({inputData.callSource || "None"}) - {inputData.callResults?.answers_data?.length || 0} answers
+            </h2>
+          </div>
+          <div className="p-4 max-h-[400px] overflow-auto">
             {inputData.callResults?.answers_data ? (
               <pre className="text-xs text-slate-300 font-mono whitespace-pre-wrap">
                 {JSON.stringify(inputData.callResults.answers_data, null, 2)}
               </pre>
             ) : (
-              <p className="text-slate-500 italic">No call results available</p>
+              <p className="text-slate-500 italic">No parsed Q&A available</p>
             )}
           </div>
         </div>
