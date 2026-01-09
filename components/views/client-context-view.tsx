@@ -892,8 +892,16 @@ export function ClientContextView({ client, readOnly = false }: Props) {
       {/* Main Pipeline Flow */}
       <div className="space-y-8">
         
-        {/* Stage 1: Input */}
-        <div className="flex items-start gap-6">
+        {/* Research + Context Section */}
+        <div className="relative rounded-xl border-2 border-dashed border-slate-700 p-6 pt-10">
+          {/* Section Label */}
+          <div className="absolute -top-3 left-6 bg-slate-950 px-3">
+            <span className="text-sm font-semibold text-slate-400 uppercase tracking-wider">Research + Context</span>
+          </div>
+          
+          <div className="space-y-8">
+            {/* Stage 1: Input */}
+            <div className="flex items-start gap-6">
           <StageLabel number={1} label="Input" />
           <div className="flex gap-4">
             <PipelineCard
@@ -1109,6 +1117,9 @@ export function ClientContextView({ client, readOnly = false }: Props) {
             )}
           </PipelineCard>
         </div>
+          </div>
+        </div>
+        {/* End Research + Context Section */}
 
         {/* Connection Line */}
         <ConnectionLine active={flowState.groundTruth === "complete" || flowState.discoveryCall === "complete"} />
