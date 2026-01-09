@@ -35,13 +35,14 @@ export function canModifyClient(user: User | null, clientOwnerId: number | null)
  * 
  * Rules:
  * - Admin can assign any client to anyone
- * - Non-admin can only assign their own clients to others
+ * - Non-admin can assign their own clients to others
+ * - Non-admin can assign unassigned (orphan) clients
  */
 export function canAssignClient(user: User | null, clientOwnerId: number | null): boolean {
   if (!user) return false
   if (user.is_admin) return true
-  // Non-admin can assign their own clients
-  return clientOwnerId === user.id
+  // Non-admin can assign their own clients OR unassigned clients
+  return clientOwnerId === null || clientOwnerId === user.id
 }
 
 /**
