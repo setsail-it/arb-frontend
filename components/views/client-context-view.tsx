@@ -751,13 +751,16 @@ export function ClientContextView({ client, readOnly = false }: Props) {
   const handleStrategyGenerate = async () => {
     setFlowState(prev => ({ ...prev, strategyDoc: "processing" }))
     
+    // Always start polling - even if the trigger request fails/times out,
+    // a job may have been created on the backend
+    pollStrategyStatus()
+    
     try {
       const response = await api.generateStrategyDocument(client.id)
       console.log("[Strategy] Generation started:", response)
-      pollStrategyStatus()
     } catch (e) {
-      console.error("Failed to start strategy generation:", e)
-      setFlowState(prev => ({ ...prev, strategyDoc: "error" }))
+      console.error("Failed to start strategy generation (polling continues):", e)
+      // Don't set error - let polling determine the actual status
     }
   }
 
@@ -796,13 +799,15 @@ export function ClientContextView({ client, readOnly = false }: Props) {
     
     setFlowState(prev => ({ ...prev, painPointStrategy: "processing" }))
     
+    // Always start polling - even if trigger request fails/times out
+    pollPainPointStatus()
+    
     try {
       const response = await api.generatePainPointStrategy(client.id)
       console.log("[PainPoint] Generation started:", response)
-      pollPainPointStatus()
     } catch (e) {
-      console.error("Failed to start pain point rewrite:", e)
-      setFlowState(prev => ({ ...prev, painPointStrategy: "error" }))
+      console.error("Failed to start pain point rewrite (polling continues):", e)
+      // Don't set error - let polling determine the actual status
     }
   }
 
