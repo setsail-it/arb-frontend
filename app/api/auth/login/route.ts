@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+// Use the same backend URL as the proxy route (server-side env vars don't use NEXT_PUBLIC_)
+const API_BASE_URL = process.env.BACKEND_URL || 'https://arb-production-8438.up.railway.app'
 
 export async function POST(request: Request) {
   try {
