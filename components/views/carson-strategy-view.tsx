@@ -404,24 +404,6 @@ export function CarsonStrategyView({ client, onBack }: Props) {
           </p>
         </div>
 
-        {/* Raw Fathom Transcript */}
-        <div className="rounded-lg border border-cyan-500/50 bg-slate-900/50 overflow-hidden">
-          <div className="border-b border-cyan-500/30 px-4 py-3 bg-cyan-950/30">
-            <h2 className="font-semibold text-cyan-300">
-              Raw Fathom Transcript ({inputData.callSource || "None"})
-            </h2>
-          </div>
-          <div className="p-4 max-h-[400px] overflow-auto">
-            {inputData.callResults?.transcript ? (
-              <pre className="text-xs text-slate-300 font-mono whitespace-pre-wrap">
-                {inputData.callResults.transcript}
-              </pre>
-            ) : (
-              <p className="text-slate-500 italic">No transcript available (run a new call to capture)</p>
-            )}
-          </div>
-        </div>
-
         {/* Call Q&A (Parsed JSON) */}
         <div className="rounded-lg border border-cyan-500/50 bg-slate-900/50 overflow-hidden">
           <div className="border-b border-cyan-500/30 px-4 py-3 bg-cyan-950/30">

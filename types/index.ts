@@ -419,7 +419,6 @@ export interface DiscoveryCallResult {
   client_id?: number
   fathom_url?: string | null
   recording_id?: string | null
-  transcript?: string | null  // Raw Fathom transcript
   raw_analysis?: string | null
   json_output?: string | null
   answers_data?: DiscoveryCallAnswer[] | null
