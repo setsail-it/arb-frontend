@@ -93,8 +93,9 @@ export function ClientContextView({ client, readOnly = false }: Props) {
 
   // Start/stop timer based on research status - counts UP from start time
   useEffect(() => {
-    const isResearching = flowState.discoveryCall === "processing" || flowState.discoveryDoc === "processing" || flowState.generalContext === "processing"
-    const isDone = flowState.discoveryCall !== "processing" && flowState.discoveryDoc !== "processing" && flowState.generalContext !== "processing"
+    // DD is frozen - only check DC and GC for research status
+    const isResearching = flowState.discoveryCall === "processing" || flowState.generalContext === "processing"
+    const isDone = flowState.discoveryCall !== "processing" && flowState.generalContext !== "processing"
     
     if (isResearching && !timerIntervalRef.current) {
       // Start timer - if we have a start time, use it; otherwise use now
@@ -670,7 +671,7 @@ export function ClientContextView({ client, readOnly = false }: Props) {
     setFlowState(prev => ({
       ...prev,
       discoveryCall: prev.discoveryCall === "processing" ? "idle" : prev.discoveryCall,
-      discoveryDoc: prev.discoveryDoc === "processing" ? "idle" : prev.discoveryDoc,
+      // discoveryDoc is frozen - don't touch its state
       generalContext: prev.generalContext === "processing" ? "idle" : prev.generalContext,
     }))
     
@@ -931,7 +932,7 @@ export function ClientContextView({ client, readOnly = false }: Props) {
         {/* Activate Button */}
         <div className="flex items-center gap-6">
           <div className="w-20" />
-          {(isActivating || flowState.discoveryCall === "processing" || flowState.discoveryDoc === "processing" || flowState.generalContext === "processing") ? (
+          {(isActivating || flowState.discoveryCall === "processing" || flowState.generalContext === "processing") ? (
             <div className="flex items-center gap-2">
               <Button
                 disabled
