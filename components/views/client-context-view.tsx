@@ -126,6 +126,7 @@ export function ClientContextView({ client, readOnly = false }: Props) {
     return () => {
       if (timerIntervalRef.current) {
         clearInterval(timerIntervalRef.current)
+        timerIntervalRef.current = null  // Reset ref so effect can re-create interval
       }
     }
   }, [flowState.discoveryCall, flowState.discoveryDoc, flowState.generalContext, researchStartTime])
