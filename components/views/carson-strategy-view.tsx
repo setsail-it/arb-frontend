@@ -470,6 +470,17 @@ export function CarsonStrategyView({ client, onBack }: Props) {
 
   return (
     <div className="space-y-6">
+      {/* Back button */}
+      {onBack && (
+        <button
+          onClick={onBack}
+          className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Back to Pipeline
+        </button>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-white">Carson Strategy System</h1>

@@ -816,14 +816,17 @@ export function ClientContextView({ client, readOnly = false }: Props) {
   if (activeView !== "admin") {
     return (
       <div className="h-full overflow-auto">
-        <Button 
-          variant="ghost" 
-          onClick={() => setActiveView("admin")}
-          className="mb-6 gap-2 text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back to Pipeline
-        </Button>
+        {/* Don't show parent back button for strategy view - it handles its own navigation */}
+        {activeView !== "strategy" && (
+          <Button 
+            variant="ghost" 
+            onClick={() => setActiveView("admin")}
+            className="mb-6 gap-2 text-muted-foreground hover:text-foreground"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back to Pipeline
+          </Button>
+        )}
         
         {activeView === "discovery" && (
           <DiscoveryDocumentForm client={client} initialDomain={domainInput} />
