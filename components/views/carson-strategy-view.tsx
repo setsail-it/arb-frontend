@@ -422,30 +422,29 @@ export function CarsonStrategyView({ client, onBack }: Props) {
           </div>
         </div>
 
-        {/* General Context */}
+        {/* General Context - Full dump */}
         <div className="rounded-lg border border-cyan-500/50 bg-slate-900/50 overflow-hidden">
           <div className="border-b border-cyan-500/30 px-4 py-3 bg-cyan-950/30">
-            <h2 className="font-semibold text-cyan-300">General Context (GC)</h2>
+            <h2 className="font-semibold text-cyan-300">General Context (GC) - Complete</h2>
           </div>
-          <div className="p-4 max-h-96 overflow-auto">
+          <div className="p-4 max-h-[600px] overflow-auto">
             {inputData.generalContext ? (
               <pre className="text-xs text-slate-300 font-mono whitespace-pre-wrap">
-                {JSON.stringify({
-                  domain: inputData.generalContext.domain,
-                  about: inputData.generalContext.about,
-                  brand_pov: inputData.generalContext.brand_pov,
-                  ideal_target_market: inputData.generalContext.ideal_target_market,
-                  call_to_action: inputData.generalContext.call_to_action,
-                  competitors: inputData.generalContext.competitors,
-                  services: inputData.generalContext.services,
-                  locations: inputData.generalContext.locations,
-                  staff_bios: inputData.generalContext.staff_bios,
-                }, null, 2)}
+                {JSON.stringify(inputData.generalContext, null, 2)}
               </pre>
             ) : (
               <p className="text-slate-500 italic">No general context available</p>
             )}
           </div>
+        </div>
+        
+        {/* Note about Ground Truth */}
+        <div className="rounded-lg border border-amber-500/30 bg-amber-950/20 p-4">
+          <p className="text-sm text-amber-300">
+            <strong>Note:</strong> Ground Truth Enhancement only updates these GC fields: 
+            <span className="text-amber-200"> about, brand_pov, ideal_target_market, call_to_action, competitors</span>. 
+            Other fields (writing style, brand safety, company details, assets) come from Scout-2 web scraping.
+          </p>
         </div>
       </div>
     )
