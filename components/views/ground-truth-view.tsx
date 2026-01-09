@@ -8,10 +8,8 @@ import { Spinner } from "@/components/ui/spinner"
 import {
   Shield,
   CheckCircle2,
-  FileText,
   Database,
   ArrowRight,
-  RefreshCw,
   AlertCircle,
 } from "lucide-react"
 
@@ -110,43 +108,22 @@ export function GroundTruthView({ client, onNavigateTo }: Props) {
         <div className="space-y-4">
           <h3 className="text-lg font-semibold text-white">Updated Documents</h3>
           
-          <div className="grid grid-cols-2 gap-4">
-            {/* Discovery Document Card */}
-            <div 
-              onClick={() => onNavigateTo?.("discovery")}
-              className="rounded-lg border border-slate-700 bg-slate-800 p-5 cursor-pointer hover:border-violet-500 hover:bg-slate-700 transition-all"
-            >
-              <div className="flex items-center gap-3 mb-3">
-                <div className="p-2 rounded-lg bg-violet-500/20 text-violet-400">
-                  <FileText className="h-5 w-5" />
-                </div>
-                <h4 className="font-semibold text-white">Auto Discovery Document</h4>
+          {/* General Context Card - only GC is enhanced now */}
+          <div 
+            onClick={() => onNavigateTo?.("general")}
+            className="rounded-lg border border-slate-700 bg-slate-800 p-5 cursor-pointer hover:border-emerald-500 hover:bg-slate-700 transition-all max-w-md"
+          >
+            <div className="flex items-center gap-3 mb-3">
+              <div className="p-2 rounded-lg bg-emerald-500/20 text-emerald-400">
+                <Database className="h-5 w-5" />
               </div>
-              <p className="text-sm text-slate-400 mb-3">
-                Re-generated with client Q&A context to provide more accurate company information.
-              </p>
-              <div className="flex items-center text-sm text-violet-400">
-                View document <ArrowRight className="h-4 w-4 ml-1" />
-              </div>
+              <h4 className="font-semibold text-white">General Context</h4>
             </div>
-
-            {/* General Context Card */}
-            <div 
-              onClick={() => onNavigateTo?.("general")}
-              className="rounded-lg border border-slate-700 bg-slate-800 p-5 cursor-pointer hover:border-emerald-500 hover:bg-slate-700 transition-all"
-            >
-              <div className="flex items-center gap-3 mb-3">
-                <div className="p-2 rounded-lg bg-emerald-500/20 text-emerald-400">
-                  <Database className="h-5 w-5" />
-                </div>
-                <h4 className="font-semibold text-white">General Context</h4>
-              </div>
-              <p className="text-sm text-slate-400 mb-3">
-                Fields updated with verified client information (about, target market, CTA, competitors, etc.)
-              </p>
-              <div className="flex items-center text-sm text-emerald-400">
-                View context <ArrowRight className="h-4 w-4 ml-1" />
-              </div>
+            <p className="text-sm text-slate-400 mb-3">
+              Fields updated with verified client information (about, target market, CTA, competitors, etc.)
+            </p>
+            <div className="flex items-center text-sm text-emerald-400">
+              View context <ArrowRight className="h-4 w-4 ml-1" />
             </div>
           </div>
         </div>
@@ -162,14 +139,10 @@ export function GroundTruthView({ client, onNavigateTo }: Props) {
           </li>
           <li className="flex items-start gap-2">
             <span className="text-emerald-400 font-bold">2.</span>
-            <span>Re-runs Discovery Document agent with client Q&A as additional context</span>
-          </li>
-          <li className="flex items-start gap-2">
-            <span className="text-emerald-400 font-bold">3.</span>
             <span>Updates General Context fields where client has provided verified information</span>
           </li>
           <li className="flex items-start gap-2">
-            <span className="text-emerald-400 font-bold">4.</span>
+            <span className="text-emerald-400 font-bold">3.</span>
             <span>Prioritizes client-stated facts over AI-inferred or web-scraped data</span>
           </li>
         </ul>

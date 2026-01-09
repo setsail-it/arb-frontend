@@ -575,10 +575,10 @@ export function ClientContextView({ client, readOnly = false }: Props) {
     // Determine which jobs to start
     const hasDiscoveryCallUrl = discoveryCallUrl.trim().length > 0
     
+    // Note: discoveryDoc is FROZEN - not started
     setFlowState(prev => ({
       ...prev,
       discoveryCall: hasDiscoveryCallUrl ? "processing" : prev.discoveryCall,
-      discoveryDoc: "processing",
       generalContext: "processing",
     }))
 
@@ -595,11 +595,10 @@ export function ClientContextView({ client, readOnly = false }: Props) {
       }
     }
 
-    // Start all 3 jobs in parallel (they return immediately now)
+    // Start jobs in parallel (DD is frozen, not started)
     try {
       const promises: Promise<any>[] = [
         api.fetchContextFromSiteAsync(client.id, domainInput.trim()),
-        api.generateInitialDraft(client.id, domainInput.trim()),
       ]
       
       if (hasDiscoveryCallUrl) {
@@ -609,14 +608,12 @@ export function ClientContextView({ client, readOnly = false }: Props) {
       const results = await Promise.all(promises)
       
       console.log("[Activate] GC job started:", results[0])
-      console.log("[Activate] DD job started:", results[1])
       if (hasDiscoveryCallUrl) {
-        console.log("[Activate] DC job started:", results[2])
+        console.log("[Activate] DC job started:", results[1])
       }
       
-      // Start polling for all
+      // Start polling (DD is frozen)
       pollGCStatus()
-      pollDDStatus()
       if (hasDiscoveryCallUrl) {
         pollDCStatus()
       }
@@ -626,7 +623,6 @@ export function ClientContextView({ client, readOnly = false }: Props) {
       setFlowState(prev => ({
         ...prev,
         discoveryCall: hasDiscoveryCallUrl ? "error" : prev.discoveryCall,
-        discoveryDoc: "error",
         generalContext: "error",
       }))
     }
@@ -637,11 +633,10 @@ export function ClientContextView({ client, readOnly = false }: Props) {
   const handleAbortResearch = async () => {
     console.log("[Abort] Aborting research...")
     
-    // Cancel jobs on the backend first
+    // Cancel jobs on the backend first (DD is frozen, not included)
     try {
       const result = await api.cancelJobs(client.id, [
         "discovery_call",
-        "discovery_document", 
         "general_context"
       ])
       console.log("[Abort] Backend cancel result:", result)
@@ -984,11 +979,10 @@ export function ClientContextView({ client, readOnly = false }: Props) {
               />
               <PipelineCard
                 title="Auto Discovery Document"
-                subtitle="AI client research"
+                subtitle="Frozen - not used in strategy"
                 icon={<FileText className="h-5 w-5" />}
-                status={flowState.discoveryDoc}
-                onClick={() => setActiveView("discovery")}
-                clickable
+                status="idle"
+                className="opacity-50 pointer-events-none"
               />
               <PipelineCard
                 title="General Context"

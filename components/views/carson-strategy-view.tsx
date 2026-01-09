@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import type { Client, StrategyDocument } from "@/types"
+import type { Client, StrategyDocument, DiscoveryCallResult, ClientContext } from "@/types"
 import { api } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { Spinner } from "@/components/ui/spinner"
@@ -18,6 +18,8 @@ import {
   ExternalLink,
   Presentation,
   Play,
+  FileInput,
+  ArrowLeft,
 } from "lucide-react"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
@@ -28,12 +30,14 @@ interface Props {
 }
 
 type ModuleStatus = "idle" | "processing" | "complete" | "error"
+type ViewMode = "pipeline" | "input" | "document"
 
 interface SubModule {
   id: string
   name: string
   description: string
   icon: React.ReactNode
+  stubbed?: boolean
 }
 
 const SUB_MODULES: SubModule[] = [
@@ -42,24 +46,28 @@ const SUB_MODULES: SubModule[] = [
     name: "The Waiter",
     description: "Selects services & budget",
     icon: <Utensils className="h-5 w-5" />,
+    stubbed: true,
   },
   {
     id: "cook",
     name: "The Cook",
     description: "Writes implementations",
     icon: <ChefHat className="h-5 w-5" />,
+    stubbed: true,
   },
   {
     id: "plater",
     name: "The Plater",
     description: "Polishes formatting",
     icon: <Palette className="h-5 w-5" />,
+    stubbed: true,
   },
   {
     id: "translator",
     name: "The Translator",
     description: "Pain point messaging",
     icon: <Languages className="h-5 w-5" />,
+    stubbed: false,
   },
 ]
 
@@ -73,6 +81,7 @@ export function CarsonStrategyView({ client, onBack }: Props) {
   const [strategyDoc, setStrategyDoc] = useState<StrategyDocument | null>(null)
   const [overallStatus, setOverallStatus] = useState<ModuleStatus>("idle")
   const [activeModule, setActiveModule] = useState<string | null>(null)
+  const [viewMode, setViewMode] = useState<ViewMode>("pipeline")
   const [moduleStatuses, setModuleStatuses] = useState<Record<string, ModuleStatus>>({
     waiter: "idle",
     cook: "idle",
@@ -87,6 +96,13 @@ export function CarsonStrategyView({ client, onBack }: Props) {
   })
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+
+  // CaSS Input data
+  const [inputData, setInputData] = useState<{
+    callResults: DiscoveryCallResult | null
+    callSource: "DDR" | "DCR" | null
+    generalContext: ClientContext | null
+  }>({ callResults: null, callSource: null, generalContext: null })
 
   const timerIntervalRef = useRef<NodeJS.Timeout | null>(null)
   const pollingRef = useRef<NodeJS.Timeout | null>(null)
@@ -122,11 +138,44 @@ export function CarsonStrategyView({ client, onBack }: Props) {
     }
   }, [activeModule])
 
-  // Load existing strategy document
+  // Load existing strategy document and input data
   useEffect(() => {
     const loadData = async () => {
       setIsLoading(true)
       try {
+        // Load CaSS Input data
+        try {
+          // Try DDR first
+          const ddr = await api.getDeepDiveResult(String(client.id))
+          if (ddr && ddr.answers_data) {
+            setInputData(prev => ({ ...prev, callResults: ddr as DiscoveryCallResult, callSource: "DDR" }))
+          } else {
+            // Fall back to DCR
+            const dcr = await api.getDiscoveryCallResult(String(client.id))
+            if (dcr && dcr.answers_data) {
+              setInputData(prev => ({ ...prev, callResults: dcr as DiscoveryCallResult, callSource: "DCR" }))
+            }
+          }
+        } catch (e) {
+          // Try DCR as fallback
+          try {
+            const dcr = await api.getDiscoveryCallResult(String(client.id))
+            if (dcr && dcr.answers_data) {
+              setInputData(prev => ({ ...prev, callResults: dcr as DiscoveryCallResult, callSource: "DCR" }))
+            }
+          } catch (e2) {
+            console.log("No call results available")
+          }
+        }
+
+        // Load GC
+        try {
+          const gc = await api.getContext(client.id)
+          setInputData(prev => ({ ...prev, generalContext: gc }))
+        } catch (e) {
+          console.log("No general context available")
+        }
+
         // Check job status first
         try {
           const jobStatus = await api.getStrategyGenerationStatus(client.id)
@@ -138,7 +187,6 @@ export function CarsonStrategyView({ client, onBack }: Props) {
             setOverallStatus("error")
             setErrorMessage(jobStatus.error_message || "Unknown error")
           } else if (jobStatus.status === "complete") {
-            // Only mark complete if job actually completed
             setOverallStatus("complete")
             setModuleStatuses({
               waiter: "complete",
@@ -155,7 +203,6 @@ export function CarsonStrategyView({ client, onBack }: Props) {
         const doc = await api.getStrategyDocument(client.id)
         if (doc && doc.content) {
           setStrategyDoc(doc)
-          // If we have a doc but status isn't set, mark as complete
           if (overallStatus === "idle") {
             setOverallStatus("complete")
             setModuleStatuses({
@@ -251,7 +298,7 @@ export function CarsonStrategyView({ client, onBack }: Props) {
     }, 3000)
   }
 
-  const handleGenerate = async () => {
+  const handleRunAll = async () => {
     setOverallStatus("processing")
     setErrorMessage(null)
     setModuleStatuses({
@@ -276,6 +323,13 @@ export function CarsonStrategyView({ client, onBack }: Props) {
     } catch (e: any) {
       console.error("Failed to start strategy generation:", e)
     }
+  }
+
+  const handleRunModule = async (moduleId: string) => {
+    // For now, running any module runs the full pipeline
+    // TODO: Implement individual module endpoints
+    console.log(`[Carson] Running module: ${moduleId}`)
+    handleRunAll()
   }
 
   const handleDownloadPdf = () => {
@@ -307,31 +361,17 @@ export function CarsonStrategyView({ client, onBack }: Props) {
     return moduleTimers.waiter + moduleTimers.cook + moduleTimers.plater + moduleTimers.translator
   }
 
-  // Get border/status classes matching main pipeline convention
   const getCardClasses = (status: ModuleStatus, isActive: boolean) => {
-    if (isActive) {
-      return "border-violet-500 bg-slate-800 animate-pulse"
-    }
-    if (status === "complete") {
-      return "border-emerald-500 bg-slate-800"
-    }
-    if (status === "error") {
-      return "border-red-500 bg-slate-800"
-    }
-    // idle - gray
+    if (isActive) return "border-violet-500 bg-slate-800 animate-pulse"
+    if (status === "complete") return "border-emerald-500 bg-slate-800"
+    if (status === "error") return "border-red-500 bg-slate-800"
     return "border-slate-700 bg-slate-800"
   }
 
   const getIconClasses = (status: ModuleStatus, isActive: boolean) => {
-    if (isActive) {
-      return "bg-violet-500 text-white"
-    }
-    if (status === "complete") {
-      return "bg-emerald-500 text-white"
-    }
-    if (status === "error") {
-      return "bg-red-500 text-white"
-    }
+    if (isActive) return "bg-violet-500 text-white"
+    if (status === "complete") return "bg-emerald-500 text-white"
+    if (status === "error") return "bg-red-500 text-white"
     return "bg-slate-700 text-slate-400"
   }
 
@@ -343,9 +383,77 @@ export function CarsonStrategyView({ client, onBack }: Props) {
     )
   }
 
+  // CaSS Input View
+  if (viewMode === "input") {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => setViewMode("pipeline")}
+            className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back to Pipeline
+          </button>
+        </div>
+
+        <div>
+          <h1 className="text-2xl font-bold text-white">CaSS Input</h1>
+          <p className="text-slate-400 mt-1">
+            Raw data fed into The Waiter: {inputData.callSource || "None"} + General Context
+          </p>
+        </div>
+
+        {/* Call Results (DDR or DCR) */}
+        <div className="rounded-lg border border-cyan-500/50 bg-slate-900/50 overflow-hidden">
+          <div className="border-b border-cyan-500/30 px-4 py-3 bg-cyan-950/30">
+            <h2 className="font-semibold text-cyan-300">
+              {inputData.callSource === "DDR" ? "Deep Dive Results (DDR)" : "Discovery Call Results (DCR)"}
+            </h2>
+          </div>
+          <div className="p-4 max-h-96 overflow-auto">
+            {inputData.callResults?.answers_data ? (
+              <pre className="text-xs text-slate-300 font-mono whitespace-pre-wrap">
+                {JSON.stringify(inputData.callResults.answers_data, null, 2)}
+              </pre>
+            ) : (
+              <p className="text-slate-500 italic">No call results available</p>
+            )}
+          </div>
+        </div>
+
+        {/* General Context */}
+        <div className="rounded-lg border border-cyan-500/50 bg-slate-900/50 overflow-hidden">
+          <div className="border-b border-cyan-500/30 px-4 py-3 bg-cyan-950/30">
+            <h2 className="font-semibold text-cyan-300">General Context (GC)</h2>
+          </div>
+          <div className="p-4 max-h-96 overflow-auto">
+            {inputData.generalContext ? (
+              <pre className="text-xs text-slate-300 font-mono whitespace-pre-wrap">
+                {JSON.stringify({
+                  domain: inputData.generalContext.domain,
+                  about: inputData.generalContext.about,
+                  brand_pov: inputData.generalContext.brand_pov,
+                  ideal_target_market: inputData.generalContext.ideal_target_market,
+                  call_to_action: inputData.generalContext.call_to_action,
+                  competitors: inputData.generalContext.competitors,
+                  services: inputData.generalContext.services,
+                  locations: inputData.generalContext.locations,
+                  staff_bios: inputData.generalContext.staff_bios,
+                }, null, 2)}
+              </pre>
+            ) : (
+              <p className="text-slate-500 italic">No general context available</p>
+            )}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6">
-      {/* Header - just title and action buttons */}
+      {/* Header */}
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-white">Carson Strategy System</h1>
         <div className="flex items-center gap-3">
@@ -380,7 +488,7 @@ export function CarsonStrategyView({ client, onBack }: Props) {
           )}
 
           <Button
-            onClick={handleGenerate}
+            onClick={handleRunAll}
             disabled={overallStatus === "processing"}
             className="gap-2 bg-violet-600 hover:bg-violet-500"
           >
@@ -392,12 +500,12 @@ export function CarsonStrategyView({ client, onBack }: Props) {
             ) : overallStatus === "complete" ? (
               <>
                 <RefreshCw className="h-4 w-4" />
-                Regenerate
+                Regenerate All
               </>
             ) : (
               <>
                 <Play className="h-4 w-4" />
-                Generate
+                Run All
               </>
             )}
           </Button>
@@ -413,25 +521,36 @@ export function CarsonStrategyView({ client, onBack }: Props) {
         </div>
       )}
 
-      {/* Pipeline Cards - 4 in a row */}
-      <div className="grid grid-cols-4 gap-4">
-        {SUB_MODULES.map((module, index) => {
+      {/* Pipeline Cards - Input + 4 modules */}
+      <div className="grid grid-cols-5 gap-4">
+        {/* CaSS Input - Special cyan card */}
+        <div
+          onClick={() => setViewMode("input")}
+          className="rounded-lg border-2 border-cyan-500 bg-slate-800 p-4 cursor-pointer hover:border-cyan-400 hover:bg-slate-700 transition-all"
+        >
+          <div className="w-10 h-10 rounded-lg flex items-center justify-center mb-3 bg-cyan-500 text-white">
+            <FileInput className="h-5 w-5" />
+          </div>
+          <h3 className="font-semibold text-sm text-cyan-300">CaSS Input</h3>
+          <p className="text-xs text-slate-300 mt-1">
+            {inputData.callSource || "No data"} + GC
+          </p>
+          <div className="mt-3 pt-3 border-t border-slate-600">
+            <span className="text-xs text-cyan-400">Click to view</span>
+          </div>
+        </div>
+
+        {/* 4 Processing Modules */}
+        {SUB_MODULES.map((module) => {
           const status = moduleStatuses[module.id]
           const timer = moduleTimers[module.id]
           const isActive = activeModule === module.id
-          const canClick = status === "idle" && overallStatus !== "processing"
+          const canRun = overallStatus !== "processing"
 
           return (
             <div
               key={module.id}
-              onClick={() => {
-                if (canClick) {
-                  handleGenerate()
-                }
-              }}
-              className={`rounded-lg border-2 p-4 transition-all ${getCardClasses(status, isActive)} ${
-                canClick ? "cursor-pointer hover:border-violet-400 hover:bg-slate-700" : ""
-              }`}
+              className={`rounded-lg border-2 p-4 transition-all ${getCardClasses(status, isActive)}`}
             >
               {/* Icon */}
               <div className={`w-10 h-10 rounded-lg flex items-center justify-center mb-3 ${getIconClasses(status, isActive)}`}>
@@ -443,8 +562,13 @@ export function CarsonStrategyView({ client, onBack }: Props) {
                 {module.name}
               </h3>
               <p className="text-xs text-slate-300 mt-1">{module.description}</p>
+              {module.stubbed && (
+                <span className="inline-block mt-1 text-[10px] text-amber-400 bg-amber-500/20 px-1.5 py-0.5 rounded">
+                  Stubbed
+                </span>
+              )}
 
-              {/* Status */}
+              {/* Status + Run Button */}
               <div className="mt-3 pt-3 border-t border-slate-600">
                 {isActive ? (
                   <div className="flex items-center justify-between">
@@ -461,10 +585,19 @@ export function CarsonStrategyView({ client, onBack }: Props) {
                   </div>
                 ) : status === "error" ? (
                   <span className="text-xs text-red-400">Error</span>
-                ) : overallStatus === "processing" ? (
-                  <span className="text-xs text-slate-500">Queued</span>
                 ) : (
-                  <span className="text-xs text-violet-400/70">Click to start</span>
+                  <Button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleRunModule(module.id)
+                    }}
+                    disabled={!canRun}
+                    size="sm"
+                    className="w-full h-7 text-xs bg-violet-600 hover:bg-violet-500"
+                  >
+                    <Play className="h-3 w-3 mr-1" />
+                    Run
+                  </Button>
                 )}
               </div>
             </div>
@@ -482,7 +615,7 @@ export function CarsonStrategyView({ client, onBack }: Props) {
             <p className="text-white font-medium">Generation Failed</p>
             <p className="text-sm text-red-300/80">{errorMessage}</p>
           </div>
-          <Button onClick={handleGenerate} variant="outline" className="border-red-500/50 hover:bg-red-900/30 text-red-300">
+          <Button onClick={handleRunAll} variant="outline" className="border-red-500/50 hover:bg-red-900/30 text-red-300">
             Retry
           </Button>
         </div>
@@ -512,7 +645,6 @@ export function CarsonStrategyView({ client, onBack }: Props) {
       {/* Strategy Document Content */}
       {strategyDoc?.content && overallStatus === "complete" && (
         <div className="rounded-lg border border-slate-700 bg-slate-900/50 overflow-hidden">
-          {/* Document Header */}
           <div className="border-b border-slate-700 px-6 py-4 bg-slate-800/50">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -527,7 +659,6 @@ export function CarsonStrategyView({ client, onBack }: Props) {
             </div>
           </div>
 
-          {/* Document Content */}
           <div className="p-6">
             <div className="prose prose-invert max-w-none prose-headings:font-bold">
               <ReactMarkdown
@@ -577,7 +708,6 @@ export function CarsonStrategyView({ client, onBack }: Props) {
               </ReactMarkdown>
             </div>
 
-            {/* Citations */}
             {strategyDoc.perplexity_citations && strategyDoc.perplexity_citations.length > 0 && (
               <div className="mt-8 pt-6 border-t border-slate-700">
                 <h3 className="text-sm font-semibold text-white mb-3">Sources</h3>
@@ -601,9 +731,9 @@ export function CarsonStrategyView({ client, onBack }: Props) {
       {!strategyDoc?.content && overallStatus === "idle" && (
         <div className="rounded-lg border border-slate-700 bg-slate-800/30 p-12 text-center">
           <p className="text-slate-400 mb-4">No strategy document generated yet</p>
-          <Button onClick={handleGenerate} className="bg-violet-600 hover:bg-violet-500">
+          <Button onClick={handleRunAll} className="bg-violet-600 hover:bg-violet-500">
             <Play className="h-4 w-4 mr-2" />
-            Generate Strategy
+            Run All Modules
           </Button>
         </div>
       )}
