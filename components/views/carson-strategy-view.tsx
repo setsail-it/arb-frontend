@@ -62,7 +62,7 @@ const SUB_MODULES: SubModule[] = [
   {
     id: "plater",
     name: "The Plater",
-    description: "Structures the format",
+    description: "Polishes formatting",
     icon: <Palette className="h-6 w-6" />,
     gradient: "from-rose-500 to-pink-600",
     glowColor: "shadow-rose-500/30",
@@ -70,7 +70,7 @@ const SUB_MODULES: SubModule[] = [
   {
     id: "translator",
     name: "The Translator",
-    description: "Client language",
+    description: "Pain point messaging",
     icon: <Languages className="h-6 w-6" />,
     gradient: "from-violet-500 to-purple-600",
     glowColor: "shadow-violet-500/30",
@@ -347,8 +347,8 @@ export function CarsonStrategyView({ client, onBack }: Props) {
                 <p className="text-slate-300">
                   {module.id === "waiter" && "✅ Service selection and budget allocation completed."}
                   {module.id === "cook" && "✅ Implementation descriptions written for each service."}
-                  {module.id === "plater" && "✅ Document structured according to standard format."}
-                  {module.id === "translator" && "✅ Translated to use client's pain point language."}
+                  {module.id === "plater" && "✅ Document polished and formatted for presentation."}
+                  {module.id === "translator" && "✅ Rewritten using client's own pain point language from discovery calls."}
                 </p>
                 <p className="text-sm text-slate-500 mt-4">
                   Output is integrated into the final strategy document.

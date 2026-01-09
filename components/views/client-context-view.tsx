@@ -6,7 +6,6 @@ import { api } from "@/lib/api"
 import { DiscoveryDocumentForm } from "@/components/views/discovery-document-form"
 import { GeneralContextForm } from "@/components/views/general-context-form"
 import { CarsonStrategyView } from "@/components/views/carson-strategy-view"
-import { PainPointStrategyView } from "@/components/views/pain-point-strategy-view"
 import { DiscoveryCallView } from "@/components/views/discovery-call-view"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
@@ -26,7 +25,6 @@ import {
   Phone,
   Search,
   RefreshCw,
-  Sparkles,
   X,
   ChefHat,
   ScanSearch,
@@ -38,7 +36,7 @@ interface Props {
 }
 
 type ComponentStatus = "idle" | "processing" | "complete" | "error"
-type ActiveView = "admin" | "discovery" | "discovery-call" | "deep-dive" | "general" | "ground-truth" | "strategy" | "pain-point" | "gamma" | "service-docs"
+type ActiveView = "admin" | "discovery" | "discovery-call" | "deep-dive" | "general" | "ground-truth" | "strategy" | "gamma" | "service-docs"
 
 interface FlowState {
   domain: ComponentStatus
@@ -48,7 +46,6 @@ interface FlowState {
   deepDive: ComponentStatus
   groundTruth: ComponentStatus
   strategyDoc: ComponentStatus
-  painPointStrategy: ComponentStatus
   gamma: ComponentStatus
   serviceDocs: ComponentStatus
 }
@@ -77,7 +74,6 @@ export function ClientContextView({ client, readOnly = false }: Props) {
     deepDive: "idle",
     groundTruth: "idle",
     strategyDoc: "idle",
-    painPointStrategy: "idle",
     gamma: "idle",
     serviceDocs: "idle",
   })
@@ -143,7 +139,6 @@ export function ClientContextView({ client, readOnly = false }: Props) {
   const stratPollingRef = useRef<NodeJS.Timeout | null>(null)
   // Polling ref for ground truth enhancement
   const groundTruthPollingRef = useRef<NodeJS.Timeout | null>(null)
-  const painPointPollingRef = useRef<NodeJS.Timeout | null>(null)
 
   // Cleanup polling on unmount
   useEffect(() => {
@@ -154,7 +149,6 @@ export function ClientContextView({ client, readOnly = false }: Props) {
       if (ddivePollingRef.current) clearInterval(ddivePollingRef.current)
       if (stratPollingRef.current) clearInterval(stratPollingRef.current)
       if (groundTruthPollingRef.current) clearInterval(groundTruthPollingRef.current)
-      if (painPointPollingRef.current) clearInterval(painPointPollingRef.current)
     }
   }, [])
 
@@ -335,7 +329,6 @@ export function ClientContextView({ client, readOnly = false }: Props) {
       deepDive: "idle",
       groundTruth: "idle",
       strategyDoc: "idle",
-      painPointStrategy: "idle",
       gamma: "idle",
       serviceDocs: "idle",
     })
@@ -364,10 +357,6 @@ export function ClientContextView({ client, readOnly = false }: Props) {
     if (stratPollingRef.current) {
       clearInterval(stratPollingRef.current)
       stratPollingRef.current = null
-    }
-    if (painPointPollingRef.current) {
-      clearInterval(painPointPollingRef.current)
-      painPointPollingRef.current = null
     }
     if (groundTruthPollingRef.current) {
       clearInterval(groundTruthPollingRef.current)
@@ -538,30 +527,6 @@ export function ClientContextView({ client, readOnly = false }: Props) {
           }
         }
 
-        // Check pain point strategy status
-        let painPointState: ComponentStatus = "idle"
-        try {
-          const painPointStatus = await api.getPainPointStrategyStatus(client.id)
-          if (painPointStatus.status === "running" || painPointStatus.status === "pending") {
-            painPointState = "processing"
-            pollPainPointStatus()
-          } else if (painPointStatus.status === "error") {
-            painPointState = "error"
-          } else if (painPointStatus.status === "complete") {
-            painPointState = "complete"
-          }
-        } catch (e) {
-          // No job found, check if document exists
-          try {
-            const painPointDoc = await api.getPainPointStrategy(client.id)
-            if (painPointDoc && painPointDoc.content) {
-              painPointState = "complete"
-            }
-          } catch (e2) {
-            // No document
-          }
-        }
-
         // Note: domain/inputs are session-only (don't persist green on refresh)
         // Only research modules check database for status
         setFlowState(prev => ({
@@ -571,7 +536,6 @@ export function ClientContextView({ client, readOnly = false }: Props) {
           generalContext: gcState,
           deepDive: deepDiveState,
           strategyDoc: strategyState,
-          painPointStrategy: painPointState,
         }))
         
         // If any research jobs are running, find the earliest start time for the timer
@@ -819,56 +783,9 @@ export function ClientContextView({ client, readOnly = false }: Props) {
     }
   }
 
-  const pollPainPointStatus = () => {
-    if (painPointPollingRef.current) clearInterval(painPointPollingRef.current)
-    painPointPollingRef.current = setInterval(async () => {
-      try {
-        const status = await api.getPainPointStrategyStatus(client.id)
-        console.log("[PainPoint Poll] Status:", status.status)
-        
-        if (status.status === "complete") {
-          clearInterval(painPointPollingRef.current!)
-          painPointPollingRef.current = null
-          setFlowState(prev => ({ ...prev, painPointStrategy: "complete" }))
-        } else if (status.status === "error") {
-          clearInterval(painPointPollingRef.current!)
-          painPointPollingRef.current = null
-          console.error("Pain point job error:", status.error_message)
-          setFlowState(prev => ({ ...prev, painPointStrategy: "error" }))
-        }
-      } catch (e) {
-        console.error("Pain point poll error:", e)
-      }
-    }, 5000)
-  }
-
-  const handlePainPointGenerate = async () => {
+  const handleGammaGenerate = async () => {
     if (flowState.strategyDoc !== "complete") {
       alert("Strategy Document must be completed first")
-      return
-    }
-    if (flowState.discoveryCall !== "complete") {
-      alert("Discovery Call must be completed first")
-      return
-    }
-    
-    setFlowState(prev => ({ ...prev, painPointStrategy: "processing" }))
-    
-    // Always start polling - even if trigger request fails/times out
-    pollPainPointStatus()
-    
-    try {
-      const response = await api.generatePainPointStrategy(client.id)
-      console.log("[PainPoint] Generation started:", response)
-    } catch (e) {
-      console.error("Failed to start pain point rewrite (polling continues):", e)
-      // Don't set error - let polling determine the actual status
-    }
-  }
-
-  const handleGammaGenerate = async () => {
-    if (flowState.painPointStrategy !== "complete") {
-      alert("Pain Point Rewriter must be completed first")
       return
     }
     
@@ -932,9 +849,6 @@ export function ClientContextView({ client, readOnly = false }: Props) {
         )}
         {activeView === "strategy" && (
           <CarsonStrategyView client={client} onBack={() => setActiveView("admin")} />
-        )}
-        {activeView === "pain-point" && (
-          <PainPointStrategyView client={client} />
         )}
         {activeView === "gamma" && (
           <StubView 
@@ -1245,61 +1159,6 @@ export function ClientContextView({ client, readOnly = false }: Props) {
         {/* Connection Line */}
         <ConnectionLine active={flowState.strategyDoc === "complete"} />
 
-        {/* Stage 3.5: Pain Point Rewriter */}
-        <div className="flex items-start gap-6">
-          <div className="w-20 flex-shrink-0 text-center">
-            <div className="w-10 h-10 mx-auto rounded-full bg-slate-800 border-2 border-amber-500/50 flex items-center justify-center text-amber-400 font-mono text-xs mb-1">
-              3.5
-            </div>
-            <span className="text-xs text-slate-500 uppercase tracking-wider">Refine</span>
-          </div>
-          <PipelineCard
-            title="Pain Point Rewriter"
-            subtitle="Refine strategy messaging"
-            icon={<Sparkles className="h-5 w-5" />}
-            status={flowState.painPointStrategy}
-            onClick={() => flowState.painPointStrategy === "complete" ? setActiveView("pain-point") : undefined}
-            clickable={flowState.painPointStrategy === "complete"}
-            className="w-80"
-          >
-            {!readOnly && (
-              <Button
-                onClick={(e) => {
-                  e.stopPropagation()
-                  handlePainPointGenerate()
-                }}
-                disabled={
-                  flowState.painPointStrategy === "processing" || 
-                  flowState.strategyDoc !== "complete" ||
-                  flowState.discoveryCall !== "complete"
-                }
-                size="sm"
-                className="w-full bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white border-0"
-              >
-                {flowState.painPointStrategy === "processing" ? (
-                  <>
-                    <Spinner className="h-3 w-3 mr-2" />
-                    Rewriting...
-                  </>
-                ) : flowState.painPointStrategy === "complete" ? (
-                  <>
-                    <RefreshCw className="h-3 w-3 mr-2" />
-                    Re-run
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="h-3 w-3 mr-2" />
-                    Rewrite Strategy
-                  </>
-                )}
-              </Button>
-            )}
-          </PipelineCard>
-        </div>
-
-        {/* Connection Line */}
-        <ConnectionLine active={flowState.painPointStrategy === "complete"} />
-
         {/* Stage 4: Output */}
         <div className="flex items-start gap-6">
           <StageLabel number={4} label="Output" />
@@ -1319,7 +1178,7 @@ export function ClientContextView({ client, readOnly = false }: Props) {
                     e.stopPropagation()
                     handleGammaGenerate()
                   }}
-                  disabled={flowState.painPointStrategy !== "complete" || flowState.gamma === "processing"}
+                  disabled={flowState.strategyDoc !== "complete" || flowState.gamma === "processing"}
                   size="sm"
                   className="w-full bg-teal-600 hover:bg-teal-500 text-white border-0"
                 >
