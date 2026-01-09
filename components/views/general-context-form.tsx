@@ -28,9 +28,10 @@ interface Props {
   client: Client
   isPublicMode?: boolean
   editToken?: string
+  readOnly?: boolean
 }
 
-export function GeneralContextForm({ client, isPublicMode = false, editToken }: Props) {
+export function GeneralContextForm({ client, isPublicMode = false, editToken, readOnly = false }: Props) {
   const [context, setContext] = useState<ClientContext>({})
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -180,37 +181,39 @@ export function GeneralContextForm({ client, isPublicMode = false, editToken }: 
         <h2 className="text-2xl font-bold tracking-tight">
           {isPublicMode ? "Edit General Context" : `${client.name} - General Context`}
         </h2>
-        <div className="flex gap-2">
-          {!isPublicMode && (
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button variant="destructive" disabled={fetching || !context.domain}>
-                  Fetch from Site
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent className="bg-destructive border-destructive text-destructive-foreground">
-                <AlertDialogHeader>
-                  <AlertDialogTitle className="text-white">Are you absolutely sure?</AlertDialogTitle>
-                  <AlertDialogDescription className="text-white">
-                    Warning: Fetching from Site will destroy all current data and replace it. Are you sure you wish to
-                    proceed?
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel className="bg-white text-black hover:bg-white/90">Cancel</AlertDialogCancel>
-                  <AlertDialogAction onClick={handleFetchFromSite} className="bg-white text-black hover:bg-white/90">
-                    Proceed
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          )}
+        {!readOnly && (
+          <div className="flex gap-2">
+            {!isPublicMode && (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="destructive" disabled={fetching || !context.domain}>
+                    Fetch from Site
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent className="bg-destructive border-destructive text-destructive-foreground">
+                  <AlertDialogHeader>
+                    <AlertDialogTitle className="text-white">Are you absolutely sure?</AlertDialogTitle>
+                    <AlertDialogDescription className="text-white">
+                      Warning: Fetching from Site will destroy all current data and replace it. Are you sure you wish to
+                      proceed?
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel className="bg-white text-black hover:bg-white/90">Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleFetchFromSite} className="bg-white text-black hover:bg-white/90">
+                      Proceed
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            )}
 
-          <Button onClick={handleSave} disabled={saving}>
-            {saving && <Spinner className="mr-2" />}
-            Save Context
-          </Button>
-        </div>
+            <Button onClick={handleSave} disabled={saving}>
+              {saving && <Spinner className="mr-2" />}
+              Save Context
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Shareable Edit Link */}

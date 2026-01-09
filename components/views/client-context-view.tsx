@@ -861,7 +861,7 @@ export function ClientContextView({ client, readOnly = false }: Props) {
           <DiscoveryCallView client={client} isDeepDive />
         )}
         {activeView === "general" && (
-          <GeneralContextForm client={client} />
+          <GeneralContextForm client={client} readOnly={readOnly} />
         )}
         {activeView === "ground-truth" && (
           <StubView 

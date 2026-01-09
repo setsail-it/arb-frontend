@@ -90,7 +90,7 @@ export default function ABSControlPanel() {
               </div>
             )}
             {activeTab === "context" && <ClientContextView client={selectedClient} readOnly={!canModify} />}
-            {activeTab === "factory" && <BlogFactoryView client={selectedClient} />}
+            {activeTab === "factory" && <BlogFactoryView client={selectedClient} readOnly={!canModify} />}
           </div>
         )}
       </main>

@@ -27,6 +27,7 @@ import { Trash2, Pencil, Check, ChevronRight, ChevronLeft } from "lucide-react"
 
 interface Props {
   client: Client
+  readOnly?: boolean
 }
 
 // Arrow button component for between columns
@@ -58,7 +59,7 @@ function ArrowButton({
   )
 }
 
-export function BlogFactoryView({ client }: Props) {
+export function BlogFactoryView({ client, readOnly = false }: Props) {
   // ==================== KEYWORD EXPLORER STATE ====================
   const [config, setConfig] = useState({
     max_num_kws_per_seed: 600,
@@ -680,12 +681,12 @@ export function BlogFactoryView({ client }: Props) {
                 <div className="flex flex-row items-center justify-between">
                   <CardTitle className="text-sm">Ideas ({keywordIdeas.length})</CardTitle>
                   <div className="flex gap-1">
-                    {selectedKeywordIds.size > 0 && (
+                    {selectedKeywordIds.size > 0 && !readOnly && (
                       <Button size="sm" variant="destructive" onClick={handleDeleteSelectedKeywordIdeas} disabled={deletingIdeas} className="h-6 px-1.5">
                         <Trash2 className="h-3.5 w-3.5" />
                       </Button>
                     )}
-                    <Button size="sm" onClick={handleGenerateKeywordIdeas} disabled={generatingIdeas || loadingKeywordIdeas} className="h-6 text-xs px-2">
+                    <Button size="sm" onClick={handleGenerateKeywordIdeas} disabled={generatingIdeas || loadingKeywordIdeas || readOnly} className="h-6 text-xs px-2">
                       {(generatingIdeas || loadingKeywordIdeas) && <Spinner className="mr-1 h-3 w-3" />}
                       Generate
                     </Button>
@@ -728,13 +729,13 @@ export function BlogFactoryView({ client }: Props) {
           </div>
 
           {/* Arrow: Ideas -> Best Alternate */}
-          <ArrowButton onClick={handleFindBestAlternates} disabled={loadingBestAlternates} loading={loadingBestAlternates} count={selectedKeywordIds.size} label="Find" />
+          <ArrowButton onClick={handleFindBestAlternates} disabled={loadingBestAlternates || readOnly} loading={loadingBestAlternates} count={selectedKeywordIds.size} label="Find" />
 
           {/* Column 2: Best Alternate */}
           <Card className="flex flex-col shrink-0 min-h-0" style={{ width: "240px" }}>
             <CardHeader className="pb-1 pt-2 px-2 flex flex-row items-center justify-between space-y-0">
               <CardTitle className="text-sm">Best Alternate</CardTitle>
-              {selectedBestAlternateIds.size > 0 && (
+              {selectedBestAlternateIds.size > 0 && !readOnly && (
                 <Button size="sm" variant="destructive" onClick={handleDeleteSelectedAlternates} disabled={deletingAlternates} className="h-6 px-1.5">
                   <Trash2 className="h-3.5 w-3.5" />
                 </Button>
@@ -763,13 +764,13 @@ export function BlogFactoryView({ client }: Props) {
           </Card>
 
           {/* Arrow: Best Alternate -> Sets */}
-          <ArrowButton onClick={handleDevelopSets} disabled={loadingSets} loading={loadingSets} count={selectedBestAlternateIds.size} label="Develop" />
+          <ArrowButton onClick={handleDevelopSets} disabled={loadingSets || readOnly} loading={loadingSets} count={selectedBestAlternateIds.size} label="Develop" />
 
           {/* Column 3: Sets */}
           <Card className="flex flex-col shrink-0 min-h-0" style={{ width: "220px" }}>
             <CardHeader className="pb-1 pt-2 px-2 flex flex-row items-center justify-between space-y-0">
               <CardTitle className="text-xs">Sets ({sets.length})</CardTitle>
-              {selectedSetIds.size > 0 && (
+              {selectedSetIds.size > 0 && !readOnly && (
                 <Button size="sm" variant="destructive" onClick={handleDeleteSelectedSets} disabled={deletingSets} className="h-5 text-[10px] px-1">
                   <Trash2 className="h-3 w-3" />
                 </Button>
@@ -803,7 +804,7 @@ export function BlogFactoryView({ client }: Props) {
           </Card>
 
           {/* Arrow: Sets -> Blog Ideas */}
-          <ArrowButton onClick={handleGenerateBlogIdeas} disabled={generatingBlogIdeas} loading={generatingBlogIdeas} count={selectedSetIds.size} label="Generate" />
+          <ArrowButton onClick={handleGenerateBlogIdeas} disabled={generatingBlogIdeas || readOnly} loading={generatingBlogIdeas} count={selectedSetIds.size} label="Generate" />
 
           {/* Column 4: Blog Ideas (Unqueued) */}
           <Card className="flex flex-col shrink-0 min-h-0" style={{ width: "220px" }}>
@@ -818,13 +819,13 @@ export function BlogFactoryView({ client }: Props) {
                 </div>
               )}
               {unqueued.map((idea) => (
-                <BlogIdeaCard key={idea.id} idea={idea} isSelected={selectedBlogIdeaIds.has(idea.id)} onToggleSelect={() => handleToggleBlogIdeaSelection(idea.id)} onView={() => setSelectedIdea(idea)} onUpdateTopic={(topic) => handleTopicUpdate(idea.id, topic)} onDelete={() => handleDeleteBlogIdea(idea.id)} isEditable showCheckbox />
+                <BlogIdeaCard key={idea.id} idea={idea} isSelected={selectedBlogIdeaIds.has(idea.id)} onToggleSelect={() => handleToggleBlogIdeaSelection(idea.id)} onView={() => setSelectedIdea(idea)} onUpdateTopic={(topic) => handleTopicUpdate(idea.id, topic)} onDelete={() => handleDeleteBlogIdea(idea.id)} isEditable={!readOnly} showCheckbox />
               ))}
             </CardContent>
           </Card>
 
           {/* Arrow: Blog Ideas -> Queued */}
-          <ArrowButton onClick={handleQueueSelectedIdeas} disabled={queuingIdeas} loading={queuingIdeas} count={selectedBlogIdeaIds.size} label="Queue" />
+          <ArrowButton onClick={handleQueueSelectedIdeas} disabled={queuingIdeas || readOnly} loading={queuingIdeas} count={selectedBlogIdeaIds.size} label="Queue" />
 
           {/* Column 5: Queued */}
           <Card className="flex flex-col shrink-0 min-h-0" style={{ width: "220px" }}>
@@ -839,7 +840,7 @@ export function BlogFactoryView({ client }: Props) {
           </Card>
 
           {/* Arrow: Queued -> In Progress */}
-          <ArrowButton onClick={handleProcessQueued} disabled={processing || queued.length === 0} loading={processing} count={queued.length} label="Process" />
+          <ArrowButton onClick={handleProcessQueued} disabled={processing || queued.length === 0 || readOnly} loading={processing} count={queued.length} label="Process" />
 
           {/* Column 6: In Progress */}
           <Card className="flex flex-col shrink-0 min-h-0" style={{ width: "220px" }}>
