@@ -7,6 +7,7 @@ import { DiscoveryDocumentForm } from "@/components/views/discovery-document-for
 import { GeneralContextForm } from "@/components/views/general-context-form"
 import { CarsonStrategyView } from "@/components/views/carson-strategy-view"
 import { DiscoveryCallView } from "@/components/views/discovery-call-view"
+import { GroundTruthView } from "@/components/views/ground-truth-view"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent } from "@/components/ui/card"
@@ -841,10 +842,9 @@ export function ClientContextView({ client, readOnly = false }: Props) {
           <GeneralContextForm client={client} readOnly={readOnly} />
         )}
         {activeView === "ground-truth" && (
-          <StubView 
-            title="Ground Truth" 
-            description="Manual override and verification of AI-generated content"
-            icon={<Shield className="h-8 w-8" />}
+          <GroundTruthView 
+            client={client}
+            onNavigateTo={(view) => setActiveView(view as ActiveView)}
           />
         )}
         {activeView === "strategy" && (
