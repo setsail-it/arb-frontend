@@ -727,4 +727,18 @@ export const api = {
     }),
   getDeepDiveProcessStatus: (clientId: string) =>
     fetchJson<{ job_id: string; status: string; error_message: string | null }>(`/clients/${clientId}/deep-dive/process/status`),
+
+  // Ground Truth Enhancement
+  getGroundTruthSource: (clientId: string) =>
+    fetchJson<{ source: string | null; answers_count: number; available: boolean }>(
+      `/clients/${clientId}/ground-truth/source`
+    ),
+  runGroundTruthEnhancement: (clientId: string) =>
+    fetchJson<{ job_id: string; status: string; message: string }>(`/clients/${clientId}/ground-truth/enhance`, {
+      method: "POST",
+    }),
+  getGroundTruthStatus: (clientId: string) =>
+    fetchJson<{ job_id: string | null; status: string; error_message: string | null; started_at: string | null }>(
+      `/clients/${clientId}/ground-truth/status`
+    ),
 }

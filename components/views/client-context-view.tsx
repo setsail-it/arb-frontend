@@ -29,6 +29,7 @@ import {
   Sparkles,
   X,
   ChefHat,
+  ScanSearch,
 } from "lucide-react"
 
 interface Props {
@@ -45,6 +46,7 @@ interface FlowState {
   discoveryDoc: ComponentStatus
   generalContext: ComponentStatus
   deepDive: ComponentStatus
+  groundTruth: ComponentStatus
   strategyDoc: ComponentStatus
   painPointStrategy: ComponentStatus
   gamma: ComponentStatus
@@ -73,6 +75,7 @@ export function ClientContextView({ client, readOnly = false }: Props) {
     discoveryDoc: "idle",
     generalContext: "idle",
     deepDive: "idle",
+    groundTruth: "idle",
     strategyDoc: "idle",
     painPointStrategy: "idle",
     gamma: "idle",
@@ -138,6 +141,8 @@ export function ClientContextView({ client, readOnly = false }: Props) {
 
   // Polling ref for strategy (defined early so cleanup can reference it)
   const stratPollingRef = useRef<NodeJS.Timeout | null>(null)
+  // Polling ref for ground truth enhancement
+  const groundTruthPollingRef = useRef<NodeJS.Timeout | null>(null)
   const painPointPollingRef = useRef<NodeJS.Timeout | null>(null)
 
   // Cleanup polling on unmount
@@ -148,6 +153,7 @@ export function ClientContextView({ client, readOnly = false }: Props) {
       if (dcPollingRef.current) clearInterval(dcPollingRef.current)
       if (ddivePollingRef.current) clearInterval(ddivePollingRef.current)
       if (stratPollingRef.current) clearInterval(stratPollingRef.current)
+      if (groundTruthPollingRef.current) clearInterval(groundTruthPollingRef.current)
       if (painPointPollingRef.current) clearInterval(painPointPollingRef.current)
     }
   }, [])
@@ -327,6 +333,7 @@ export function ClientContextView({ client, readOnly = false }: Props) {
       discoveryDoc: "idle",
       generalContext: "idle",
       deepDive: "idle",
+      groundTruth: "idle",
       strategyDoc: "idle",
       painPointStrategy: "idle",
       gamma: "idle",
@@ -362,7 +369,11 @@ export function ClientContextView({ client, readOnly = false }: Props) {
       clearInterval(painPointPollingRef.current)
       painPointPollingRef.current = null
     }
-    
+    if (groundTruthPollingRef.current) {
+      clearInterval(groundTruthPollingRef.current)
+      groundTruthPollingRef.current = null
+    }
+
     const loadExistingDataAndJobStatus = async () => {
       try {
         // First check job statuses and collect start times
@@ -723,6 +734,49 @@ export function ClientContextView({ client, readOnly = false }: Props) {
     } catch (e) {
       console.error("Failed to start deep dive:", e)
       setFlowState(prev => ({ ...prev, deepDive: "error" }))
+    }
+  }
+
+  const pollGroundTruthStatus = () => {
+    if (groundTruthPollingRef.current) clearInterval(groundTruthPollingRef.current)
+    groundTruthPollingRef.current = setInterval(async () => {
+      try {
+        const status = await api.getGroundTruthStatus(client.id)
+        console.log("[GroundTruth Poll] Status:", status.status)
+        
+        if (status.status === "complete") {
+          clearInterval(groundTruthPollingRef.current!)
+          groundTruthPollingRef.current = null
+          setFlowState(prev => ({ ...prev, groundTruth: "complete" }))
+        } else if (status.status === "error") {
+          clearInterval(groundTruthPollingRef.current!)
+          groundTruthPollingRef.current = null
+          console.error("GroundTruth job error:", status.error_message)
+          setFlowState(prev => ({ ...prev, groundTruth: "error" }))
+        }
+      } catch (e) {
+        console.error("GroundTruth poll error:", e)
+      }
+    }, 5000)
+  }
+
+  const handleGroundTruthEnhancement = async () => {
+    if (flowState.discoveryCall !== "complete" && flowState.deepDive !== "complete") {
+      alert("Discovery Call or Deep Dive must be completed first")
+      return
+    }
+    
+    setFlowState(prev => ({ ...prev, groundTruth: "processing" }))
+    
+    // Start polling immediately
+    pollGroundTruthStatus()
+    
+    try {
+      const result = await api.runGroundTruthEnhancement(client.id)
+      console.log("[GroundTruth] Job started:", result)
+    } catch (e) {
+      console.error("Failed to start ground truth enhancement (polling continues):", e)
+      // Don't set error - let polling determine actual status
     }
   }
 
@@ -1090,6 +1144,60 @@ export function ClientContextView({ client, readOnly = false }: Props) {
 
         {/* Connection Line */}
         <ConnectionLine active={flowState.discoveryCall === "complete" || flowState.deepDive === "complete"} />
+
+        {/* Stage 2.6: Ground Truth Enhancement */}
+        <div className="flex items-start gap-6">
+          <div className="w-20 flex-shrink-0 text-center">
+            <div className="w-10 h-10 mx-auto rounded-full bg-slate-800 border-2 border-emerald-600/50 flex items-center justify-center text-emerald-500 font-mono text-xs mb-1">
+              2.6
+            </div>
+            <span className="text-xs text-emerald-500 uppercase tracking-wider">Final</span>
+          </div>
+          <PipelineCard
+            title="Ground Truth"
+            subtitle="Enhance DD + GC with client Q&A"
+            icon={<ScanSearch className="h-5 w-5" />}
+            status={flowState.groundTruth}
+            onClick={() => flowState.groundTruth === "complete" ? setActiveView("ground-truth") : undefined}
+            clickable={flowState.groundTruth === "complete"}
+            className="w-80"
+          >
+            {!readOnly && (
+              <Button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleGroundTruthEnhancement()
+                }}
+                disabled={
+                  flowState.groundTruth === "processing" || 
+                  (flowState.discoveryCall !== "complete" && flowState.deepDive !== "complete")
+                }
+                size="sm"
+                className="w-full bg-emerald-700 hover:bg-emerald-600 text-white border-0"
+              >
+                {flowState.groundTruth === "processing" ? (
+                  <>
+                    <Spinner className="h-3 w-3 mr-2" />
+                    Enhancing...
+                  </>
+                ) : flowState.groundTruth === "complete" ? (
+                  <>
+                    <RefreshCw className="h-3 w-3 mr-2" />
+                    Re-enhance
+                  </>
+                ) : (
+                  <>
+                    <ScanSearch className="h-3 w-3 mr-2" />
+                    Apply Ground Truth
+                  </>
+                )}
+              </Button>
+            )}
+          </PipelineCard>
+        </div>
+
+        {/* Connection Line */}
+        <ConnectionLine active={flowState.groundTruth === "complete" || flowState.discoveryCall === "complete"} />
 
         {/* Stage 3: Strategy */}
         <div className="flex items-center gap-6">
