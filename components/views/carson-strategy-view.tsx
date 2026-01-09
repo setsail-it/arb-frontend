@@ -310,16 +310,16 @@ export function CarsonStrategyView({ client, onBack }: Props) {
   // Get border/status classes matching main pipeline convention
   const getCardClasses = (status: ModuleStatus, isActive: boolean) => {
     if (isActive) {
-      return "border-violet-500 bg-violet-500/5 animate-pulse"
+      return "border-violet-500 bg-slate-800 animate-pulse"
     }
     if (status === "complete") {
-      return "border-emerald-500 bg-emerald-500/5"
+      return "border-emerald-500 bg-slate-800"
     }
     if (status === "error") {
-      return "border-red-500 bg-red-500/5"
+      return "border-red-500 bg-slate-800"
     }
     // idle - gray
-    return "border-slate-700 bg-slate-800/30"
+    return "border-slate-700 bg-slate-800"
   }
 
   const getIconClasses = (status: ModuleStatus, isActive: boolean) => {
@@ -431,11 +431,13 @@ export function CarsonStrategyView({ client, onBack }: Props) {
               </div>
 
               {/* Text */}
-              <h3 className="font-semibold text-white text-sm">{module.name}</h3>
-              <p className="text-xs text-slate-400 mt-1">{module.description}</p>
+              <h3 className={`font-semibold text-sm ${status === "complete" ? "text-emerald-300" : isActive ? "text-violet-300" : "text-white"}`}>
+                {module.name}
+              </h3>
+              <p className="text-xs text-slate-300 mt-1">{module.description}</p>
 
               {/* Status */}
-              <div className="mt-3 pt-3 border-t border-slate-700/50">
+              <div className="mt-3 pt-3 border-t border-slate-600">
                 {isActive ? (
                   <div className="flex items-center justify-between">
                     <span className="text-xs text-violet-400 flex items-center gap-1">
