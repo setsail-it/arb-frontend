@@ -419,11 +419,19 @@ export function CarsonStrategyView({ client, onBack }: Props) {
           const status = moduleStatuses[module.id]
           const timer = moduleTimers[module.id]
           const isActive = activeModule === module.id
+          const canClick = status === "idle" && overallStatus !== "processing"
 
           return (
             <div
               key={module.id}
-              className={`rounded-lg border-2 p-4 transition-all ${getCardClasses(status, isActive)}`}
+              onClick={() => {
+                if (canClick) {
+                  handleGenerate()
+                }
+              }}
+              className={`rounded-lg border-2 p-4 transition-all ${getCardClasses(status, isActive)} ${
+                canClick ? "cursor-pointer hover:border-violet-400 hover:bg-slate-700" : ""
+              }`}
             >
               {/* Icon */}
               <div className={`w-10 h-10 rounded-lg flex items-center justify-center mb-3 ${getIconClasses(status, isActive)}`}>
@@ -456,7 +464,7 @@ export function CarsonStrategyView({ client, onBack }: Props) {
                 ) : overallStatus === "processing" ? (
                   <span className="text-xs text-slate-500">Queued</span>
                 ) : (
-                  <span className="text-xs text-slate-600">Not started</span>
+                  <span className="text-xs text-violet-400/70">Click to start</span>
                 )}
               </div>
             </div>
