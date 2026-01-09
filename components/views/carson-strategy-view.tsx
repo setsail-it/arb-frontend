@@ -4,12 +4,10 @@ import { useState, useEffect, useRef } from "react"
 import type { Client, StrategyDocument } from "@/types"
 import { api } from "@/lib/api"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Spinner } from "@/components/ui/spinner"
 import {
-  ArrowLeft,
-  ChefHat,
   Utensils,
+  ChefHat,
   Palette,
   Languages,
   Clock,
@@ -19,9 +17,7 @@ import {
   Download,
   ExternalLink,
   Presentation,
-  Sparkles,
   Play,
-  Zap,
 } from "lucide-react"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
@@ -38,8 +34,6 @@ interface SubModule {
   name: string
   description: string
   icon: React.ReactNode
-  gradient: string
-  glowColor: string
 }
 
 const SUB_MODULES: SubModule[] = [
@@ -47,33 +41,25 @@ const SUB_MODULES: SubModule[] = [
     id: "waiter",
     name: "The Waiter",
     description: "Selects services & budget",
-    icon: <Utensils className="h-6 w-6" />,
-    gradient: "from-amber-500 to-yellow-600",
-    glowColor: "shadow-amber-500/30",
+    icon: <Utensils className="h-5 w-5" />,
   },
   {
     id: "cook",
     name: "The Cook",
     description: "Writes implementations",
-    icon: <ChefHat className="h-6 w-6" />,
-    gradient: "from-orange-500 to-red-500",
-    glowColor: "shadow-orange-500/30",
+    icon: <ChefHat className="h-5 w-5" />,
   },
   {
     id: "plater",
     name: "The Plater",
     description: "Polishes formatting",
-    icon: <Palette className="h-6 w-6" />,
-    gradient: "from-rose-500 to-pink-600",
-    glowColor: "shadow-rose-500/30",
+    icon: <Palette className="h-5 w-5" />,
   },
   {
     id: "translator",
     name: "The Translator",
     description: "Pain point messaging",
-    icon: <Languages className="h-6 w-6" />,
-    gradient: "from-violet-500 to-purple-600",
-    glowColor: "shadow-violet-500/30",
+    icon: <Languages className="h-5 w-5" />,
   },
 ]
 
@@ -101,7 +87,6 @@ export function CarsonStrategyView({ client, onBack }: Props) {
   })
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const [selectedModuleView, setSelectedModuleView] = useState<string | null>(null)
 
   const timerIntervalRef = useRef<NodeJS.Timeout | null>(null)
   const pollingRef = useRef<NodeJS.Timeout | null>(null)
@@ -152,16 +137,26 @@ export function CarsonStrategyView({ client, onBack }: Props) {
           } else if (jobStatus.status === "error") {
             setOverallStatus("error")
             setErrorMessage(jobStatus.error_message || "Unknown error")
+          } else if (jobStatus.status === "complete") {
+            // Only mark complete if job actually completed
+            setOverallStatus("complete")
+            setModuleStatuses({
+              waiter: "complete",
+              cook: "complete",
+              plater: "complete",
+              translator: "complete",
+            })
           }
         } catch (e) {
-          // No job found
+          // No job found - check if doc exists
         }
 
         // Load existing document
         const doc = await api.getStrategyDocument(client.id)
         if (doc && doc.content) {
           setStrategyDoc(doc)
-          if (overallStatus !== "processing") {
+          // If we have a doc but status isn't set, mark as complete
+          if (overallStatus === "idle") {
             setOverallStatus("complete")
             setModuleStatuses({
               waiter: "complete",
@@ -206,11 +201,9 @@ export function CarsonStrategyView({ client, onBack }: Props) {
   const startPolling = () => {
     if (pollingRef.current) clearInterval(pollingRef.current)
 
-    let pollCount = 0
     const stageIntervals = [15, 30, 45, 60]
 
     pollingRef.current = setInterval(async () => {
-      pollCount++
       try {
         const jobStatus = await api.getStrategyGenerationStatus(client.id)
 
@@ -314,525 +307,296 @@ export function CarsonStrategyView({ client, onBack }: Props) {
     return moduleTimers.waiter + moduleTimers.cook + moduleTimers.plater + moduleTimers.translator
   }
 
-  // Module output view
-  if (selectedModuleView) {
-    const module = SUB_MODULES.find((m) => m.id === selectedModuleView)
-    if (!module) return null
+  // Get border/status classes matching main pipeline convention
+  const getCardClasses = (status: ModuleStatus, isActive: boolean) => {
+    if (isActive) {
+      return "border-violet-500 bg-violet-500/5 animate-pulse"
+    }
+    if (status === "complete") {
+      return "border-emerald-500 bg-emerald-500/5"
+    }
+    if (status === "error") {
+      return "border-red-500 bg-red-500/5"
+    }
+    // idle - gray
+    return "border-slate-700 bg-slate-800/30"
+  }
 
-    return (
-      <div className="min-h-screen bg-[#0a0a0f] p-8">
-        <div className="max-w-4xl mx-auto space-y-6">
-          <Button
-            variant="ghost"
-            onClick={() => setSelectedModuleView(null)}
-            className="gap-2 text-slate-400 hover:text-white hover:bg-white/5"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Back to Pipeline
-          </Button>
-
-          <div className={`p-[1px] rounded-2xl bg-gradient-to-r ${module.gradient}`}>
-            <div className="bg-[#0f0f18] rounded-2xl p-8">
-              <div className="flex items-center gap-4 mb-6">
-                <div className={`p-3 rounded-xl bg-gradient-to-br ${module.gradient} text-white`}>
-                  {module.icon}
-                </div>
-                <div>
-                  <h2 className="text-2xl font-bold text-white">{module.name}</h2>
-                  <p className="text-slate-400">{module.description}</p>
-                </div>
-              </div>
-
-              <div className="p-6 bg-slate-900/50 rounded-xl border border-slate-800">
-                <p className="text-slate-300">
-                  {module.id === "waiter" && "✅ Service selection and budget allocation completed."}
-                  {module.id === "cook" && "✅ Implementation descriptions written for each service."}
-                  {module.id === "plater" && "✅ Document polished and formatted for presentation."}
-                  {module.id === "translator" && "✅ Rewritten using client's own pain point language from discovery calls."}
-                </p>
-                <p className="text-sm text-slate-500 mt-4">
-                  Output is integrated into the final strategy document.
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    )
+  const getIconClasses = (status: ModuleStatus, isActive: boolean) => {
+    if (isActive) {
+      return "bg-violet-500 text-white"
+    }
+    if (status === "complete") {
+      return "bg-emerald-500 text-white"
+    }
+    if (status === "error") {
+      return "bg-red-500 text-white"
+    }
+    return "bg-slate-700 text-slate-400"
   }
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center">
-        <div className="text-center">
-          <div className="relative">
-            <div className="w-16 h-16 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 animate-pulse" />
-            <Spinner className="absolute inset-0 m-auto h-8 w-8 text-white" />
-          </div>
-          <p className="text-slate-400 mt-4">Loading strategy system...</p>
-        </div>
+      <div className="flex items-center justify-center h-64">
+        <Spinner className="h-8 w-8 text-violet-500" />
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-[#0a0a0f]">
-      {/* Ambient background */}
-      <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-0 left-1/4 w-96 h-96 bg-amber-500/5 rounded-full blur-3xl" />
-        <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-orange-500/5 rounded-full blur-3xl" />
-      </div>
-
-      <div className="relative z-10 max-w-6xl mx-auto p-8 space-y-8">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-6">
-            {onBack && (
+    <div className="space-y-6">
+      {/* Header - just title and action buttons */}
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold text-white">Carson Strategy System</h1>
+        <div className="flex items-center gap-3">
+          {overallStatus === "complete" && strategyDoc?.content && (
+            <>
               <Button
-                variant="ghost"
-                onClick={onBack}
-                className="gap-2 text-slate-400 hover:text-white hover:bg-white/5"
+                onClick={handleGenerateGamma}
+                disabled={gammaStatus === "processing"}
+                className="gap-2 bg-teal-600 hover:bg-teal-500"
               >
-                <ArrowLeft className="h-4 w-4" />
-                Back
+                {gammaStatus === "processing" ? (
+                  <>
+                    <Spinner className="h-4 w-4" />
+                    Generating...
+                  </>
+                ) : (
+                  <>
+                    <Presentation className="h-4 w-4" />
+                    Generate Slides
+                  </>
+                )}
               </Button>
-            )}
-            <div className="flex items-center gap-4">
-              <div className="relative">
-                <div className="absolute inset-0 bg-gradient-to-br from-amber-500 to-orange-600 rounded-2xl blur-lg opacity-50" />
-                <div className="relative p-4 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-600 text-white shadow-2xl">
-                  <ChefHat className="h-8 w-8" />
-                </div>
-              </div>
-              <div>
-                <h1 className="text-3xl font-bold bg-gradient-to-r from-amber-200 via-orange-200 to-amber-200 bg-clip-text text-transparent">
-                  Carson Strategy System
-                </h1>
-                <p className="text-slate-500 mt-1">4-stage AI strategy generation pipeline</p>
-              </div>
-            </div>
-          </div>
+              <Button
+                onClick={handleDownloadPdf}
+                variant="outline"
+                className="gap-2 border-slate-600 hover:bg-slate-800"
+              >
+                <Download className="h-4 w-4" />
+                PDF
+              </Button>
+            </>
+          )}
 
-          <div className="flex items-center gap-3">
-            {overallStatus === "complete" && strategyDoc?.content && (
+          <Button
+            onClick={handleGenerate}
+            disabled={overallStatus === "processing"}
+            className="gap-2 bg-violet-600 hover:bg-violet-500"
+          >
+            {overallStatus === "processing" ? (
               <>
-                <Button
-                  onClick={handleGenerateGamma}
-                  disabled={gammaStatus === "processing"}
-                  className="gap-2 bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-500 hover:to-cyan-500 border-0 shadow-lg shadow-teal-500/20"
-                >
-                  {gammaStatus === "processing" ? (
-                    <>
-                      <Spinner className="h-4 w-4" />
-                      Generating...
-                    </>
-                  ) : (
-                    <>
-                      <Presentation className="h-4 w-4" />
-                      Generate Slides
-                    </>
-                  )}
-                </Button>
-                <Button
-                  onClick={handleDownloadPdf}
-                  variant="outline"
-                  className="gap-2 border-slate-700 hover:bg-slate-800 text-slate-300"
-                >
-                  <Download className="h-4 w-4" />
-                  PDF
-                </Button>
+                <Spinner className="h-4 w-4" />
+                Processing...
+              </>
+            ) : overallStatus === "complete" ? (
+              <>
+                <RefreshCw className="h-4 w-4" />
+                Regenerate
+              </>
+            ) : (
+              <>
+                <Play className="h-4 w-4" />
+                Generate
               </>
             )}
-
-            <Button
-              onClick={handleGenerate}
-              disabled={overallStatus === "processing"}
-              className="gap-2 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 border-0 shadow-lg shadow-orange-500/25 px-6"
-            >
-              {overallStatus === "processing" ? (
-                <>
-                  <Spinner className="h-4 w-4" />
-                  Cooking...
-                </>
-              ) : overallStatus === "complete" ? (
-                <>
-                  <RefreshCw className="h-4 w-4" />
-                  Regenerate
-                </>
-              ) : (
-                <>
-                  <Play className="h-4 w-4" />
-                  Start
-                </>
-              )}
-            </Button>
-          </div>
+          </Button>
         </div>
-
-        {/* Pipeline Cards */}
-        <div className="p-[1px] rounded-2xl bg-gradient-to-r from-slate-800 via-slate-700 to-slate-800">
-          <div className="bg-[#0f0f18] rounded-2xl p-8">
-            <div className="flex items-center gap-3 mb-8">
-              <Sparkles className="h-5 w-5 text-amber-400" />
-              <h2 className="text-lg font-semibold text-white">Strategy Pipeline</h2>
-              {overallStatus === "processing" && (
-                <div className="ml-auto flex items-center gap-2 px-3 py-1.5 bg-amber-500/10 rounded-full border border-amber-500/20">
-                  <Clock className="h-4 w-4 text-amber-400" />
-                  <span className="text-sm font-mono text-amber-400">{formatTime(getTotalTime())}</span>
-                </div>
-              )}
-            </div>
-
-            <div className="grid grid-cols-4 gap-4">
-              {SUB_MODULES.map((module, index) => {
-                const status = moduleStatuses[module.id]
-                const timer = moduleTimers[module.id]
-                const isActive = activeModule === module.id
-                const isComplete = status === "complete"
-                const isPending = status === "idle" && overallStatus === "processing"
-
-                return (
-                  <div
-                    key={module.id}
-                    onClick={() => isComplete && setSelectedModuleView(module.id)}
-                    className={`
-                      relative group transition-all duration-500 cursor-pointer
-                      ${isActive ? "scale-105" : ""}
-                      ${!isComplete && !isActive ? "opacity-50" : ""}
-                    `}
-                  >
-                    {/* Card glow effect */}
-                    {(isActive || isComplete) && (
-                      <div className={`absolute -inset-[1px] bg-gradient-to-r ${module.gradient} rounded-xl ${isActive ? "animate-pulse" : ""} opacity-${isActive ? "100" : "50"}`} />
-                    )}
-                    
-                    <div className={`
-                      relative bg-[#13131d] rounded-xl p-5 border transition-all duration-300
-                      ${isActive ? "border-transparent" : isComplete ? "border-transparent" : "border-slate-800"}
-                      ${isComplete ? "hover:scale-[1.02]" : ""}
-                    `}>
-                      {/* Step number */}
-                      <div className="absolute -top-3 -left-2 w-7 h-7 rounded-full bg-[#0f0f18] border border-slate-700 flex items-center justify-center">
-                        <span className="text-xs font-bold text-slate-500">{index + 1}</span>
-                      </div>
-
-                      {/* Icon */}
-                      <div className={`
-                        w-12 h-12 rounded-xl flex items-center justify-center mb-4 transition-all duration-500
-                        ${isComplete ? `bg-gradient-to-br ${module.gradient} text-white shadow-lg ${module.glowColor}` : 
-                          isActive ? `bg-gradient-to-br ${module.gradient} text-white animate-pulse shadow-lg ${module.glowColor}` : 
-                          "bg-slate-800/50 text-slate-600"}
-                      `}>
-                        {isComplete ? <CheckCircle2 className="h-6 w-6" /> : module.icon}
-                      </div>
-
-                      {/* Text */}
-                      <h3 className={`font-semibold mb-1 transition-colors ${isComplete || isActive ? "text-white" : "text-slate-500"}`}>
-                        {module.name}
-                      </h3>
-                      <p className="text-xs text-slate-500 mb-4">{module.description}</p>
-
-                      {/* Status */}
-                      <div className="flex items-center justify-between pt-3 border-t border-slate-800/50">
-                        {isActive ? (
-                          <>
-                            <div className="flex items-center gap-1.5">
-                              <span className="relative flex h-2 w-2">
-                                <span className={`animate-ping absolute inline-flex h-full w-full rounded-full bg-gradient-to-r ${module.gradient} opacity-75`}></span>
-                                <span className={`relative inline-flex rounded-full h-2 w-2 bg-gradient-to-r ${module.gradient}`}></span>
-                              </span>
-                              <span className="text-xs text-amber-400">Processing</span>
-                            </div>
-                            <span className="text-xs font-mono text-amber-400">{formatTime(timer)}</span>
-                          </>
-                        ) : isComplete ? (
-                          <>
-                            <span className="text-xs text-emerald-400 flex items-center gap-1">
-                              <CheckCircle2 className="h-3 w-3" />
-                              Complete
-                            </span>
-                            <span className="text-xs font-mono text-slate-500">{formatTime(timer)}</span>
-                          </>
-                        ) : isPending ? (
-                          <span className="text-xs text-slate-600">Queued...</span>
-                        ) : (
-                          <span className="text-xs text-slate-600">Ready</span>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Connector line */}
-                    {index < SUB_MODULES.length - 1 && (
-                      <div className={`
-                        absolute top-1/2 -right-2 w-4 h-0.5 transition-all duration-500
-                        ${isComplete ? `bg-gradient-to-r ${module.gradient}` : "bg-slate-800"}
-                      `}>
-                        <div className={`
-                          absolute right-0 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full transition-all duration-500
-                          ${isComplete ? `bg-gradient-to-r ${SUB_MODULES[index + 1].gradient}` : "bg-slate-700"}
-                        `} />
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        </div>
-
-        {/* Error Banner */}
-        {overallStatus === "error" && (
-          <div className="p-[1px] rounded-xl bg-gradient-to-r from-red-500/50 to-red-600/50">
-            <div className="bg-red-950/30 rounded-xl p-5 flex items-center gap-4">
-              <div className="p-3 rounded-xl bg-red-500/20 text-red-400">
-                <AlertCircle className="h-6 w-6" />
-              </div>
-              <div className="flex-1">
-                <p className="text-white font-semibold">Generation Failed</p>
-                <p className="text-sm text-red-300/80">{errorMessage}</p>
-              </div>
-              <Button
-                onClick={handleGenerate}
-                className="bg-red-500/20 hover:bg-red-500/30 text-red-300 border border-red-500/30"
-              >
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Retry
-              </Button>
-            </div>
-          </div>
-        )}
-
-        {/* Gamma Success Banner */}
-        {gammaStatus === "complete" && gammaUrl && (
-          <div className="p-[1px] rounded-xl bg-gradient-to-r from-teal-500 to-cyan-500">
-            <div className="bg-teal-950/50 rounded-xl p-5 flex items-center gap-4">
-              <div className="p-3 rounded-xl bg-gradient-to-br from-teal-500 to-cyan-500 text-white">
-                <Presentation className="h-6 w-6" />
-              </div>
-              <div className="flex-1">
-                <p className="text-white font-semibold">Presentation Ready!</p>
-                <a
-                  href={gammaUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-sm text-teal-300 hover:text-teal-200 flex items-center gap-1"
-                >
-                  Open in Gamma <ExternalLink className="h-3 w-3" />
-                </a>
-              </div>
-              <div className="flex items-center gap-2">
-                {gammaPdfUrl && (
-                  <Button
-                    onClick={() => window.open(gammaPdfUrl, "_blank")}
-                    variant="outline"
-                    className="border-slate-600 hover:bg-slate-800 text-slate-300"
-                  >
-                    <Download className="h-4 w-4 mr-2" />
-                    PDF
-                  </Button>
-                )}
-                <Button
-                  onClick={() => window.open(gammaUrl, "_blank")}
-                  className="bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-400 hover:to-cyan-400"
-                >
-                  <ExternalLink className="h-4 w-4 mr-2" />
-                  View Slides
-                </Button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Strategy Document Content */}
-        {strategyDoc?.content && overallStatus === "complete" && (
-          <div className="p-[1px] rounded-2xl bg-gradient-to-b from-amber-500/20 via-slate-800 to-slate-800">
-            <div className="bg-[#0c0c14] rounded-2xl overflow-hidden">
-              {/* Document Header */}
-              <div className="bg-gradient-to-r from-amber-500/10 to-orange-500/10 border-b border-amber-500/10 px-8 py-5">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-lg bg-emerald-500/20 text-emerald-400">
-                      <CheckCircle2 className="h-5 w-5" />
-                    </div>
-                    <div>
-                      <h2 className="text-xl font-bold text-white">Final Strategy Document</h2>
-                      <p className="text-sm text-slate-500">Generated for {client.name}</p>
-                    </div>
-                  </div>
-                  {strategyDoc.updated_at && (
-                    <span className="text-sm text-slate-500">
-                      Updated {new Date(strategyDoc.updated_at).toLocaleDateString()}
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              {/* Document Content */}
-              <div className="px-8 py-10">
-                <div className="prose prose-invert max-w-none prose-headings:font-bold">
-                  <ReactMarkdown
-                    remarkPlugins={[remarkGfm]}
-                    components={{
-                      h1: ({ children }) => (
-                        <h1 className="text-3xl font-bold text-white mb-2 pb-4 border-b border-amber-500/30">
-                          {children}
-                        </h1>
-                      ),
-                      h2: ({ children }) => (
-                        <h2 className="text-xl font-bold text-amber-300 mt-12 mb-4 flex items-center gap-3">
-                          <span className="w-1 h-6 bg-gradient-to-b from-amber-400 to-orange-500 rounded-full"></span>
-                          {children}
-                        </h2>
-                      ),
-                      h3: ({ children }) => (
-                        <h3 className="text-lg font-semibold text-white mt-8 mb-3">{children}</h3>
-                      ),
-                      p: ({ children }) => (
-                        <p className="text-slate-300 leading-relaxed mb-4">{children}</p>
-                      ),
-                      ul: ({ children }) => (
-                        <ul className="list-none space-y-2 text-slate-300 mb-6 ml-0">
-                          {children}
-                        </ul>
-                      ),
-                      ol: ({ children }) => (
-                        <ol className="list-decimal list-outside ml-5 space-y-2 text-slate-300 mb-6">
-                          {children}
-                        </ol>
-                      ),
-                      li: ({ children }) => (
-                        <li className="text-slate-300 pl-0 flex items-start gap-2">
-                          <span className="text-amber-500 mt-1.5">•</span>
-                          <span>{children}</span>
-                        </li>
-                      ),
-                      strong: ({ children }) => (
-                        <strong className="text-amber-200 font-semibold">{children}</strong>
-                      ),
-                      em: ({ children }) => (
-                        <em className="text-slate-400 italic">{children}</em>
-                      ),
-                      a: ({ href, children }) => (
-                        <a
-                          href={href}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-amber-400 hover:text-amber-300 underline decoration-amber-500/30 underline-offset-2 inline-flex items-center gap-1"
-                        >
-                          {children}
-                          <ExternalLink className="h-3 w-3" />
-                        </a>
-                      ),
-                      table: ({ children }) => (
-                        <div className="overflow-x-auto my-8 rounded-xl border border-slate-700/50 shadow-xl">
-                          <table className="w-full border-collapse">{children}</table>
-                        </div>
-                      ),
-                      thead: ({ children }) => (
-                        <thead className="bg-gradient-to-r from-amber-500/10 to-orange-500/10">
-                          {children}
-                        </thead>
-                      ),
-                      tbody: ({ children }) => (
-                        <tbody className="bg-slate-900/30">{children}</tbody>
-                      ),
-                      tr: ({ children }) => (
-                        <tr className="border-b border-slate-800 last:border-0 hover:bg-slate-800/30 transition-colors">
-                          {children}
-                        </tr>
-                      ),
-                      th: ({ children }) => (
-                        <th className="px-5 py-4 text-left text-amber-300 font-semibold text-sm">
-                          {children}
-                        </th>
-                      ),
-                      td: ({ children }) => (
-                        <td className="px-5 py-4 text-slate-300">{children}</td>
-                      ),
-                      blockquote: ({ children }) => (
-                        <blockquote className="border-l-4 border-amber-500 pl-5 py-3 bg-amber-500/5 rounded-r-xl italic text-slate-400 my-6">
-                          {children}
-                        </blockquote>
-                      ),
-                      hr: () => <hr className="border-slate-800 my-10" />,
-                      code: ({ className, children }) => {
-                        const isInline = !className
-                        if (isInline) {
-                          return (
-                            <code className="bg-slate-800 px-2 py-1 rounded text-sm text-amber-300 font-mono">
-                              {children}
-                            </code>
-                          )
-                        }
-                        return (
-                          <code className="block bg-slate-950 p-5 rounded-xl overflow-x-auto text-sm text-slate-300 border border-slate-800 font-mono">
-                            {children}
-                          </code>
-                        )
-                      },
-                    }}
-                  >
-                    {strategyDoc.content}
-                  </ReactMarkdown>
-                </div>
-
-                {/* Citations */}
-                {strategyDoc.perplexity_citations && strategyDoc.perplexity_citations.length > 0 && (
-                  <div className="mt-12 pt-8 border-t border-slate-800">
-                    <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-                      <span className="w-1 h-5 bg-gradient-to-b from-amber-400 to-orange-500 rounded-full"></span>
-                      Sources
-                    </h3>
-                    <div className="bg-slate-900/50 rounded-xl p-5 space-y-2 border border-slate-800">
-                      {strategyDoc.perplexity_citations.map((url, index) => (
-                        <div key={index} className="flex items-start gap-3 text-sm">
-                          <span className="text-amber-500 font-mono text-xs bg-amber-500/10 px-2 py-0.5 rounded">
-                            {index + 1}
-                          </span>
-                          <a
-                            href={url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-slate-400 hover:text-amber-400 break-all transition-colors flex items-center gap-1"
-                          >
-                            {url}
-                            <ExternalLink className="h-3 w-3 flex-shrink-0" />
-                          </a>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Empty State */}
-        {!strategyDoc?.content && overallStatus === "idle" && (
-          <div className="p-[1px] rounded-2xl bg-gradient-to-r from-slate-800 via-amber-500/20 to-slate-800">
-            <div className="bg-[#0f0f18] rounded-2xl py-20 text-center">
-              <div className="relative inline-block mb-8">
-                <div className="absolute inset-0 bg-gradient-to-br from-amber-500 to-orange-600 rounded-3xl blur-2xl opacity-30" />
-                <div className="relative w-24 h-24 rounded-3xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center text-white shadow-2xl">
-                  <ChefHat className="h-12 w-12" />
-                </div>
-              </div>
-              <h2 className="text-2xl font-bold text-white mb-3">Ready to Cook Up a Strategy</h2>
-              <p className="text-slate-500 mb-8 max-w-md mx-auto">
-                The Carson Strategy System will process your client data through 4 specialized stages to create a comprehensive GTM strategy.
-              </p>
-              <Button
-                onClick={handleGenerate}
-                className="gap-2 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 border-0 shadow-lg shadow-orange-500/25 px-8 py-6 text-lg"
-              >
-                <Zap className="h-5 w-5" />
-                Start Pipeline
-              </Button>
-            </div>
-          </div>
-        )}
       </div>
+
+      {/* Timer when processing */}
+      {overallStatus === "processing" && (
+        <div className="flex items-center gap-2 text-violet-400">
+          <Clock className="h-4 w-4" />
+          <span className="text-sm font-mono">{formatTime(getTotalTime())}</span>
+          <span className="text-slate-500 text-sm">(may take 2-3 minutes)</span>
+        </div>
+      )}
+
+      {/* Pipeline Cards - 4 in a row */}
+      <div className="grid grid-cols-4 gap-4">
+        {SUB_MODULES.map((module, index) => {
+          const status = moduleStatuses[module.id]
+          const timer = moduleTimers[module.id]
+          const isActive = activeModule === module.id
+
+          return (
+            <div
+              key={module.id}
+              className={`rounded-lg border-2 p-4 transition-all ${getCardClasses(status, isActive)}`}
+            >
+              {/* Icon */}
+              <div className={`w-10 h-10 rounded-lg flex items-center justify-center mb-3 ${getIconClasses(status, isActive)}`}>
+                {status === "complete" ? <CheckCircle2 className="h-5 w-5" /> : module.icon}
+              </div>
+
+              {/* Text */}
+              <h3 className="font-semibold text-white text-sm">{module.name}</h3>
+              <p className="text-xs text-slate-400 mt-1">{module.description}</p>
+
+              {/* Status */}
+              <div className="mt-3 pt-3 border-t border-slate-700/50">
+                {isActive ? (
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-violet-400 flex items-center gap-1">
+                      <Spinner className="h-3 w-3" />
+                      Processing
+                    </span>
+                    <span className="text-xs font-mono text-violet-400">{formatTime(timer)}</span>
+                  </div>
+                ) : status === "complete" ? (
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-emerald-400">Complete</span>
+                    {timer > 0 && <span className="text-xs font-mono text-slate-500">{formatTime(timer)}</span>}
+                  </div>
+                ) : status === "error" ? (
+                  <span className="text-xs text-red-400">Error</span>
+                ) : overallStatus === "processing" ? (
+                  <span className="text-xs text-slate-500">Queued</span>
+                ) : (
+                  <span className="text-xs text-slate-600">Not started</span>
+                )}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      {/* Error Banner */}
+      {overallStatus === "error" && (
+        <div className="rounded-lg border border-red-500/50 bg-red-950/20 p-4 flex items-center gap-4">
+          <div className="p-2 rounded-lg bg-red-500/20 text-red-400">
+            <AlertCircle className="h-5 w-5" />
+          </div>
+          <div className="flex-1">
+            <p className="text-white font-medium">Generation Failed</p>
+            <p className="text-sm text-red-300/80">{errorMessage}</p>
+          </div>
+          <Button onClick={handleGenerate} variant="outline" className="border-red-500/50 hover:bg-red-900/30 text-red-300">
+            Retry
+          </Button>
+        </div>
+      )}
+
+      {/* Gamma Success */}
+      {gammaStatus === "complete" && gammaUrl && (
+        <div className="rounded-lg border border-teal-500/50 bg-teal-950/20 p-4 flex items-center gap-4">
+          <div className="p-2 rounded-lg bg-teal-500 text-white">
+            <Presentation className="h-5 w-5" />
+          </div>
+          <div className="flex-1">
+            <p className="text-white font-medium">Presentation Ready</p>
+            <a href={gammaUrl} target="_blank" rel="noopener noreferrer" className="text-sm text-teal-300 hover:text-teal-200 flex items-center gap-1">
+              Open in Gamma <ExternalLink className="h-3 w-3" />
+            </a>
+          </div>
+          {gammaPdfUrl && (
+            <Button onClick={() => window.open(gammaPdfUrl, "_blank")} variant="outline" className="border-slate-600 hover:bg-slate-800">
+              <Download className="h-4 w-4 mr-2" />
+              PDF
+            </Button>
+          )}
+        </div>
+      )}
+
+      {/* Strategy Document Content */}
+      {strategyDoc?.content && overallStatus === "complete" && (
+        <div className="rounded-lg border border-slate-700 bg-slate-900/50 overflow-hidden">
+          {/* Document Header */}
+          <div className="border-b border-slate-700 px-6 py-4 bg-slate-800/50">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <CheckCircle2 className="h-5 w-5 text-emerald-400" />
+                <h2 className="text-lg font-semibold text-white">Strategy Document</h2>
+              </div>
+              {strategyDoc.updated_at && (
+                <span className="text-sm text-slate-500">
+                  Updated {new Date(strategyDoc.updated_at).toLocaleDateString()}
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Document Content */}
+          <div className="p-6">
+            <div className="prose prose-invert max-w-none prose-headings:font-bold">
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                components={{
+                  h1: ({ children }) => (
+                    <h1 className="text-2xl font-bold text-white mb-2 pb-3 border-b border-slate-700">{children}</h1>
+                  ),
+                  h2: ({ children }) => (
+                    <h2 className="text-lg font-bold text-violet-300 mt-8 mb-3">{children}</h2>
+                  ),
+                  h3: ({ children }) => (
+                    <h3 className="text-base font-semibold text-white mt-6 mb-2">{children}</h3>
+                  ),
+                  p: ({ children }) => <p className="text-slate-300 leading-relaxed mb-3">{children}</p>,
+                  ul: ({ children }) => <ul className="list-disc list-inside space-y-1 text-slate-300 mb-4">{children}</ul>,
+                  ol: ({ children }) => <ol className="list-decimal list-inside space-y-1 text-slate-300 mb-4">{children}</ol>,
+                  li: ({ children }) => <li className="text-slate-300">{children}</li>,
+                  strong: ({ children }) => <strong className="text-white font-semibold">{children}</strong>,
+                  a: ({ href, children }) => (
+                    <a href={href} target="_blank" rel="noopener noreferrer" className="text-violet-400 hover:text-violet-300 underline">
+                      {children}
+                    </a>
+                  ),
+                  table: ({ children }) => (
+                    <div className="overflow-x-auto my-4">
+                      <table className="w-full border-collapse border border-slate-700">{children}</table>
+                    </div>
+                  ),
+                  thead: ({ children }) => <thead className="bg-slate-800">{children}</thead>,
+                  th: ({ children }) => <th className="px-4 py-2 text-left text-slate-300 font-semibold border border-slate-700">{children}</th>,
+                  td: ({ children }) => <td className="px-4 py-2 text-slate-300 border border-slate-700">{children}</td>,
+                  blockquote: ({ children }) => (
+                    <blockquote className="border-l-4 border-violet-500 pl-4 italic text-slate-400 my-4">{children}</blockquote>
+                  ),
+                  hr: () => <hr className="border-slate-700 my-6" />,
+                  code: ({ className, children }) => {
+                    const isInline = !className
+                    if (isInline) {
+                      return <code className="bg-slate-800 px-1.5 py-0.5 rounded text-sm text-violet-300">{children}</code>
+                    }
+                    return <code className="block bg-slate-950 p-4 rounded overflow-x-auto text-sm text-slate-300">{children}</code>
+                  },
+                }}
+              >
+                {strategyDoc.content}
+              </ReactMarkdown>
+            </div>
+
+            {/* Citations */}
+            {strategyDoc.perplexity_citations && strategyDoc.perplexity_citations.length > 0 && (
+              <div className="mt-8 pt-6 border-t border-slate-700">
+                <h3 className="text-sm font-semibold text-white mb-3">Sources</h3>
+                <div className="space-y-1">
+                  {strategyDoc.perplexity_citations.map((url, index) => (
+                    <div key={index} className="flex items-start gap-2 text-sm">
+                      <span className="text-slate-500">[{index + 1}]</span>
+                      <a href={url} target="_blank" rel="noopener noreferrer" className="text-slate-400 hover:text-violet-400 break-all">
+                        {url}
+                      </a>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Empty State */}
+      {!strategyDoc?.content && overallStatus === "idle" && (
+        <div className="rounded-lg border border-slate-700 bg-slate-800/30 p-12 text-center">
+          <p className="text-slate-400 mb-4">No strategy document generated yet</p>
+          <Button onClick={handleGenerate} className="bg-violet-600 hover:bg-violet-500">
+            <Play className="h-4 w-4 mr-2" />
+            Generate Strategy
+          </Button>
+        </div>
+      )}
     </div>
   )
 }
