@@ -81,6 +81,9 @@ export function ClientContextView({ client, readOnly = false }: Props) {
   const [deepDiveUrl, setDeepDiveUrl] = useState("")
   const [gammaUrl, setGammaUrl] = useState<string | null>(null)
   
+  // Progress tracking for Discovery Call
+  const [dcProgressSteps, setDcProgressSteps] = useState<string[]>([])
+  
   // Timer state for research phase - tracks elapsed seconds since job started
   const [researchTimer, setResearchTimer] = useState<number | null>(null)
   const [researchStartTime, setResearchStartTime] = useState<Date | null>(null)
@@ -225,22 +228,30 @@ export function ClientContextView({ client, readOnly = false }: Props) {
     dcPollingRef.current = setInterval(async () => {
       try {
         const status = await api.getDiscoveryCallProcessStatus(client.id)
-        console.log("[DC Poll] Status:", status.status)
+        console.log("[DC Poll] Status:", status.status, "Progress:", status.progress_steps)
+        
+        // Update progress steps
+        if (status.progress_steps) {
+          setDcProgressSteps(status.progress_steps)
+        }
         
         if (status.status === "complete") {
           clearInterval(dcPollingRef.current!)
           dcPollingRef.current = null
           setFlowState(prev => ({ ...prev, discoveryCall: "complete" }))
+          setDcProgressSteps([]) // Clear on complete
         } else if (status.status === "error") {
           clearInterval(dcPollingRef.current!)
           dcPollingRef.current = null
           console.error("DC job error:", status.error_message)
           setFlowState(prev => ({ ...prev, discoveryCall: "error" }))
+          setDcProgressSteps([])
         } else if (status.status === "cancelled") {
           clearInterval(dcPollingRef.current!)
           dcPollingRef.current = null
           console.log("DC job cancelled")
           setFlowState(prev => ({ ...prev, discoveryCall: "idle" }))
+          setDcProgressSteps([])
         }
       } catch (e) {
         console.error("DC poll error:", e)
@@ -320,6 +331,7 @@ export function ClientContextView({ client, readOnly = false }: Props) {
     setInputsActivated(false)
     setDeepDiveUrl("")
     setGammaUrl(null)
+    setDcProgressSteps([])
     setResearchTimer(null)
     setResearchStartTime(null)
     setActiveView("admin")
@@ -990,6 +1002,7 @@ export function ClientContextView({ client, readOnly = false }: Props) {
                 status={flowState.discoveryCall}
                 onClick={() => setActiveView("discovery-call")}
                 clickable
+                progressSteps={dcProgressSteps}
               />
               <PipelineCard
                 title="Auto Discovery Document"
@@ -1280,6 +1293,18 @@ function ConnectionLine({ active }: { active: boolean }) {
   )
 }
 
+// Progress step definitions for Discovery Call
+const DC_PROGRESS_STEPS = [
+  { key: "meetings_fetched", label: "Meetings" },
+  { key: "recording_found", label: "Recording" },
+  { key: "transcript_fetched", label: "Transcript" },
+  { key: "agents_started", label: "Started" },
+  { key: "agent_factoids_complete", label: "Factoids" },
+  { key: "agent_rv_complete", label: "Analysis" },
+  { key: "agent_vamp_complete", label: "JSON" },
+  { key: "parsing_complete", label: "Parse" },
+]
+
 interface PipelineCardProps {
   title: string
   subtitle?: string
@@ -1290,6 +1315,7 @@ interface PipelineCardProps {
   children?: React.ReactNode
   className?: string
   floating?: boolean
+  progressSteps?: string[]
 }
 
 function PipelineCard({ 
@@ -1301,7 +1327,8 @@ function PipelineCard({
   clickable, 
   children,
   className = "",
-  floating
+  floating,
+  progressSteps = []
 }: PipelineCardProps) {
   const statusConfig = {
     idle: {
@@ -1335,14 +1362,17 @@ function PipelineCard({
   }
 
   const config = statusConfig[status]
+  
+  // Show progress dots when processing
+  const showProgress = status === "processing" && progressSteps.length > 0
 
   return (
     <Card 
       className={`
         ${config.border} ${config.bg} ${config.glow}
-        ${clickable ? "cursor-pointer hover:scale-[1.02] hover:border-opacity-100" : ""}
+        ${clickable ? "cursor-pointer hover:brightness-110 hover:border-opacity-100" : ""}
         ${floating ? "border-dashed" : ""}
-        transition-all duration-200 backdrop-blur-sm
+        transition-all duration-200
         ${className}
       `}
       onClick={clickable ? onClick : undefined}
@@ -1354,8 +1384,27 @@ function PipelineCard({
           </div>
           <div className="flex-1 min-w-0">
             <h3 className="font-medium text-white text-sm">{title}</h3>
-            {subtitle && (
+            {subtitle && !showProgress && (
               <p className="text-xs text-slate-400 mt-0.5">{subtitle}</p>
+            )}
+            {/* Progress dots */}
+            {showProgress && (
+              <div className="flex items-center gap-1.5 mt-1.5">
+                {DC_PROGRESS_STEPS.map((step, idx) => {
+                  const isComplete = progressSteps.includes(step.key)
+                  const isActive = !isComplete && idx === progressSteps.length
+                  return (
+                    <div
+                      key={step.key}
+                      className={`
+                        w-2 h-2 rounded-full transition-all duration-300
+                        ${isComplete ? "bg-emerald-500" : isActive ? "bg-blue-400 animate-pulse" : "bg-slate-600"}
+                      `}
+                      title={step.label}
+                    />
+                  )
+                })}
+              </div>
             )}
             {children && <div className="mt-3">{children}</div>}
           </div>

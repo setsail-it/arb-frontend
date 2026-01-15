@@ -707,7 +707,7 @@ export const api = {
       body: JSON.stringify({ fathom_url: fathomUrl }),
     }),
   getDiscoveryCallProcessStatus: (clientId: string) =>
-    fetchJson<{ job_id: string; status: string; error_message: string | null; started_at: string | null }>(`/clients/${clientId}/discovery-call/process/status`),
+    fetchJson<{ job_id: string; status: string; error_message: string | null; started_at: string | null; progress_steps: string[] | null }>(`/clients/${clientId}/discovery-call/process/status`),
 
   // Deep Dive Processing
   getDeepDiveResult: async (clientId: string) => {
