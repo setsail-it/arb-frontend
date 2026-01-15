@@ -102,7 +102,9 @@ export function CarsonStrategyView({ client, onBack }: Props) {
     callResults: DiscoveryCallResult | null
     callSource: "DDR" | "DCR" | null
     generalContext: ClientContext | null
-  }>({ callResults: null, callSource: null, generalContext: null })
+    dcrFactoidsSummary: string | null
+    ddrFactoidsSummary: string | null
+  }>({ callResults: null, callSource: null, generalContext: null, dcrFactoidsSummary: null, ddrFactoidsSummary: null })
 
   const timerIntervalRef = useRef<NodeJS.Timeout | null>(null)
   const pollingRef = useRef<NodeJS.Timeout | null>(null)
@@ -143,29 +145,45 @@ export function CarsonStrategyView({ client, onBack }: Props) {
     const loadData = async () => {
       setIsLoading(true)
       try {
-        // Load CaSS Input data
+        // Load CaSS Input data - both DCR and DDR for factoids summaries
+        let dcrData: DiscoveryCallResult | null = null
+        let ddrData: DiscoveryCallResult | null = null
+        
         try {
-          // Try DDR first
-          const ddr = await api.getDeepDiveResult(String(client.id))
-          if (ddr && ddr.answers_data) {
-            setInputData(prev => ({ ...prev, callResults: ddr as DiscoveryCallResult, callSource: "DDR" }))
-          } else {
-            // Fall back to DCR
-            const dcr = await api.getDiscoveryCallResult(String(client.id))
-            if (dcr && dcr.answers_data) {
-              setInputData(prev => ({ ...prev, callResults: dcr as DiscoveryCallResult, callSource: "DCR" }))
-            }
+          const dcr = await api.getDiscoveryCallResult(String(client.id))
+          if (dcr && dcr.answers_data) {
+            dcrData = dcr as DiscoveryCallResult
           }
         } catch (e) {
-          // Try DCR as fallback
-          try {
-            const dcr = await api.getDiscoveryCallResult(String(client.id))
-            if (dcr && dcr.answers_data) {
-              setInputData(prev => ({ ...prev, callResults: dcr as DiscoveryCallResult, callSource: "DCR" }))
-            }
-          } catch (e2) {
-            console.log("No call results available")
+          console.log("No DCR available")
+        }
+        
+        try {
+          const ddr = await api.getDeepDiveResult(String(client.id))
+          if (ddr && ddr.answers_data) {
+            ddrData = ddr as DiscoveryCallResult
           }
+        } catch (e) {
+          console.log("No DDR available")
+        }
+        
+        // Use DDR if available, otherwise DCR
+        if (ddrData) {
+          setInputData(prev => ({ 
+            ...prev, 
+            callResults: ddrData, 
+            callSource: "DDR",
+            dcrFactoidsSummary: dcrData?.factoids_summary || null,
+            ddrFactoidsSummary: ddrData?.factoids_summary || null
+          }))
+        } else if (dcrData) {
+          setInputData(prev => ({ 
+            ...prev, 
+            callResults: dcrData, 
+            callSource: "DCR",
+            dcrFactoidsSummary: dcrData?.factoids_summary || null,
+            ddrFactoidsSummary: null
+          }))
         }
 
         // Load GC
@@ -402,6 +420,44 @@ export function CarsonStrategyView({ client, onBack }: Props) {
           <p className="text-slate-400 mt-1">
             Raw data fed into The Waiter: {inputData.callSource || "None"} + General Context
           </p>
+        </div>
+
+        {/* Transcript Summaries (Factoids) */}
+        <div className="rounded-lg border border-amber-500/50 bg-slate-900/50 overflow-hidden">
+          <div className="border-b border-amber-500/30 px-4 py-3 bg-amber-950/30">
+            <h2 className="font-semibold text-amber-300">
+              Transcript Summaries (Factoids)
+            </h2>
+          </div>
+          <div className="p-4 space-y-4">
+            {/* Discovery Call Summary */}
+            <div>
+              <h3 className="text-sm font-medium text-slate-300 mb-2">Discovery Call Summary</h3>
+              {inputData.dcrFactoidsSummary ? (
+                <div className="bg-slate-800/50 rounded p-3 max-h-[300px] overflow-auto">
+                  <pre className="text-xs text-slate-300 font-mono whitespace-pre-wrap">
+                    {inputData.dcrFactoidsSummary}
+                  </pre>
+                </div>
+              ) : (
+                <p className="text-slate-500 italic text-sm">No Discovery Call summary available</p>
+              )}
+            </div>
+            
+            {/* Deep Dive Summary */}
+            <div>
+              <h3 className="text-sm font-medium text-slate-300 mb-2">Deep Dive Summary</h3>
+              {inputData.ddrFactoidsSummary ? (
+                <div className="bg-slate-800/50 rounded p-3 max-h-[300px] overflow-auto">
+                  <pre className="text-xs text-slate-300 font-mono whitespace-pre-wrap">
+                    {inputData.ddrFactoidsSummary}
+                  </pre>
+                </div>
+              ) : (
+                <p className="text-slate-500 italic text-sm">No Deep Dive summary available</p>
+              )}
+            </div>
+          </div>
         </div>
 
         {/* Call Q&A (Parsed JSON) */}
