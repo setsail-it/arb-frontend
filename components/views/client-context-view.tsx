@@ -81,8 +81,9 @@ export function ClientContextView({ client, readOnly = false }: Props) {
   const [deepDiveUrl, setDeepDiveUrl] = useState("")
   const [gammaUrl, setGammaUrl] = useState<string | null>(null)
   
-  // Progress tracking for Discovery Call
+  // Progress tracking for Discovery Call and Deep Dive
   const [dcProgressSteps, setDcProgressSteps] = useState<string[]>([])
+  const [ddProgressSteps, setDdProgressSteps] = useState<string[]>([])
   
   // Timer state for research phase - tracks elapsed seconds since job started
   const [researchTimer, setResearchTimer] = useState<number | null>(null)
@@ -300,17 +301,30 @@ export function ClientContextView({ client, readOnly = false }: Props) {
     ddivePollingRef.current = setInterval(async () => {
       try {
         const status = await api.getDeepDiveProcessStatus(client.id)
-        console.log("[DeepDive Poll] Status:", status.status)
+        console.log("[DeepDive Poll] Status:", status.status, "Progress:", status.progress_steps)
+        
+        // Update progress steps
+        if (status.progress_steps) {
+          setDdProgressSteps(status.progress_steps)
+        }
         
         if (status.status === "complete") {
           clearInterval(ddivePollingRef.current!)
           ddivePollingRef.current = null
           setFlowState(prev => ({ ...prev, deepDive: "complete" }))
+          setDdProgressSteps([]) // Clear on complete
         } else if (status.status === "error") {
           clearInterval(ddivePollingRef.current!)
           ddivePollingRef.current = null
           console.error("DeepDive job error:", status.error_message)
           setFlowState(prev => ({ ...prev, deepDive: "error" }))
+          setDdProgressSteps([])
+        } else if (status.status === "cancelled") {
+          clearInterval(ddivePollingRef.current!)
+          ddivePollingRef.current = null
+          console.log("DeepDive job cancelled")
+          setFlowState(prev => ({ ...prev, deepDive: "idle" }))
+          setDdProgressSteps([])
         }
       } catch (e) {
         console.error("DeepDive poll error:", e)
@@ -366,6 +380,7 @@ export function ClientContextView({ client, readOnly = false }: Props) {
     setDeepDiveUrl("")
     setGammaUrl(null)
     setDcProgressSteps([])
+    setDdProgressSteps([])
     setResearchTimer(null)
     setResearchStartTime(null)
     setActiveView("admin")
@@ -1089,6 +1104,8 @@ export function ClientContextView({ client, readOnly = false }: Props) {
             clickable={flowState.deepDive === "complete"}
             floating
             className="w-80"
+            progressSteps={ddProgressSteps}
+            progressStepsConfig={DD_PROGRESS_STEPS}
           >
             {!readOnly && (
               <>
@@ -1341,6 +1358,18 @@ const DC_PROGRESS_STEPS = [
   { key: "parsing_complete", label: "Parse" },
 ]
 
+// Progress step definitions for Deep Dive
+const DD_PROGRESS_STEPS = [
+  { key: "meetings_fetched", label: "Meetings" },
+  { key: "recording_found", label: "Recording" },
+  { key: "transcript_fetched", label: "Transcript" },
+  { key: "agents_started", label: "Started" },
+  { key: "agent_factoids_complete", label: "Factoids" },
+  { key: "agent_deep_dive_complete", label: "Analysis" },
+  { key: "agent_vamp_complete", label: "JSON" },
+  { key: "parsing_complete", label: "Parse" },
+]
+
 interface PipelineCardProps {
   title: string
   subtitle?: string
@@ -1352,6 +1381,7 @@ interface PipelineCardProps {
   className?: string
   floating?: boolean
   progressSteps?: string[]
+  progressStepsConfig?: { key: string; label: string }[]
 }
 
 function PipelineCard({ 
@@ -1364,7 +1394,8 @@ function PipelineCard({
   children,
   className = "",
   floating,
-  progressSteps = []
+  progressSteps = [],
+  progressStepsConfig = DC_PROGRESS_STEPS
 }: PipelineCardProps) {
   const statusConfig = {
     idle: {
@@ -1426,7 +1457,7 @@ function PipelineCard({
             {/* Progress dots */}
             {showProgress && (
               <div className="flex items-center gap-1.5 mt-1.5">
-                {DC_PROGRESS_STEPS.map((step, idx) => {
+                {progressStepsConfig.map((step, idx) => {
                   const isComplete = progressSteps.includes(step.key)
                   const isActive = !isComplete && idx === progressSteps.length
                   return (
