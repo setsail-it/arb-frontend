@@ -18,7 +18,6 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { canModifyClient, canAssignClient } from "@/lib/auth"
-import { ScrollArea } from "@/components/ui/scroll-area"
 
 interface ClientSelectorProps {
   selectedClient: Client | null
@@ -317,7 +316,7 @@ export function ClientSelector({ selectedClient, onSelectClient, onClientDeleted
           </div>
 
           {/* Client List */}
-          <ScrollArea className="flex-1 -mx-6 px-6">
+          <div className="flex-1 -mx-6 px-6 overflow-y-auto max-h-[400px]">
             <div className="space-y-2 pb-4">
               {sortedClients.length === 0 ? (
                 <p className="text-center text-muted-foreground py-8">
@@ -406,7 +405,7 @@ export function ClientSelector({ selectedClient, onSelectClient, onClientDeleted
                 })
               )}
             </div>
-          </ScrollArea>
+          </div>
         </DialogContent>
       </Dialog>
 
