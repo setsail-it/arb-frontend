@@ -583,6 +583,16 @@ export function ClientContextView({ client, readOnly = false }: Props) {
       generalContext: "processing",
     }))
 
+    // Save domain to DiscoveryDocument for persistence
+    try {
+      await api.saveDiscoveryDocument(client.id, { 
+        domain: domainInput.trim()
+      })
+      console.log("[Activate] Domain saved to discovery document")
+    } catch (e) {
+      console.error("Failed to save domain to discovery document:", e)
+    }
+
     // Save discovery call URL to context if provided
     if (hasDiscoveryCallUrl) {
       try {
