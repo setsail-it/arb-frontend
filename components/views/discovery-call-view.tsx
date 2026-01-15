@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Spinner } from "@/components/ui/spinner"
-import { Phone, ExternalLink, CheckCircle, AlertCircle, HelpCircle, Search, Download } from "lucide-react"
+import { Phone, ExternalLink, CheckCircle, AlertCircle, HelpCircle, Search, Download, Copy, FileText } from "lucide-react"
 
 interface Props {
   client: Client
@@ -42,6 +42,14 @@ export function DiscoveryCallView({ client, isDeepDive = false }: Props) {
   const [result, setResult] = useState<DiscoveryCallResult | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [copied, setCopied] = useState(false)
+
+  const copyFactoids = () => {
+    if (!result?.factoids_summary) return
+    navigator.clipboard.writeText(result.factoids_summary)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
 
   const downloadCSV = () => {
     if (!result?.answers_data) return
@@ -195,6 +203,32 @@ export function DiscoveryCallView({ client, isDeepDive = false }: Props) {
           )
         })}
       </div>
+
+      {/* Factoids & Summary */}
+      {result.factoids_summary && (
+        <div className="rounded-xl border-2 border-cyan-700/50 bg-cyan-950/30 overflow-hidden">
+          <div className="px-6 py-4 border-b border-cyan-700/30 bg-cyan-900/20 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <FileText className="h-5 w-5 text-cyan-400" />
+              <h3 className="text-xl font-semibold text-white">Factoids & Summary</h3>
+            </div>
+            <Button
+              onClick={copyFactoids}
+              variant="outline"
+              size="sm"
+              className="flex items-center gap-2 border-cyan-600/50 hover:bg-cyan-800/30 text-cyan-300"
+            >
+              <Copy className="h-4 w-4" />
+              {copied ? "Copied!" : "Copy All"}
+            </Button>
+          </div>
+          <div className="p-6">
+            <pre className="text-slate-200 whitespace-pre-wrap font-mono text-sm leading-relaxed bg-slate-900/50 p-4 rounded-lg border border-slate-700/50 max-h-[500px] overflow-y-auto">
+              {result.factoids_summary}
+            </pre>
+          </div>
+        </div>
+      )}
 
       {/* Answers List */}
       <div className="rounded-xl border-2 border-slate-700 bg-slate-900/80 overflow-hidden">

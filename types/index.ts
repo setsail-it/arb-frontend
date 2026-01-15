@@ -422,6 +422,20 @@ export interface DiscoveryCallResult {
   raw_analysis?: string | null
   json_output?: string | null
   answers_data?: DiscoveryCallAnswer[] | null
+  factoids_summary?: string | null
+  created_at?: string
+  updated_at?: string
+}
+
+export interface DeepDiveResult {
+  id?: number
+  client_id?: number
+  fathom_url?: string | null
+  recording_id?: string | null
+  raw_analysis?: string | null
+  json_output?: string | null
+  answers_data?: DiscoveryCallAnswer[] | null
+  factoids_summary?: string | null
   created_at?: string
   updated_at?: string
 }

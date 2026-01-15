@@ -3,10 +3,10 @@
 import { useState, useEffect } from "react"
 import type { Client, User } from "@/types"
 import { api } from "@/lib/api"
-import { Plus, ChevronDown, AlertCircle, Trash2, Pencil, UserPlus, User as UserIcon } from "lucide-react"
+import { Plus, AlertCircle, Trash2, Pencil, UserPlus, User as UserIcon, Search, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -17,14 +17,33 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { canModifyClient, canAssignClient } from "@/lib/auth"
+import { ScrollArea } from "@/components/ui/scroll-area"
 
 interface ClientSelectorProps {
   selectedClient: Client | null
   onSelectClient: (client: Client) => void
   onClientDeleted?: () => void
   currentUser: User | null
+}
+
+// Color palette for different users
+const USER_COLORS: Record<string, { bg: string; border: string; text: string }> = {
+  admin: { bg: "bg-amber-500/10", border: "border-amber-500/30", text: "text-amber-400" },
+  user1: { bg: "bg-blue-500/10", border: "border-blue-500/30", text: "text-blue-400" },
+  user2: { bg: "bg-emerald-500/10", border: "border-emerald-500/30", text: "text-emerald-400" },
+  user3: { bg: "bg-purple-500/10", border: "border-purple-500/30", text: "text-purple-400" },
+  user4: { bg: "bg-rose-500/10", border: "border-rose-500/30", text: "text-rose-400" },
+  user5: { bg: "bg-cyan-500/10", border: "border-cyan-500/30", text: "text-cyan-400" },
+  user6: { bg: "bg-orange-500/10", border: "border-orange-500/30", text: "text-orange-400" },
+  default: { bg: "bg-slate-500/10", border: "border-slate-500/30", text: "text-slate-400" },
+}
+
+function getUserColor(userId: number | null, userIndex: number): typeof USER_COLORS.default {
+  if (userId === null) return USER_COLORS.admin // null = admin
+  const colorKeys = Object.keys(USER_COLORS).filter(k => k.startsWith("user"))
+  const key = colorKeys[userIndex % colorKeys.length] || "default"
+  return USER_COLORS[key]
 }
 
 export function ClientSelector({ selectedClient, onSelectClient, onClientDeleted, currentUser }: ClientSelectorProps) {
@@ -35,6 +54,7 @@ export function ClientSelector({ selectedClient, onSelectClient, onClientDeleted
   const [newClientName, setNewClientName] = useState("")
   const [newClientDomain, setNewClientDomain] = useState("")
   const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [clientToDelete, setClientToDelete] = useState<Client | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
   const [clientToRename, setClientToRename] = useState<Client | null>(null)
@@ -42,6 +62,7 @@ export function ClientSelector({ selectedClient, onSelectClient, onClientDeleted
   const [isRenaming, setIsRenaming] = useState(false)
   const [clientToAssign, setClientToAssign] = useState<Client | null>(null)
   const [isAssigning, setIsAssigning] = useState(false)
+  const [searchQuery, setSearchQuery] = useState("")
 
   const fetchClients = async () => {
     setError(null)
@@ -79,7 +100,7 @@ export function ClientSelector({ selectedClient, onSelectClient, onClientDeleted
       onSelectClient(newClient)
       setNewClientName("")
       setNewClientDomain("")
-      setIsDialogOpen(false)
+      setIsAddDialogOpen(false)
     } catch (e) {
       console.error("Failed to create client", e)
       setError("Failed to create client. Check backend connection.")
@@ -171,14 +192,45 @@ export function ClientSelector({ selectedClient, onSelectClient, onClientDeleted
     }
   }
 
-  // Sort clients: user's own clients first, then others
-  const sortedClients = [...clients].sort((a, b) => {
+  // Build user index map for consistent colors
+  const userIndexMap = new Map<number | null, number>()
+  users.forEach((user, idx) => {
+    userIndexMap.set(user.id, idx)
+  })
+  userIndexMap.set(null, -1) // null = admin
+
+  // Group and sort clients by owner
+  const groupedClients = new Map<number | null, Client[]>()
+  clients.forEach(client => {
+    const ownerId = client.owner_id ?? null
+    if (!groupedClients.has(ownerId)) {
+      groupedClients.set(ownerId, [])
+    }
+    groupedClients.get(ownerId)!.push(client)
+  })
+
+  // Filter clients by search query
+  const filteredClients = clients.filter(client => 
+    client.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (client.owner_username?.toLowerCase().includes(searchQuery.toLowerCase()))
+  )
+
+  // Sort: current user's clients first, then by owner name
+  const sortedClients = [...filteredClients].sort((a, b) => {
     const aIsOwn = a.owner_id === currentUser?.id
     const bIsOwn = b.owner_id === currentUser?.id
     if (aIsOwn && !bIsOwn) return -1
     if (!aIsOwn && bIsOwn) return 1
+    // Then by owner (null/admin first)
+    if (a.owner_id === null && b.owner_id !== null) return -1
+    if (a.owner_id !== null && b.owner_id === null) return 1
     return a.name.localeCompare(b.name)
   })
+
+  const getOwnerName = (client: Client) => {
+    if (client.owner_id === null) return "admin"
+    return client.owner_username || "Unknown"
+  }
 
   return (
     <div className="space-y-4">
@@ -189,112 +241,183 @@ export function ClientSelector({ selectedClient, onSelectClient, onClientDeleted
           <span>{error}</span>
         </div>
       )}
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="outline" className="w-full justify-between bg-transparent">
-            <span className="flex items-center gap-2">
-              {selectedClient ? (
-                <>
-                  {selectedClient.name}
-                  {selectedClient.owner_id !== currentUser?.id && selectedClient.owner_username && (
-                    <span className="text-xs text-muted-foreground">({selectedClient.owner_username})</span>
-                  )}
-                </>
-              ) : (
-                "Select a client..."
-              )}
-            </span>
-            <ChevronDown className="ml-2 h-4 w-4 opacity-50" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent className="w-[280px]">
-          {sortedClients.map((client) => {
-            const isOwn = client.owner_id === currentUser?.id
-            const canModify = canModifyClient(currentUser, client.owner_id ?? null)
-            
-            return (
-              <DropdownMenuItem
-                key={client.id}
-                onSelect={() => onSelectClient(client)}
-                className="flex items-center justify-between group"
-              >
-                <span className="flex items-center gap-2 flex-1">
-                  <span className={isOwn ? "font-medium" : ""}>{client.name}</span>
-                  {client.owner_username && !isOwn && (
-                    <span className="text-xs text-muted-foreground flex items-center gap-1">
-                      <UserIcon className="h-3 w-3" />
-                      {client.owner_username}
-                    </span>
-                  )}
-                </span>
-                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  {/* Assign button - visible if user can assign */}
-                  {canAssignClient(currentUser, client.owner_id ?? null) && (
-                    <button
-                      onClick={(e) => {
-                        e.preventDefault()
-                        e.stopPropagation()
-                        setClientToAssign(client)
-                      }}
-                      className="p-1 hover:bg-muted rounded text-foreground transition-colors"
-                      title="Assign client"
-                    >
-                      <UserPlus className="h-3.5 w-3.5" />
-                    </button>
-                  )}
-                  {/* Rename button - only if can modify */}
-                  {canModify && (
-                    <button
-                      onClick={(e) => {
-                        e.preventDefault()
-                        e.stopPropagation()
-                        setClientToRename(client)
-                        setRenameClientName(client.name)
-                      }}
-                      className="p-1 hover:bg-muted rounded text-foreground transition-colors"
-                      title="Rename client"
-                    >
-                      <Pencil className="h-3.5 w-3.5" />
-                    </button>
-                  )}
-                  {/* Delete button - only if can modify */}
-                  {canModify && (
-                    <button
-                      onClick={(e) => {
-                        e.preventDefault()
-                        e.stopPropagation()
-                        setClientToDelete(client)
-                      }}
-                      className="p-1 hover:bg-destructive/10 rounded text-destructive transition-colors"
-                      title="Delete client"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  )}
-                </div>
-              </DropdownMenuItem>
-            )
-          })}
-        </DropdownMenuContent>
-      </DropdownMenu>
+      
+      {/* Main button to open selector */}
+      <Button 
+        variant="outline" 
+        className="w-full justify-between bg-transparent"
+        onClick={() => setIsDialogOpen(true)}
+      >
+        <span className="flex items-center gap-2">
+          {selectedClient ? (
+            <>
+              {selectedClient.name}
+              <span className="text-xs text-muted-foreground">
+                ({selectedClient.owner_id === null ? "admin" : selectedClient.owner_username || "Unassigned"})
+              </span>
+            </>
+          ) : (
+            "Select a client..."
+          )}
+        </span>
+      </Button>
 
-      <Dialog open={isDialogOpen} onOpenChange={(open) => {
-        setIsDialogOpen(open)
+      {/* Client Selector Modal */}
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center justify-between">
+              <span>Select Client</span>
+              <Button
+                size="sm"
+                onClick={() => {
+                  setIsAddDialogOpen(true)
+                }}
+                className="gap-2"
+              >
+                <Plus className="h-4 w-4" />
+                Add Client
+              </Button>
+            </DialogTitle>
+          </DialogHeader>
+          
+          {/* Search */}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search clients..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-10"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery("")}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+
+          {/* Legend */}
+          <div className="flex flex-wrap gap-2 text-xs">
+            <span className="text-muted-foreground">Assignees:</span>
+            <span className={`px-2 py-0.5 rounded ${USER_COLORS.admin.bg} ${USER_COLORS.admin.text}`}>
+              admin (unassigned)
+            </span>
+            {users.map((user, idx) => {
+              const color = getUserColor(user.id, idx)
+              return (
+                <span key={user.id} className={`px-2 py-0.5 rounded ${color.bg} ${color.text}`}>
+                  {user.username}
+                </span>
+              )
+            })}
+          </div>
+
+          {/* Client List */}
+          <ScrollArea className="flex-1 -mx-6 px-6">
+            <div className="space-y-2 pb-4">
+              {sortedClients.length === 0 ? (
+                <p className="text-center text-muted-foreground py-8">
+                  {searchQuery ? "No clients match your search" : "No clients yet"}
+                </p>
+              ) : (
+                sortedClients.map((client) => {
+                  const isOwn = client.owner_id === currentUser?.id
+                  const canModify = canModifyClient(currentUser, client.owner_id ?? null)
+                  const userIdx = userIndexMap.get(client.owner_id ?? null) ?? 0
+                  const color = client.owner_id === null 
+                    ? USER_COLORS.admin 
+                    : getUserColor(client.owner_id, userIdx)
+                  const isSelected = selectedClient?.id === client.id
+
+                  return (
+                    <div
+                      key={client.id}
+                      onClick={() => {
+                        onSelectClient(client)
+                        setIsDialogOpen(false)
+                      }}
+                      className={`
+                        flex items-center justify-between p-3 rounded-lg border cursor-pointer
+                        transition-all duration-150
+                        ${color.bg} ${color.border}
+                        ${isSelected ? "ring-2 ring-primary" : "hover:border-foreground/30"}
+                      `}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`w-2 h-2 rounded-full ${color.text.replace("text-", "bg-")}`} />
+                        <div>
+                          <span className={`font-medium ${isOwn ? "text-foreground" : "text-foreground/80"}`}>
+                            {client.name}
+                          </span>
+                          <span className={`ml-2 text-xs ${color.text}`}>
+                            {getOwnerName(client)}
+                          </span>
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center gap-1">
+                        {/* Assign button */}
+                        {canAssignClient(currentUser, client.owner_id ?? null) && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setClientToAssign(client)
+                            }}
+                            className="p-1.5 hover:bg-foreground/10 rounded text-muted-foreground hover:text-foreground transition-colors"
+                            title="Assign client"
+                          >
+                            <UserPlus className="h-4 w-4" />
+                          </button>
+                        )}
+                        {/* Rename button */}
+                        {canModify && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setClientToRename(client)
+                              setRenameClientName(client.name)
+                            }}
+                            className="p-1.5 hover:bg-foreground/10 rounded text-muted-foreground hover:text-foreground transition-colors"
+                            title="Rename client"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </button>
+                        )}
+                        {/* Delete button */}
+                        {canModify && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setClientToDelete(client)
+                            }}
+                            className="p-1.5 hover:bg-destructive/20 rounded text-destructive/70 hover:text-destructive transition-colors"
+                            title="Delete client"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })
+              )}
+            </div>
+          </ScrollArea>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Client Dialog */}
+      <Dialog open={isAddDialogOpen} onOpenChange={(open) => {
+        setIsAddDialogOpen(open)
         if (!open) {
           setNewClientName("")
           setNewClientDomain("")
         }
       }}>
-        <DialogTrigger asChild>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="w-full justify-start text-muted-foreground hover:text-foreground"
-          >
-            <Plus className="mr-2 h-4 w-4" />
-            Add New Client
-          </Button>
-        </DialogTrigger>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Add New Client</DialogTitle>
@@ -305,7 +428,12 @@ export function ClientSelector({ selectedClient, onSelectClient, onClientDeleted
               <Input 
                 placeholder="e.g. Acme Corp" 
                 value={newClientName} 
-                onChange={(e) => setNewClientName(e.target.value)} 
+                onChange={(e) => setNewClientName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && newClientName.trim()) {
+                    handleAddClient()
+                  }
+                }}
               />
             </div>
             <div className="space-y-2">
@@ -366,6 +494,18 @@ export function ClientSelector({ selectedClient, onSelectClient, onClientDeleted
               Assign "{clientToAssign?.name}" to:
             </p>
             <div className="space-y-2">
+              {/* Admin option (null) */}
+              <Button
+                variant={clientToAssign?.owner_id === null ? "secondary" : "outline"}
+                className="w-full justify-start"
+                disabled={isAssigning}
+                onClick={() => handleAssignClient(null)}
+              >
+                <UserIcon className="h-4 w-4 mr-2" />
+                admin (unassigned)
+                <span className="ml-2 text-xs text-amber-500">(admin)</span>
+                {clientToAssign?.owner_id === null && <span className="ml-auto text-xs">Current</span>}
+              </Button>
               {users.map((user) => (
                 <Button
                   key={user.id}
@@ -380,14 +520,6 @@ export function ClientSelector({ selectedClient, onSelectClient, onClientDeleted
                   {clientToAssign?.owner_id === user.id && <span className="ml-auto text-xs">Current</span>}
                 </Button>
               ))}
-              <Button
-                variant="ghost"
-                className="w-full justify-start text-muted-foreground"
-                disabled={isAssigning}
-                onClick={() => handleAssignClient(null)}
-              >
-                Unassign (no owner)
-              </Button>
             </div>
           </div>
         </DialogContent>
