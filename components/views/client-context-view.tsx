@@ -156,6 +156,39 @@ export function ClientContextView({ client, readOnly = false }: Props) {
       if (groundTruthPollingRef.current) clearInterval(groundTruthPollingRef.current)
     }
   }, [])
+  
+  // Track if initial load is complete (to avoid saving on mount)
+  const domainLoadedRef = useRef(false)
+  const domainSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  
+  // Auto-save domain when user types (debounced, 1 second)
+  useEffect(() => {
+    // Skip saving on initial load or if empty
+    if (!domainLoadedRef.current || !domainInput.trim() || readOnly) {
+      return
+    }
+    
+    // Clear existing timeout
+    if (domainSaveTimeoutRef.current) {
+      clearTimeout(domainSaveTimeoutRef.current)
+    }
+    
+    // Debounce save by 1 second
+    domainSaveTimeoutRef.current = setTimeout(async () => {
+      try {
+        await api.saveDiscoveryDocument(client.id, { domain: domainInput.trim() })
+        console.log("[Domain] Auto-saved domain:", domainInput.trim())
+      } catch (e) {
+        console.error("[Domain] Failed to auto-save domain:", e)
+      }
+    }, 1000)
+    
+    return () => {
+      if (domainSaveTimeoutRef.current) {
+        clearTimeout(domainSaveTimeoutRef.current)
+      }
+    }
+  }, [domainInput, client.id, readOnly])
 
   // Define polling functions first so they can be used in useEffect
   const pollDDStatus = () => {
@@ -325,6 +358,7 @@ export function ClientContextView({ client, readOnly = false }: Props) {
   // Load existing data AND check for in-progress jobs on mount
   useEffect(() => {
     // Reset all state when client changes
+    domainLoadedRef.current = false // Reset so auto-save doesn't trigger on load
     setDomainInput("")
     setDiscoveryCallUrl("")
     setIsActivating(false)
@@ -414,6 +448,8 @@ export function ClientContextView({ client, readOnly = false }: Props) {
         } catch (e) {
           // No document
         }
+        // Mark domain as loaded so auto-save can kick in
+        domainLoadedRef.current = true
         
         // Determine DD state based on job status first, then data
         let ddState: ComponentStatus = "idle"

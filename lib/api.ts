@@ -107,7 +107,10 @@ export const api = {
       body: JSON.stringify({ domain }),
     }),
   getContextFetchStatus: (clientId: string) =>
-    fetchJson<{ job_id: string; status: string; error_message: string | null; started_at: string | null }>(`/clients/${clientId}/context/fetch-async/status`),
+    fetchJson<{ job_id: string; status: string; error_message: string | null; started_at: string | null }>(`/clients/${clientId}/context/fetch-async/status`, {
+      cache: 'no-store',
+      headers: { 'Cache-Control': 'no-cache' }
+    }),
   fetchContextFromSiteStream: async (
     clientId: string,
     domain: string,
@@ -612,7 +615,10 @@ export const api = {
       body: JSON.stringify({ domain }),
     }),
   getInitialDraftStatus: (clientId: string) =>
-    fetchJson<{ job_id: string; status: string; error_message: string | null; started_at: string | null }>(`/clients/${clientId}/discovery-document/generate-initial-draft/status`),
+    fetchJson<{ job_id: string; status: string; error_message: string | null; started_at: string | null }>(`/clients/${clientId}/discovery-document/generate-initial-draft/status`, {
+      cache: 'no-store',
+      headers: { 'Cache-Control': 'no-cache' }
+    }),
 
   // Context Edit Token Management
   generateContextEditToken: (clientId: string) =>
@@ -656,7 +662,10 @@ export const api = {
       method: "POST",
     }),
   getStrategyGenerationStatus: (clientId: string) =>
-    fetchJson<{ job_id: string; status: string; error_message: string | null }>(`/clients/${clientId}/strategy-document/generate/status`),
+    fetchJson<{ job_id: string; status: string; error_message: string | null }>(`/clients/${clientId}/strategy-document/generate/status`, {
+      cache: 'no-store',
+      headers: { 'Cache-Control': 'no-cache' }
+    }),
   getStrategyDocumentPdfUrl: (clientId: string) => {
     const baseUrl = BACKEND_BASE_URL.replace(/\/$/, "")
     return `${baseUrl}/clients/${clientId}/strategy-document/pdf`
@@ -707,7 +716,10 @@ export const api = {
       body: JSON.stringify({ fathom_url: fathomUrl }),
     }),
   getDiscoveryCallProcessStatus: (clientId: string) =>
-    fetchJson<{ job_id: string; status: string; error_message: string | null; started_at: string | null; progress_steps: string[] | null }>(`/clients/${clientId}/discovery-call/process/status`),
+    fetchJson<{ job_id: string; status: string; error_message: string | null; started_at: string | null; progress_steps: string[] | null }>(`/clients/${clientId}/discovery-call/process/status`, {
+      cache: 'no-store',
+      headers: { 'Cache-Control': 'no-cache' }
+    }),
 
   // Deep Dive Processing
   getDeepDiveResult: async (clientId: string) => {
@@ -726,7 +738,10 @@ export const api = {
       body: JSON.stringify({ fathom_url: fathomUrl }),
     }),
   getDeepDiveProcessStatus: (clientId: string) =>
-    fetchJson<{ job_id: string; status: string; error_message: string | null }>(`/clients/${clientId}/deep-dive/process/status`),
+    fetchJson<{ job_id: string; status: string; error_message: string | null }>(`/clients/${clientId}/deep-dive/process/status`, {
+      cache: 'no-store',
+      headers: { 'Cache-Control': 'no-cache' }
+    }),
 
   // Ground Truth Enhancement
   getGroundTruthSource: (clientId: string) =>
@@ -739,6 +754,10 @@ export const api = {
     }),
   getGroundTruthStatus: (clientId: string) =>
     fetchJson<{ job_id: string | null; status: string; error_message: string | null; started_at: string | null }>(
-      `/clients/${clientId}/ground-truth/status`
+      `/clients/${clientId}/ground-truth/status`,
+      {
+        cache: 'no-store',
+        headers: { 'Cache-Control': 'no-cache' }
+      }
     ),
 }
