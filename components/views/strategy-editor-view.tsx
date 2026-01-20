@@ -84,8 +84,9 @@ export function StrategyEditorView({ client, readOnly = false }: Props) {
   const [isPipelineStarting, setIsPipelineStarting] = useState(false)
   const pipelinePollingRef = useRef<NodeJS.Timeout | null>(null)
 
-  // Chat is only enabled after pipeline completes
-  const chatEnabled = pipelineState.status === "complete"
+  // Chat is enabled if pipeline completed OR strategy already has content
+  const strategyHasContent = !!(strategy?.full_document)
+  const chatEnabled = pipelineState.status === "complete" || strategyHasContent
 
   // Load versions on mount
   useEffect(() => {
