@@ -143,7 +143,7 @@ export function ClientContextView({ client, readOnly = false }: Props) {
   }, [domainInput, client.id, readOnly])
 
   // Polling functions
-  const pollDCStatus = (onComplete?: () => void) => {
+  const pollDCStatus = (onComplete?: () => Promise<void> | void) => {
     if (dcPollingRef.current) clearInterval(dcPollingRef.current)
     dcPollingRef.current = setInterval(async () => {
       try {
@@ -157,7 +157,13 @@ export function ClientContextView({ client, readOnly = false }: Props) {
           dcPollingRef.current = null
           setFlowState(prev => ({ ...prev, discoveryCall: "complete" }))
           setDcProgressSteps([])
-          onComplete?.()
+          console.log("[DC Poll] Complete! Calling onComplete callback...")
+          try {
+            await onComplete?.()
+            console.log("[DC Poll] onComplete callback finished")
+          } catch (callbackError) {
+            console.error("[DC Poll] onComplete callback error:", callbackError)
+          }
         } else if (status.status === "error" || status.status === "cancelled") {
           clearInterval(dcPollingRef.current!)
           dcPollingRef.current = null
@@ -170,7 +176,7 @@ export function ClientContextView({ client, readOnly = false }: Props) {
     }, 5000)
   }
 
-  const pollDeepDiveStatus = (onComplete?: () => void) => {
+  const pollDeepDiveStatus = (onComplete?: () => Promise<void> | void) => {
     if (ddPollingRef.current) clearInterval(ddPollingRef.current)
     ddPollingRef.current = setInterval(async () => {
       try {
@@ -184,7 +190,13 @@ export function ClientContextView({ client, readOnly = false }: Props) {
           ddPollingRef.current = null
           setFlowState(prev => ({ ...prev, deepDive: "complete" }))
           setDdProgressSteps([])
-          onComplete?.()
+          console.log("[DD Poll] Complete! Calling onComplete callback...")
+          try {
+            await onComplete?.()
+            console.log("[DD Poll] onComplete callback finished")
+          } catch (callbackError) {
+            console.error("[DD Poll] onComplete callback error:", callbackError)
+          }
         } else if (status.status === "error" || status.status === "cancelled") {
           clearInterval(ddPollingRef.current!)
           ddPollingRef.current = null
@@ -342,72 +354,92 @@ export function ClientContextView({ client, readOnly = false }: Props) {
   const hasDiscoveryCall = !!discoveryCallUrl.trim()
   const hasDeepDive = !!deepDiveUrl.trim()
 
-  // Helper to start General Context (final step)
-  const startGeneralContext = async () => {
-    setFlowState(prev => ({ ...prev, generalContext: "processing" }))
-    try {
-      await api.fetchContextFromSiteAsync(client.id, domainInput.trim())
-      pollGCStatus()
-    } catch (e) {
-      console.error("Failed to start GC:", e)
-      setFlowState(prev => ({ ...prev, generalContext: "error" }))
-    }
-  }
-
-  // Helper to start Deep Dive, then General Context
-  const startDeepDive = async () => {
-    setFlowState(prev => ({ ...prev, deepDive: "processing" }))
-    try {
-      await api.processDeepDive(client.id, deepDiveUrl.trim())
-      pollDeepDiveStatus(startGeneralContext)
-    } catch (e) {
-      console.error("Failed to start DD:", e)
-      setFlowState(prev => ({ ...prev, deepDive: "error" }))
-    }
-  }
-
   // Sequential pipeline: DC (optional) -> DD (optional) -> GC (always)
+  // We capture URL values at activation time to avoid closure issues
   const handleActivate = async () => {
     if (!canActivate) return
     
+    // Capture values at activation time - these won't change during the pipeline
+    const capturedDomain = domainInput.trim()
+    const capturedDcUrl = discoveryCallUrl.trim()
+    const capturedDdUrl = deepDiveUrl.trim()
+    const willRunDc = !!capturedDcUrl
+    const willRunDd = !!capturedDdUrl
+    
+    console.log("[Pipeline] Starting with:", { 
+      domain: capturedDomain, 
+      dcUrl: capturedDcUrl ? "provided" : "empty", 
+      ddUrl: capturedDdUrl ? "provided" : "empty",
+      willRunDc,
+      willRunDd
+    })
+    
     setIsActivating(true)
+    
+    // Helper to start General Context (final step)
+    const runGeneralContext = async () => {
+      console.log("[Pipeline] Starting General Context...")
+      setFlowState(prev => ({ ...prev, generalContext: "processing" }))
+      try {
+        await api.fetchContextFromSiteAsync(client.id, capturedDomain)
+        pollGCStatus()
+      } catch (e) {
+        console.error("[Pipeline] Failed to start GC:", e)
+        setFlowState(prev => ({ ...prev, generalContext: "error" }))
+      }
+    }
+
+    // Helper to start Deep Dive, then General Context
+    const runDeepDive = async () => {
+      console.log("[Pipeline] Starting Deep Dive...")
+      setFlowState(prev => ({ ...prev, deepDive: "processing" }))
+      try {
+        await api.processDeepDive(client.id, capturedDdUrl)
+        pollDeepDiveStatus(runGeneralContext)
+      } catch (e) {
+        console.error("[Pipeline] Failed to start DD:", e)
+        setFlowState(prev => ({ ...prev, deepDive: "error" }))
+      }
+    }
     
     // Save inputs
     try {
-      await api.saveDiscoveryDocument(client.id, { domain: domainInput.trim() })
+      await api.saveDiscoveryDocument(client.id, { domain: capturedDomain })
       await api.saveContext(client.id, { 
-        domain: domainInput.trim(),
-        discovery_call_url: discoveryCallUrl.trim() || null,
-        deep_dive_url: deepDiveUrl.trim() || null
+        domain: capturedDomain,
+        discovery_call_url: capturedDcUrl || null,
+        deep_dive_url: capturedDdUrl || null
       })
     } catch (e) {
-      console.error("Failed to save inputs:", e)
+      console.error("[Pipeline] Failed to save inputs:", e)
     }
 
     // Determine pipeline flow based on which URLs are provided
-    if (hasDiscoveryCall) {
+    if (willRunDc) {
       // Start with Discovery Call
+      console.log("[Pipeline] Starting Discovery Call...")
       setFlowState(prev => ({ ...prev, discoveryCall: "processing" }))
       try {
-        await api.processDiscoveryCall(client.id, discoveryCallUrl.trim())
+        await api.processDiscoveryCall(client.id, capturedDcUrl)
         pollDCStatus(async () => {
           // After DC: run DD if provided, otherwise go to GC
-          if (hasDeepDive) {
-            await startDeepDive()
+          console.log("[Pipeline] DC complete. willRunDd =", willRunDd)
+          if (willRunDd) {
+            await runDeepDive()
           } else {
-            await startGeneralContext()
+            await runGeneralContext()
           }
         })
       } catch (e) {
-        console.error("Failed to start DC:", e)
+        console.error("[Pipeline] Failed to start DC:", e)
         setFlowState(prev => ({ ...prev, discoveryCall: "error" }))
       }
-    } else if (hasDeepDive) {
+    } else if (willRunDd) {
       // No DC, but has DD - start with Deep Dive
-      await startDeepDive()
+      await runDeepDive()
     } else {
       // No DC, no DD - go straight to General Context
-      await startGeneralContext()
+      await runGeneralContext()
     }
   }
 
