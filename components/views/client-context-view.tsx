@@ -27,7 +27,7 @@ interface Props {
   readOnly?: boolean
 }
 
-type ComponentStatus = "idle" | "processing" | "complete" | "error"
+type ComponentStatus = "idle" | "processing" | "complete" | "error" | "skipped"
 type ActiveView = "admin" | "discovery-call" | "deep-dive" | "general"
 
 interface FlowState {
@@ -337,12 +337,46 @@ export function ClientContextView({ client, readOnly = false }: Props) {
     loadData()
   }, [client.id])
 
-  // Check if all inputs are filled
-  const allInputsFilled = domainInput.trim() && discoveryCallUrl.trim() && deepDiveUrl.trim()
+  // Only domain is required - URLs are optional
+  const canActivate = !!domainInput.trim()
+  const hasDiscoveryUrl = !!discoveryCallUrl.trim()
+  const hasDeepDiveUrl = !!deepDiveUrl.trim()
 
-  // Sequential pipeline: DC -> DD -> GC
+  // Helper to start General Context
+  const startGeneralContext = async () => {
+    setFlowState(prev => ({ ...prev, generalContext: "processing" }))
+    try {
+      await api.fetchContextFromSiteAsync(client.id, domainInput.trim())
+      pollGCStatus()
+    } catch (e) {
+      console.error("Failed to start GC:", e)
+      setFlowState(prev => ({ ...prev, generalContext: "error" }))
+    }
+  }
+
+  // Helper to start Deep Dive (then GC)
+  const startDeepDive = async () => {
+    if (!hasDeepDiveUrl) {
+      // Skip DD, go straight to GC
+      await startGeneralContext()
+      return
+    }
+    
+    setFlowState(prev => ({ ...prev, deepDive: "processing" }))
+    try {
+      await api.processDeepDive(client.id, deepDiveUrl.trim())
+      pollDeepDiveStatus(async () => {
+        await startGeneralContext()
+      })
+    } catch (e) {
+      console.error("Failed to start DD:", e)
+      setFlowState(prev => ({ ...prev, deepDive: "error" }))
+    }
+  }
+
+  // Sequential pipeline: DC (if URL) -> DD (if URL) -> GC
   const handleActivate = async () => {
-    if (!allInputsFilled) return
+    if (!canActivate) return
     
     setIsActivating(true)
     
@@ -351,11 +385,17 @@ export function ClientContextView({ client, readOnly = false }: Props) {
       await api.saveDiscoveryDocument(client.id, { domain: domainInput.trim() })
       await api.saveContext(client.id, { 
         domain: domainInput.trim(),
-        discovery_call_url: discoveryCallUrl.trim(),
-        deep_dive_url: deepDiveUrl.trim()
+        discovery_call_url: discoveryCallUrl.trim() || null,
+        deep_dive_url: deepDiveUrl.trim() || null
       })
     } catch (e) {
       console.error("Failed to save inputs:", e)
+    }
+
+    // If no Discovery Call URL, skip to Deep Dive (or GC)
+    if (!hasDiscoveryUrl) {
+      await startDeepDive()
+      return
     }
 
     // Step 1: Start Discovery Call
@@ -363,25 +403,8 @@ export function ClientContextView({ client, readOnly = false }: Props) {
     try {
       await api.processDiscoveryCall(client.id, discoveryCallUrl.trim())
       pollDCStatus(async () => {
-        // Step 2: Start Deep Dive after DC completes
-        setFlowState(prev => ({ ...prev, deepDive: "processing" }))
-        try {
-          await api.processDeepDive(client.id, deepDiveUrl.trim())
-          pollDeepDiveStatus(async () => {
-            // Step 3: Start General Context after DD completes
-            setFlowState(prev => ({ ...prev, generalContext: "processing" }))
-            try {
-              await api.fetchContextFromSiteAsync(client.id, domainInput.trim())
-              pollGCStatus()
-            } catch (e) {
-              console.error("Failed to start GC:", e)
-              setFlowState(prev => ({ ...prev, generalContext: "error" }))
-            }
-          })
-        } catch (e) {
-          console.error("Failed to start DD:", e)
-          setFlowState(prev => ({ ...prev, deepDive: "error" }))
-        }
+        // Step 2: Start Deep Dive after DC completes (or skip to GC)
+        await startDeepDive()
       })
     } catch (e) {
       console.error("Failed to start DC:", e)
@@ -447,6 +470,7 @@ export function ClientContextView({ client, readOnly = false }: Props) {
           <LegendItem color="bg-slate-600" label="Not Started" />
           <LegendItem color="bg-violet-500" pulse label="Processing" />
           <LegendItem color="bg-emerald-500" label="Complete" />
+          <LegendItem color="bg-slate-500" label="Skipped" />
           <LegendItem color="bg-red-500" label="Error" />
         </div>
       </div>
@@ -480,6 +504,7 @@ export function ClientContextView({ client, readOnly = false }: Props) {
                 </InputCard>
                 <InputCard
                   title="Discovery Call URL"
+                  subtitle="Optional"
                   icon={<Phone className="h-5 w-5" />}
                   filled={!!discoveryCallUrl.trim()}
                 >
@@ -493,6 +518,7 @@ export function ClientContextView({ client, readOnly = false }: Props) {
                 </InputCard>
                 <InputCard
                   title="Deep Dive URL"
+                  subtitle="Optional"
                   icon={<Search className="h-5 w-5" />}
                   filled={!!deepDiveUrl.trim()}
                 >
@@ -537,7 +563,7 @@ export function ClientContextView({ client, readOnly = false }: Props) {
               ) : (
                 <Button
                   onClick={handleActivate}
-                  disabled={!allInputsFilled || readOnly}
+                  disabled={!canActivate || readOnly}
                   className="px-8 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white border-0 disabled:opacity-50"
                 >
                   <Zap className="h-4 w-4 mr-2" />
@@ -563,7 +589,7 @@ export function ClientContextView({ client, readOnly = false }: Props) {
               <ResultCard
                 title="Discovery Call Results"
                 icon={<Phone className="h-5 w-5" />}
-                status={flowState.discoveryCall}
+                status={!hasDiscoveryUrl && flowState.generalContext !== "idle" ? "skipped" : flowState.discoveryCall}
                 onClick={() => setActiveView("discovery-call")}
                 progressSteps={dcProgressSteps}
                 progressStepsConfig={DC_PROGRESS_STEPS}
@@ -571,7 +597,7 @@ export function ClientContextView({ client, readOnly = false }: Props) {
               <ResultCard
                 title="Deep Dive Results"
                 icon={<Search className="h-5 w-5" />}
-                status={flowState.deepDive}
+                status={!hasDeepDiveUrl && flowState.generalContext !== "idle" ? "skipped" : flowState.deepDive}
                 onClick={() => setActiveView("deep-dive")}
                 progressSteps={ddProgressSteps}
                 progressStepsConfig={DD_PROGRESS_STEPS}
@@ -625,12 +651,13 @@ function LegendItem({ color, label, pulse }: { color: string; label: string; pul
 
 interface InputCardProps {
   title: string
+  subtitle?: string
   icon: React.ReactNode
   filled: boolean
   children: React.ReactNode
 }
 
-function InputCard({ title, icon, filled, children }: InputCardProps) {
+function InputCard({ title, subtitle, icon, filled, children }: InputCardProps) {
   return (
     <Card className={`
       w-80 transition-all duration-200
@@ -647,6 +674,7 @@ function InputCard({ title, icon, filled, children }: InputCardProps) {
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
               <h3 className="font-medium text-white text-sm">{title}</h3>
+              {subtitle && <span className="text-xs text-slate-500">({subtitle})</span>}
               {filled && <CheckCircle className="h-4 w-4 text-emerald-500" />}
             </div>
             <div className="mt-3">{children}</div>
@@ -723,6 +751,14 @@ function ResultCard({ title, icon, status, onClick, progressSteps = [], progress
       glow: "shadow-lg shadow-red-500/20",
       clickable: false,
     },
+    skipped: {
+      border: "border-slate-600/50",
+      bg: "bg-slate-800/20",
+      iconBg: "bg-slate-600",
+      iconColor: "text-slate-400",
+      glow: "",
+      clickable: false,
+    },
   }
 
   const config = statusConfig[status]
@@ -770,6 +806,7 @@ function ResultCard({ title, icon, status, onClick, progressSteps = [], progress
                 {status === "processing" && "Processing..."}
                 {status === "complete" && "Click to view"}
                 {status === "error" && "Error occurred"}
+                {status === "skipped" && "Skipped (no URL)"}
               </p>
             )}
           </div>
