@@ -439,3 +439,42 @@ export interface DeepDiveResult {
   created_at?: string
   updated_at?: string
 }
+
+// Versioned Strategy types
+export interface StrategySection {
+  name: string
+  content: string
+}
+
+export interface VersionedStrategy {
+  client_id: number
+  version_number: number
+  created_at: string
+  updated_at: string
+  full_document: string
+  sections: Record<string, StrategySection>
+}
+
+export interface StrategyVersion {
+  version_number: number
+  created_at: string | null
+  updated_at: string | null
+}
+
+export interface StrategyVersionList {
+  client_id: number
+  total_versions: number
+  versions: StrategyVersion[]
+}
+
+export interface ChatMessage {
+  id: string
+  role: "user" | "assistant"
+  content: string
+  timestamp: string
+  toolCalls?: Array<{
+    name: string
+    arguments: Record<string, unknown>
+    result?: string
+  }>
+}

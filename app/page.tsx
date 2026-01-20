@@ -5,6 +5,7 @@ import type { Client } from "@/types"
 import { ClientSelector } from "@/components/client-selector"
 import { ClientContextView } from "@/components/views/client-context-view"
 import { BlogFactoryView } from "@/components/views/blog-factory-view"
+import { StrategyEditorView } from "@/components/views/strategy-editor-view"
 import { useAuth } from "@/components/auth-provider"
 import { Button } from "@/components/ui/button"
 import { LogOut, User, Shield } from "lucide-react"
@@ -68,6 +69,11 @@ export default function ABSControlPanel() {
         <div className="space-y-1 mt-4">
           <NavButton label="Client Context" active={activeTab === "context"} onClick={() => setActiveTab("context")} />
           <NavButton
+            label="Strategy"
+            active={activeTab === "strategy"}
+            onClick={() => setActiveTab("strategy")}
+          />
+          <NavButton
             label="Blog Factory"
             active={activeTab === "factory"}
             onClick={() => setActiveTab("factory")}
@@ -90,6 +96,7 @@ export default function ABSControlPanel() {
               </div>
             )}
             {activeTab === "context" && <ClientContextView client={selectedClient} readOnly={!canModify} />}
+            {activeTab === "strategy" && <StrategyEditorView client={selectedClient} readOnly={!canModify} />}
             {activeTab === "factory" && <BlogFactoryView client={selectedClient} readOnly={!canModify} />}
           </div>
         )}
