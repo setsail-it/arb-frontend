@@ -142,8 +142,19 @@ export function ClientContextView({ client, readOnly = false }: Props) {
     }
   }, [domainInput, client.id, readOnly])
 
+  // Ref to store pipeline continuation functions (survives re-renders)
+  const pipelineContinuationRef = useRef<{
+    afterDC?: () => Promise<void>
+    afterDD?: () => Promise<void>
+  }>({})
+
   // Polling functions
   const pollDCStatus = (onComplete?: () => Promise<void> | void) => {
+    // Store the callback so it survives component re-renders
+    if (onComplete) {
+      pipelineContinuationRef.current.afterDC = onComplete as () => Promise<void>
+    }
+    
     if (dcPollingRef.current) clearInterval(dcPollingRef.current)
     dcPollingRef.current = setInterval(async () => {
       try {
@@ -157,12 +168,15 @@ export function ClientContextView({ client, readOnly = false }: Props) {
           dcPollingRef.current = null
           setFlowState(prev => ({ ...prev, discoveryCall: "complete" }))
           setDcProgressSteps([])
-          console.log("[DC Poll] Complete! Calling onComplete callback...")
+          
+          // Use stored callback or the one passed
+          const callback = pipelineContinuationRef.current.afterDC || onComplete
+          console.log("[DC Poll] Complete! Calling continuation...", !!callback)
           try {
-            await onComplete?.()
-            console.log("[DC Poll] onComplete callback finished")
+            await callback?.()
+            console.log("[DC Poll] Continuation finished")
           } catch (callbackError) {
-            console.error("[DC Poll] onComplete callback error:", callbackError)
+            console.error("[DC Poll] Continuation error:", callbackError)
           }
         } else if (status.status === "error" || status.status === "cancelled") {
           clearInterval(dcPollingRef.current!)
@@ -177,6 +191,11 @@ export function ClientContextView({ client, readOnly = false }: Props) {
   }
 
   const pollDeepDiveStatus = (onComplete?: () => Promise<void> | void) => {
+    // Store the callback so it survives component re-renders
+    if (onComplete) {
+      pipelineContinuationRef.current.afterDD = onComplete as () => Promise<void>
+    }
+    
     if (ddPollingRef.current) clearInterval(ddPollingRef.current)
     ddPollingRef.current = setInterval(async () => {
       try {
@@ -190,12 +209,15 @@ export function ClientContextView({ client, readOnly = false }: Props) {
           ddPollingRef.current = null
           setFlowState(prev => ({ ...prev, deepDive: "complete" }))
           setDdProgressSteps([])
-          console.log("[DD Poll] Complete! Calling onComplete callback...")
+          
+          // Use stored callback or the one passed
+          const callback = pipelineContinuationRef.current.afterDD || onComplete
+          console.log("[DD Poll] Complete! Calling continuation...", !!callback)
           try {
-            await onComplete?.()
-            console.log("[DD Poll] onComplete callback finished")
+            await callback?.()
+            console.log("[DD Poll] Continuation finished")
           } catch (callbackError) {
-            console.error("[DD Poll] onComplete callback error:", callbackError)
+            console.error("[DD Poll] Continuation error:", callbackError)
           }
         } else if (status.status === "error" || status.status === "cancelled") {
           clearInterval(ddPollingRef.current!)
@@ -278,6 +300,40 @@ export function ClientContextView({ client, readOnly = false }: Props) {
           const dcStatus = await api.getDiscoveryCallProcessStatus(client.id)
           if (dcStatus.status === "running" || dcStatus.status === "pending") {
             dcState = "processing"
+            // Set up continuation to run DD (if URL) or GC after DC completes
+            pipelineContinuationRef.current.afterDC = async () => {
+              console.log("[Resume] DC complete, checking next step...")
+              try {
+                const ctx = await api.getContext(client.id)
+                const ddUrl = ctx?.deep_dive_url
+                const domain = ctx?.domain || domainInput.trim()
+                
+                if (ddUrl) {
+                  // Start Deep Dive
+                  console.log("[Resume] Starting Deep Dive...")
+                  setFlowState(prev => ({ ...prev, deepDive: "processing" }))
+                  // Set up DD -> GC continuation
+                  pipelineContinuationRef.current.afterDD = async () => {
+                    console.log("[Resume] DD complete, starting General Context...")
+                    setFlowState(prev => ({ ...prev, generalContext: "processing" }))
+                    if (domain) {
+                      await api.fetchContextFromSiteAsync(client.id, domain)
+                      pollGCStatus()
+                    }
+                  }
+                  await api.processDeepDive(client.id, ddUrl)
+                  pollDeepDiveStatus()
+                } else if (domain) {
+                  // No DD URL, go straight to GC
+                  console.log("[Resume] No DD URL, starting General Context...")
+                  setFlowState(prev => ({ ...prev, generalContext: "processing" }))
+                  await api.fetchContextFromSiteAsync(client.id, domain)
+                  pollGCStatus()
+                }
+              } catch (e) {
+                console.error("[Resume] Continuation error:", e)
+              }
+            }
             pollDCStatus()
             if (dcStatus.started_at) earliestStart = new Date(dcStatus.started_at)
           } else if (dcStatus.status === "complete") {
@@ -298,6 +354,22 @@ export function ClientContextView({ client, readOnly = false }: Props) {
           const ddStatus = await api.getDeepDiveProcessStatus(client.id)
           if (ddStatus.status === "running" || ddStatus.status === "pending") {
             ddState = "processing"
+            // Set up continuation to run GC after DD completes
+            pipelineContinuationRef.current.afterDD = async () => {
+              console.log("[Resume] DD complete, starting General Context...")
+              setFlowState(prev => ({ ...prev, generalContext: "processing" }))
+              try {
+                const ctx = await api.getContext(client.id)
+                const domain = ctx?.domain || domainInput.trim()
+                if (domain) {
+                  await api.fetchContextFromSiteAsync(client.id, domain)
+                  pollGCStatus()
+                }
+              } catch (e) {
+                console.error("[Resume] Failed to start GC:", e)
+                setFlowState(prev => ({ ...prev, generalContext: "error" }))
+              }
+            }
             pollDeepDiveStatus()
             if (ddStatus.started_at && (!earliestStart || new Date(ddStatus.started_at) < earliestStart)) {
               earliestStart = new Date(ddStatus.started_at)
