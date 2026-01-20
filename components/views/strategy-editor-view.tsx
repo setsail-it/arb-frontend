@@ -164,6 +164,7 @@ export function StrategyEditorView({ client, readOnly = false }: Props) {
   const startPipelinePolling = (versionNumber: number) => {
     if (pipelinePollingRef.current) clearInterval(pipelinePollingRef.current)
     
+    // Poll every 5 seconds - agents run in background and take 5-10 min each
     pipelinePollingRef.current = setInterval(async () => {
       try {
         const status = await api.getStrategyPipelineStatus(client.id, versionNumber)
@@ -175,29 +176,6 @@ export function StrategyEditorView({ client, readOnly = false }: Props) {
           waiterOutput: status.waiter_output || null,
           platerOutput: status.plater_output || null,
         })
-        
-        // Run agents sequentially: Waiter → Plater
-        if (status.waiter_status === "processing") {
-          // Trigger waiter completion
-          setTimeout(async () => {
-            try {
-              await api.runWaiter(client.id, versionNumber)
-            } catch (e) {
-              console.error("Waiter error:", e)
-            }
-          }, 2000)
-        } else if (status.waiter_status === "complete" && status.plater_status === "processing") {
-          // Trigger plater (final step)
-          setTimeout(async () => {
-            try {
-              await api.runPlater(client.id, versionNumber)
-              // Reload strategy after plater completes
-              loadStrategy(versionNumber, true)
-            } catch (e) {
-              console.error("Plater error:", e)
-            }
-          }, 2000)
-        }
         
         // Stop polling when complete or error
         if (status.status === "complete" || status.status === "error") {
@@ -213,7 +191,7 @@ export function StrategyEditorView({ client, readOnly = false }: Props) {
       } catch (e) {
         console.error("Pipeline polling error:", e)
       }
-    }, 3000)
+    }, 5000) // Poll every 5 seconds
   }
 
   const handleCreateVersion = async (triggerPipeline = false) => {
