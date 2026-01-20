@@ -356,6 +356,7 @@ export function ClientContextView({ client, readOnly = false }: Props) {
 
   // Sequential pipeline: DC (optional) -> DD (optional) -> GC (always)
   // We capture URL values at activation time to avoid closure issues
+  // Smart resume: skip steps that already completed successfully
   const handleActivate = async () => {
     if (!canActivate) return
     
@@ -363,21 +364,43 @@ export function ClientContextView({ client, readOnly = false }: Props) {
     const capturedDomain = domainInput.trim()
     const capturedDcUrl = discoveryCallUrl.trim()
     const capturedDdUrl = deepDiveUrl.trim()
-    const willRunDc = !!capturedDcUrl
-    const willRunDd = !!capturedDdUrl
+    
+    // Check what's already complete - we can skip these
+    const dcAlreadyComplete = flowState.discoveryCall === "complete"
+    const ddAlreadyComplete = flowState.deepDive === "complete"
+    const gcAlreadyComplete = flowState.generalContext === "complete"
+    
+    // Determine what needs to run (URL provided AND not already complete)
+    const needsDc = !!capturedDcUrl && !dcAlreadyComplete
+    const needsDd = !!capturedDdUrl && !ddAlreadyComplete
+    const needsGc = !gcAlreadyComplete
     
     console.log("[Pipeline] Starting with:", { 
       domain: capturedDomain, 
       dcUrl: capturedDcUrl ? "provided" : "empty", 
       ddUrl: capturedDdUrl ? "provided" : "empty",
-      willRunDc,
-      willRunDd
+      dcAlreadyComplete,
+      ddAlreadyComplete,
+      gcAlreadyComplete,
+      needsDc,
+      needsDd,
+      needsGc
     })
+    
+    // If everything is already complete, nothing to do
+    if (!needsDc && !needsDd && !needsGc) {
+      console.log("[Pipeline] All steps already complete, nothing to do")
+      return
+    }
     
     setIsActivating(true)
     
     // Helper to start General Context (final step)
     const runGeneralContext = async () => {
+      if (!needsGc) {
+        console.log("[Pipeline] Skipping General Context (already complete)")
+        return
+      }
       console.log("[Pipeline] Starting General Context...")
       setFlowState(prev => ({ ...prev, generalContext: "processing" }))
       try {
@@ -391,6 +414,11 @@ export function ClientContextView({ client, readOnly = false }: Props) {
 
     // Helper to start Deep Dive, then General Context
     const runDeepDive = async () => {
+      if (!needsDd) {
+        console.log("[Pipeline] Skipping Deep Dive (already complete or no URL)")
+        await runGeneralContext()
+        return
+      }
       console.log("[Pipeline] Starting Deep Dive...")
       setFlowState(prev => ({ ...prev, deepDive: "processing" }))
       try {
@@ -414,31 +442,27 @@ export function ClientContextView({ client, readOnly = false }: Props) {
       console.error("[Pipeline] Failed to save inputs:", e)
     }
 
-    // Determine pipeline flow based on which URLs are provided
-    if (willRunDc) {
+    // Determine pipeline flow - skip completed steps
+    if (needsDc) {
       // Start with Discovery Call
       console.log("[Pipeline] Starting Discovery Call...")
       setFlowState(prev => ({ ...prev, discoveryCall: "processing" }))
       try {
         await api.processDiscoveryCall(client.id, capturedDcUrl)
         pollDCStatus(async () => {
-          // After DC: run DD if provided, otherwise go to GC
-          console.log("[Pipeline] DC complete. willRunDd =", willRunDd)
-          if (willRunDd) {
-            await runDeepDive()
-          } else {
-            await runGeneralContext()
-          }
+          // After DC: run DD if needed, otherwise go to GC
+          console.log("[Pipeline] DC complete. needsDd =", needsDd)
+          await runDeepDive()
         })
       } catch (e) {
         console.error("[Pipeline] Failed to start DC:", e)
         setFlowState(prev => ({ ...prev, discoveryCall: "error" }))
       }
-    } else if (willRunDd) {
-      // No DC, but has DD - start with Deep Dive
+    } else if (needsDd || (!!capturedDdUrl && !ddAlreadyComplete)) {
+      // DC already complete or no DC URL, but need DD
       await runDeepDive()
     } else {
-      // No DC, no DD - go straight to General Context
+      // DC and DD are done (or not needed), just run GC
       await runGeneralContext()
     }
   }
@@ -597,7 +621,13 @@ export function ClientContextView({ client, readOnly = false }: Props) {
                   className="px-8 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white border-0 disabled:opacity-50"
                 >
                   <Zap className="h-4 w-4 mr-2" />
-                  {readOnly ? "View Only" : "Activate Pipeline"}
+                  {readOnly ? "View Only" : (
+                    // Show "Resume" if some steps complete but GC failed/idle
+                    (flowState.discoveryCall === "complete" || flowState.deepDive === "complete") && 
+                    flowState.generalContext !== "complete" 
+                      ? "Resume Pipeline" 
+                      : "Activate Pipeline"
+                  )}
                 </Button>
               )}
             </div>
