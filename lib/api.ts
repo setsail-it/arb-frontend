@@ -777,24 +777,59 @@ export const api = {
       }
     ),
 
-  // Strategy Chat (sends message to backend which invokes MCP tools)
-  sendStrategyChatMessage: (
+  // Strategy Chat (streaming - sends message to backend which invokes MCP tools)
+  // Returns an async generator that yields streaming events
+  streamStrategyChatMessage: async function* (
     clientId: number,
     versionNumber: number,
     message: string,
     history: { role: string; content: string }[] = []
-  ) =>
-    fetchJson<{
-      response: string
-      tool_calls: { name: string; arguments?: Record<string, unknown>; output?: string }[]
-      usage: { input_tokens: number; output_tokens: number; reasoning_tokens?: number } | null
-    }>(
-      `/clients/${clientId}/strategy/${versionNumber}/chat`,
-      {
-        method: "POST",
-        body: JSON.stringify({ message, history }),
+  ): AsyncGenerator<{
+    type: "reasoning" | "text" | "tool_call" | "done" | "error"
+    content?: string
+    name?: string
+    arguments?: Record<string, unknown>
+    tool_calls?: { name: string; arguments?: Record<string, unknown> }[]
+    usage?: { input_tokens: number; output_tokens: number; reasoning_tokens?: number } | null
+    message?: string
+  }> {
+    const baseUrl = BACKEND_BASE_URL.replace(/\/$/, "")
+    const response = await fetch(`${baseUrl}/clients/${clientId}/strategy/${versionNumber}/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message, history }),
+    })
+    
+    if (!response.ok) {
+      throw new Error(`Chat request failed: ${response.status}`)
+    }
+    
+    const reader = response.body?.getReader()
+    if (!reader) throw new Error("No response body")
+    
+    const decoder = new TextDecoder()
+    let buffer = ""
+    
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      
+      buffer += decoder.decode(value, { stream: true })
+      const lines = buffer.split("\n")
+      buffer = lines.pop() || ""
+      
+      for (const line of lines) {
+        if (line.startsWith("data: ")) {
+          try {
+            const data = JSON.parse(line.slice(6))
+            yield data
+          } catch {
+            // Ignore parse errors
+          }
+        }
       }
-    ),
+    }
+  },
 
   // Strategy Generation Pipeline (Waiter → Cook)
   startStrategyPipeline: (

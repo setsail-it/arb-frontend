@@ -473,6 +473,7 @@ export interface ChatMessage {
   role: "user" | "assistant"
   content: string
   timestamp: string
+  reasoning?: string  // Reasoning tokens (displayed in italics)
   toolCalls?: Array<{
     name: string
     arguments: Record<string, unknown>

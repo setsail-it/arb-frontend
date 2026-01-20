@@ -35,10 +35,10 @@ export function StrategyChat({ clientId, versionNumber, onStrategyUpdated }: Pro
       timestamp: new Date().toISOString(),
     }
 
-    // Build history from previous messages (excluding the one we're about to add)
+    // Build history from previous messages (use combined content for history)
     const history = messages.map((msg) => ({
       role: msg.role,
-      content: msg.content,
+      content: msg.content,  // Just the main content, not reasoning
     }))
 
     setMessages((prev) => [...prev, userMessage])
@@ -46,40 +46,105 @@ export function StrategyChat({ clientId, versionNumber, onStrategyUpdated }: Pro
     setIsLoading(true)
 
     const assistantMessageId = `assistant-${Date.now()}`
+    
+    // Add a placeholder message for streaming
+    const placeholderMessage: ChatMessage = {
+      id: assistantMessageId,
+      role: "assistant",
+      content: "",
+      reasoning: "",
+      timestamp: new Date().toISOString(),
+      toolCalls: [],
+    }
+    setMessages((prev) => [...prev, placeholderMessage])
 
     try {
-      const result = await api.sendStrategyChatMessage(
+      let currentReasoning = ""
+      let currentContent = ""
+      const toolCalls: { name: string; arguments: Record<string, unknown> }[] = []
+      
+      // Stream the response
+      for await (const event of api.streamStrategyChatMessage(
         clientId,
         versionNumber,
         userMessage.content,
         history
+      )) {
+        if (event.type === "reasoning") {
+          // Append reasoning tokens
+          currentReasoning += event.content || ""
+          setMessages((prev) =>
+            prev.map((msg) =>
+              msg.id === assistantMessageId
+                ? { ...msg, reasoning: currentReasoning }
+                : msg
+            )
+          )
+        } else if (event.type === "text") {
+          // Append output text
+          currentContent += event.content || ""
+          setMessages((prev) =>
+            prev.map((msg) =>
+              msg.id === assistantMessageId
+                ? { ...msg, content: currentContent }
+                : msg
+            )
+          )
+        } else if (event.type === "tool_call") {
+          // Add tool call
+          toolCalls.push({
+            name: event.name || "",
+            arguments: event.arguments || {},
+          })
+          setMessages((prev) =>
+            prev.map((msg) =>
+              msg.id === assistantMessageId
+                ? { ...msg, toolCalls: [...toolCalls] }
+                : msg
+            )
+          )
+        } else if (event.type === "done") {
+          // Finalize message - ensure toolCalls have required arguments field
+          const finalToolCalls = (event.tool_calls || toolCalls).map((tc) => ({
+            name: tc.name,
+            arguments: tc.arguments || {},
+          }))
+          setMessages((prev) =>
+            prev.map((msg) =>
+              msg.id === assistantMessageId
+                ? {
+                    ...msg,
+                    content: currentContent,
+                    reasoning: currentReasoning,
+                    toolCalls: finalToolCalls,
+                  }
+                : msg
+            )
+          )
+          
+          // If any editStrategy tools were called, refresh the strategy
+          if (finalToolCalls.some((tc) => tc.name.startsWith("editStrategy"))) {
+            onStrategyUpdated?.()
+          }
+        } else if (event.type === "error") {
+          setMessages((prev) =>
+            prev.map((msg) =>
+              msg.id === assistantMessageId
+                ? { ...msg, content: `Error: ${event.message}`, reasoning: "" }
+                : msg
+            )
+          )
+        }
+      }
+    } catch (error: unknown) {
+      const errorMsg = error instanceof Error ? error.message : "Failed to get response"
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === assistantMessageId
+            ? { ...msg, content: `Error: ${errorMsg}`, reasoning: "" }
+            : msg
+        )
       )
-
-      const assistantMessage: ChatMessage = {
-        id: assistantMessageId,
-        role: "assistant",
-        content: result.response,
-        timestamp: new Date().toISOString(),
-        toolCalls: result.tool_calls?.map((tc) => ({
-          name: tc.name,
-          arguments: tc.arguments || {},
-        })),
-      }
-
-      setMessages((prev) => [...prev, assistantMessage])
-
-      // If any editStrategy tools were called, refresh the strategy
-      if (result.tool_calls?.some((tc) => tc.name.startsWith("editStrategy"))) {
-        onStrategyUpdated?.()
-      }
-    } catch (error: any) {
-      const errorMessage: ChatMessage = {
-        id: assistantMessageId,
-        role: "assistant",
-        content: `Error: ${error.message || "Failed to get response"}`,
-        timestamp: new Date().toISOString(),
-      }
-      setMessages((prev) => [...prev, errorMessage])
     } finally {
       setIsLoading(false)
     }
@@ -151,13 +216,28 @@ export function StrategyChat({ clientId, versionNumber, onStrategyUpdated }: Pro
                     ))}
                   </div>
                 )}
+                {/* Reasoning tokens (in italics) */}
+                {msg.role === "assistant" && msg.reasoning && (
+                  <div className="mb-2 pb-2 border-b border-zinc-700/30">
+                    <p className="text-xs text-zinc-500 italic whitespace-pre-wrap leading-relaxed">
+                      {msg.reasoning}
+                    </p>
+                  </div>
+                )}
                 {/* Message content */}
                 <p className="text-sm whitespace-pre-wrap leading-relaxed">{msg.content}</p>
                 {/* Loading indicator */}
-                {msg.role === "assistant" && !msg.content && isLoading && (
+                {msg.role === "assistant" && !msg.content && !msg.reasoning && isLoading && (
                   <div className="flex items-center gap-2">
                     <Spinner className="h-3.5 w-3.5 text-emerald-400" />
                     <span className="text-xs text-zinc-500">Thinking...</span>
+                  </div>
+                )}
+                {/* Streaming indicator (when we have reasoning but no content yet) */}
+                {msg.role === "assistant" && msg.reasoning && !msg.content && isLoading && (
+                  <div className="flex items-center gap-2 mt-2">
+                    <Spinner className="h-3 w-3 text-emerald-400" />
+                    <span className="text-xs text-zinc-500">Generating response...</span>
                   </div>
                 )}
               </div>
