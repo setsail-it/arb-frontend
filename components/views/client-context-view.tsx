@@ -27,7 +27,7 @@ interface Props {
   readOnly?: boolean
 }
 
-type ComponentStatus = "idle" | "processing" | "complete" | "error" | "skipped"
+type ComponentStatus = "idle" | "processing" | "complete" | "error"
 type ActiveView = "admin" | "discovery-call" | "deep-dive" | "general"
 
 interface FlowState {
@@ -339,10 +339,10 @@ export function ClientContextView({ client, readOnly = false }: Props) {
 
   // Only domain is required - URLs are optional
   const canActivate = !!domainInput.trim()
-  const hasDiscoveryUrl = !!discoveryCallUrl.trim()
-  const hasDeepDiveUrl = !!deepDiveUrl.trim()
+  const hasDiscoveryCall = !!discoveryCallUrl.trim()
+  const hasDeepDive = !!deepDiveUrl.trim()
 
-  // Helper to start General Context
+  // Helper to start General Context (final step)
   const startGeneralContext = async () => {
     setFlowState(prev => ({ ...prev, generalContext: "processing" }))
     try {
@@ -354,27 +354,19 @@ export function ClientContextView({ client, readOnly = false }: Props) {
     }
   }
 
-  // Helper to start Deep Dive (then GC)
+  // Helper to start Deep Dive, then General Context
   const startDeepDive = async () => {
-    if (!hasDeepDiveUrl) {
-      // Skip DD, go straight to GC
-      await startGeneralContext()
-      return
-    }
-    
     setFlowState(prev => ({ ...prev, deepDive: "processing" }))
     try {
       await api.processDeepDive(client.id, deepDiveUrl.trim())
-      pollDeepDiveStatus(async () => {
-        await startGeneralContext()
-      })
+      pollDeepDiveStatus(startGeneralContext)
     } catch (e) {
       console.error("Failed to start DD:", e)
       setFlowState(prev => ({ ...prev, deepDive: "error" }))
     }
   }
 
-  // Sequential pipeline: DC (if URL) -> DD (if URL) -> GC
+  // Sequential pipeline: DC (optional) -> DD (optional) -> GC (always)
   const handleActivate = async () => {
     if (!canActivate) return
     
@@ -392,23 +384,30 @@ export function ClientContextView({ client, readOnly = false }: Props) {
       console.error("Failed to save inputs:", e)
     }
 
-    // If no Discovery Call URL, skip to Deep Dive (or GC)
-    if (!hasDiscoveryUrl) {
+    // Determine pipeline flow based on which URLs are provided
+    if (hasDiscoveryCall) {
+      // Start with Discovery Call
+      setFlowState(prev => ({ ...prev, discoveryCall: "processing" }))
+      try {
+        await api.processDiscoveryCall(client.id, discoveryCallUrl.trim())
+        pollDCStatus(async () => {
+          // After DC: run DD if provided, otherwise go to GC
+          if (hasDeepDive) {
+            await startDeepDive()
+          } else {
+            await startGeneralContext()
+          }
+        })
+      } catch (e) {
+        console.error("Failed to start DC:", e)
+        setFlowState(prev => ({ ...prev, discoveryCall: "error" }))
+      }
+    } else if (hasDeepDive) {
+      // No DC, but has DD - start with Deep Dive
       await startDeepDive()
-      return
-    }
-
-    // Step 1: Start Discovery Call
-    setFlowState(prev => ({ ...prev, discoveryCall: "processing" }))
-    try {
-      await api.processDiscoveryCall(client.id, discoveryCallUrl.trim())
-      pollDCStatus(async () => {
-        // Step 2: Start Deep Dive after DC completes (or skip to GC)
-        await startDeepDive()
-      })
-    } catch (e) {
-      console.error("Failed to start DC:", e)
-      setFlowState(prev => ({ ...prev, discoveryCall: "error" }))
+    } else {
+      // No DC, no DD - go straight to General Context
+      await startGeneralContext()
     }
   }
 
@@ -470,7 +469,6 @@ export function ClientContextView({ client, readOnly = false }: Props) {
           <LegendItem color="bg-slate-600" label="Not Started" />
           <LegendItem color="bg-violet-500" pulse label="Processing" />
           <LegendItem color="bg-emerald-500" label="Complete" />
-          <LegendItem color="bg-slate-500" label="Skipped" />
           <LegendItem color="bg-red-500" label="Error" />
         </div>
       </div>
@@ -504,9 +502,9 @@ export function ClientContextView({ client, readOnly = false }: Props) {
                 </InputCard>
                 <InputCard
                   title="Discovery Call URL"
-                  subtitle="Optional"
                   icon={<Phone className="h-5 w-5" />}
                   filled={!!discoveryCallUrl.trim()}
+                  optional
                 >
                   <Textarea
                     placeholder="Fathom URL (e.g., https://fathom.video/calls/...)"
@@ -518,9 +516,9 @@ export function ClientContextView({ client, readOnly = false }: Props) {
                 </InputCard>
                 <InputCard
                   title="Deep Dive URL"
-                  subtitle="Optional"
                   icon={<Search className="h-5 w-5" />}
                   filled={!!deepDiveUrl.trim()}
+                  optional
                 >
                   <Textarea
                     placeholder="Deep Dive Fathom URL (e.g., https://fathom.video/calls/...)"
@@ -589,16 +587,18 @@ export function ClientContextView({ client, readOnly = false }: Props) {
               <ResultCard
                 title="Discovery Call Results"
                 icon={<Phone className="h-5 w-5" />}
-                status={!hasDiscoveryUrl && flowState.generalContext !== "idle" ? "skipped" : flowState.discoveryCall}
+                status={flowState.discoveryCall}
                 onClick={() => setActiveView("discovery-call")}
+                skipped={!hasDiscoveryCall}
                 progressSteps={dcProgressSteps}
                 progressStepsConfig={DC_PROGRESS_STEPS}
               />
               <ResultCard
                 title="Deep Dive Results"
                 icon={<Search className="h-5 w-5" />}
-                status={!hasDeepDiveUrl && flowState.generalContext !== "idle" ? "skipped" : flowState.deepDive}
+                status={flowState.deepDive}
                 onClick={() => setActiveView("deep-dive")}
+                skipped={!hasDeepDive}
                 progressSteps={ddProgressSteps}
                 progressStepsConfig={DD_PROGRESS_STEPS}
               />
@@ -651,13 +651,13 @@ function LegendItem({ color, label, pulse }: { color: string; label: string; pul
 
 interface InputCardProps {
   title: string
-  subtitle?: string
   icon: React.ReactNode
   filled: boolean
+  optional?: boolean
   children: React.ReactNode
 }
 
-function InputCard({ title, subtitle, icon, filled, children }: InputCardProps) {
+function InputCard({ title, icon, filled, optional, children }: InputCardProps) {
   return (
     <Card className={`
       w-80 transition-all duration-200
@@ -674,7 +674,7 @@ function InputCard({ title, subtitle, icon, filled, children }: InputCardProps) 
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
               <h3 className="font-medium text-white text-sm">{title}</h3>
-              {subtitle && <span className="text-xs text-slate-500">({subtitle})</span>}
+              {optional && !filled && <span className="text-xs text-slate-500">(Optional)</span>}
               {filled && <CheckCircle className="h-4 w-4 text-emerald-500" />}
             </div>
             <div className="mt-3">{children}</div>
@@ -713,11 +713,12 @@ interface ResultCardProps {
   icon: React.ReactNode
   status: ComponentStatus
   onClick: () => void
+  skipped?: boolean
   progressSteps?: string[]
   progressStepsConfig?: { key: string; label: string }[]
 }
 
-function ResultCard({ title, icon, status, onClick, progressSteps = [], progressStepsConfig = [] }: ResultCardProps) {
+function ResultCard({ title, icon, status, onClick, skipped, progressSteps = [], progressStepsConfig = [] }: ResultCardProps) {
   const statusConfig = {
     idle: {
       border: "border-slate-700",
@@ -751,17 +752,11 @@ function ResultCard({ title, icon, status, onClick, progressSteps = [], progress
       glow: "shadow-lg shadow-red-500/20",
       clickable: false,
     },
-    skipped: {
-      border: "border-slate-600/50",
-      bg: "bg-slate-800/20",
-      iconBg: "bg-slate-600",
-      iconColor: "text-slate-400",
-      glow: "",
-      clickable: false,
-    },
   }
 
-  const config = statusConfig[status]
+  // Use skipped styling if skipped and idle
+  const effectiveStatus = skipped && status === "idle" ? "idle" : status
+  const config = statusConfig[effectiveStatus]
   const showProgress = status === "processing" && progressSteps.length > 0 && progressStepsConfig.length > 0
 
   return (
@@ -770,6 +765,7 @@ function ResultCard({ title, icon, status, onClick, progressSteps = [], progress
         w-64 transition-all duration-200
         ${config.border} ${config.bg} ${config.glow}
         ${config.clickable ? "cursor-pointer hover:brightness-110 hover:border-opacity-100" : ""}
+        ${skipped && status === "idle" ? "opacity-50" : ""}
       `}
       onClick={config.clickable ? onClick : undefined}
     >
@@ -802,11 +798,11 @@ function ResultCard({ title, icon, status, onClick, progressSteps = [], progress
             {/* Status text */}
             {!showProgress && (
               <p className="text-xs text-slate-400 mt-1">
-                {status === "idle" && "Not started"}
+                {skipped && status === "idle" && "Skipped (no URL)"}
+                {!skipped && status === "idle" && "Not started"}
                 {status === "processing" && "Processing..."}
                 {status === "complete" && "Click to view"}
                 {status === "error" && "Error occurred"}
-                {status === "skipped" && "Skipped (no URL)"}
               </p>
             )}
           </div>
