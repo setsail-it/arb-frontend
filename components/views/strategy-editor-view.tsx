@@ -37,7 +37,7 @@ interface Props {
 
 type ContextPopup = "discovery-call" | "deep-dive" | "general-context" | null
 type AgentStatus = "idle" | "processing" | "complete" | "error"
-type AgentPopup = "waiter" | "cook" | null
+type AgentPopup = "waiter" | "plater" | null
 
 interface AgentOutput {
   id?: string | null
@@ -54,12 +54,12 @@ interface AgentOutput {
 }
 
 interface PipelineState {
-  status: "idle" | "waiter_processing" | "cook_processing" | "complete" | "error"
+  status: "idle" | "waiter_processing" | "plater_processing" | "complete" | "error"
   waiter: AgentStatus
-  cook: AgentStatus
+  plater: AgentStatus
   error?: string
   waiterOutput?: AgentOutput | null
-  cookOutput?: AgentOutput | null
+  platerOutput?: AgentOutput | null
 }
 
 export function StrategyEditorView({ client, readOnly = false }: Props) {
@@ -74,11 +74,11 @@ export function StrategyEditorView({ client, readOnly = false }: Props) {
   const [activePopup, setActivePopup] = useState<ContextPopup>(null)
   const [activeAgentPopup, setActiveAgentPopup] = useState<AgentPopup>(null)
   
-  // Agent Pipeline State (2-agent pipeline: Waiter → Cook)
+  // Agent Pipeline State (2-agent pipeline: Waiter → Plater)
   const [pipelineState, setPipelineState] = useState<PipelineState>({
     status: "idle",
     waiter: "idle",
-    cook: "idle",
+    plater: "idle",
   })
   const [isPipelineStarting, setIsPipelineStarting] = useState(false)
   const pipelinePollingRef = useRef<NodeJS.Timeout | null>(null)
@@ -139,10 +139,10 @@ export function StrategyEditorView({ client, readOnly = false }: Props) {
       setPipelineState({
         status: status.status as PipelineState["status"],
         waiter: status.waiter_status as AgentStatus,
-        cook: status.cook_status as AgentStatus,
+        plater: status.plater_status as AgentStatus,
         error: status.error || undefined,
         waiterOutput: status.waiter_output || null,
-        cookOutput: status.cook_output || null,
+        platerOutput: status.plater_output || null,
       })
       
       // If pipeline is running, start polling
@@ -163,13 +163,13 @@ export function StrategyEditorView({ client, readOnly = false }: Props) {
         setPipelineState({
           status: status.status as PipelineState["status"],
           waiter: status.waiter_status as AgentStatus,
-          cook: status.cook_status as AgentStatus,
+          plater: status.plater_status as AgentStatus,
           error: status.error || undefined,
           waiterOutput: status.waiter_output || null,
-          cookOutput: status.cook_output || null,
+          platerOutput: status.plater_output || null,
         })
         
-        // Run agents sequentially: Waiter → Cook
+        // Run agents sequentially: Waiter → Plater
         if (status.waiter_status === "processing") {
           // Trigger waiter completion
           setTimeout(async () => {
@@ -179,15 +179,15 @@ export function StrategyEditorView({ client, readOnly = false }: Props) {
               console.error("Waiter error:", e)
             }
           }, 2000)
-        } else if (status.waiter_status === "complete" && status.cook_status === "processing") {
-          // Trigger cook (final step)
+        } else if (status.waiter_status === "complete" && status.plater_status === "processing") {
+          // Trigger plater (final step)
           setTimeout(async () => {
             try {
-              await api.runCook(client.id, versionNumber)
-              // Reload strategy after cook completes
+              await api.runPlater(client.id, versionNumber)
+              // Reload strategy after plater completes
               loadStrategy(versionNumber)
             } catch (e) {
-              console.error("Cook error:", e)
+              console.error("Plater error:", e)
             }
           }, 2000)
         }
@@ -256,7 +256,7 @@ export function StrategyEditorView({ client, readOnly = false }: Props) {
       setPipelineState({
         status: "waiter_processing",
         waiter: "processing",
-        cook: "idle",
+        plater: "idle",
       })
       
       startPipelinePolling(selectedVersion)
@@ -721,9 +721,9 @@ function AgentPipelineStatus({
       color: "violet"
     },
     { 
-      key: "cook" as const, 
-      name: "The Cook", 
-      status: pipelineState.cook,
+      key: "plater" as const, 
+      name: "The Plater", 
+      status: pipelineState.plater,
       icon: ChefHat,
       description: "Building strategy...",
       completedDescription: "Strategy complete",
@@ -846,11 +846,11 @@ function AgentOutputModal({
       color: "violet",
       output: pipelineState.waiterOutput,
     },
-    cook: {
-      name: "The Cook",
+    plater: {
+      name: "The Plater",
       icon: ChefHat,
       color: "emerald",
-      output: pipelineState.cookOutput,
+      output: pipelineState.platerOutput,
     },
   }
 

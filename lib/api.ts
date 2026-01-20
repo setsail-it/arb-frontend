@@ -899,7 +899,7 @@ export const api = {
     fetchJson<{
       status: string
       waiter_status: string
-      cook_status: string
+      plater_status: string
       message: string | null
       error: string | null
     }>(`/clients/${clientId}/strategy/${versionNumber}/pipeline/status`),
@@ -910,9 +910,9 @@ export const api = {
       { method: "POST" }
     ),
   
-  runCook: (clientId: number, versionNumber: number) =>
+  runPlater: (clientId: number, versionNumber: number) =>
     fetchJson<{ status: string; message: string; next_agent: string | null; output: string | null }>(
-      `/clients/${clientId}/strategy/${versionNumber}/pipeline/cook`,
+      `/clients/${clientId}/strategy/${versionNumber}/pipeline/plater`,
       { method: "POST" }
     ),
   
