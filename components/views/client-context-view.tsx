@@ -3,32 +3,23 @@
 import { useState, useEffect, useRef } from "react"
 import type { Client } from "@/types"
 import { api } from "@/lib/api"
-import { DiscoveryDocumentForm } from "@/components/views/discovery-document-form"
 import { GeneralContextForm } from "@/components/views/general-context-form"
-import { CarsonStrategyView } from "@/components/views/carson-strategy-view"
 import { DiscoveryCallView } from "@/components/views/discovery-call-view"
-import { GroundTruthView } from "@/components/views/ground-truth-view"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent } from "@/components/ui/card"
 import { Spinner } from "@/components/ui/spinner"
 import {
   ArrowLeft,
-  FileText, 
-  Database, 
-  Shield,
-  Presentation,
-  FileStack,
   Globe,
   Zap,
   ChevronRight,
   Clock,
   Phone,
   Search,
-  RefreshCw,
+  Database,
   X,
-  ChefHat,
-  ScanSearch,
+  CheckCircle,
 } from "lucide-react"
 
 interface Props {
@@ -37,18 +28,12 @@ interface Props {
 }
 
 type ComponentStatus = "idle" | "processing" | "complete" | "error"
-type ActiveView = "admin" | "discovery" | "discovery-call" | "deep-dive" | "general" | "ground-truth" | "strategy" | "gamma" | "service-docs"
+type ActiveView = "admin" | "discovery-call" | "deep-dive" | "general"
 
 interface FlowState {
-  domain: ComponentStatus
   discoveryCall: ComponentStatus
-  discoveryDoc: ComponentStatus
-  generalContext: ComponentStatus
   deepDive: ComponentStatus
-  groundTruth: ComponentStatus
-  strategyDoc: ComponentStatus
-  gamma: ComponentStatus
-  serviceDocs: ComponentStatus
+  generalContext: ComponentStatus
 }
 
 function formatTime(seconds: number): string {
@@ -64,170 +49,156 @@ export function ClientContextView({ client, readOnly = false }: Props) {
   const [activeView, setActiveView] = useState<ActiveView>("admin")
   const [domainInput, setDomainInput] = useState("")
   const [discoveryCallUrl, setDiscoveryCallUrl] = useState("")
-  const [isActivating, setIsActivating] = useState(false)
-  // Input states are session-only (reset on refresh), modules poll database
-  const [inputsActivated, setInputsActivated] = useState(false)
-  const [flowState, setFlowState] = useState<FlowState>({
-    domain: "idle",
-    discoveryCall: "idle",
-    discoveryDoc: "idle",
-    generalContext: "idle",
-    deepDive: "idle",
-    groundTruth: "idle",
-    strategyDoc: "idle",
-    gamma: "idle",
-    serviceDocs: "idle",
-  })
   const [deepDiveUrl, setDeepDiveUrl] = useState("")
-  const [gammaUrl, setGammaUrl] = useState<string | null>(null)
+  const [isActivating, setIsActivating] = useState(false)
+  const [flowState, setFlowState] = useState<FlowState>({
+    discoveryCall: "idle",
+    deepDive: "idle",
+    generalContext: "idle",
+  })
   
   // Progress tracking for Discovery Call and Deep Dive
   const [dcProgressSteps, setDcProgressSteps] = useState<string[]>([])
   const [ddProgressSteps, setDdProgressSteps] = useState<string[]>([])
   
-  // Timer state for research phase - tracks elapsed seconds since job started
-  const [researchTimer, setResearchTimer] = useState<number | null>(null)
-  const [researchStartTime, setResearchStartTime] = useState<Date | null>(null)
+  // Timer state - tracks elapsed seconds since pipeline started
+  const [pipelineTimer, setPipelineTimer] = useState<number | null>(null)
+  const [pipelineStartTime, setPipelineStartTime] = useState<Date | null>(null)
   const timerIntervalRef = useRef<NodeJS.Timeout | null>(null)
-  const RESEARCH_TIMEOUT_SECONDS = 1800 // 30 minutes
+  const PIPELINE_TIMEOUT_SECONDS = 1800 // 30 minutes
   
-  // Polling interval for discovery call and deep dive
+  // Polling interval refs
   const dcPollingRef = useRef<NodeJS.Timeout | null>(null)
-  const ddivePollingRef = useRef<NodeJS.Timeout | null>(null)
+  const ddPollingRef = useRef<NodeJS.Timeout | null>(null)
+  const gcPollingRef = useRef<NodeJS.Timeout | null>(null)
 
-  // Start/stop timer based on research status - counts UP from start time
+  // Pipeline is still running if any job is processing
+  const isPipelineRunning = flowState.discoveryCall === "processing" || 
+                            flowState.deepDive === "processing" || 
+                            flowState.generalContext === "processing"
+
+  // Start/stop timer based on pipeline status
   useEffect(() => {
-    // DD is frozen - only check DC and GC for research status
-    const isResearching = flowState.discoveryCall === "processing" || flowState.generalContext === "processing"
-    const isDone = flowState.discoveryCall !== "processing" && flowState.generalContext !== "processing"
-    
-    if (isResearching && !timerIntervalRef.current) {
-      // Start timer - if we have a start time, use it; otherwise use now
-      const startTime = researchStartTime || new Date()
-      if (!researchStartTime) {
-        setResearchStartTime(startTime)
+    if (isPipelineRunning && !timerIntervalRef.current) {
+      const startTime = pipelineStartTime || new Date()
+      if (!pipelineStartTime) {
+        setPipelineStartTime(startTime)
       }
       
-      // Calculate initial elapsed time
       const initialElapsed = Math.floor((Date.now() - startTime.getTime()) / 1000)
-      setResearchTimer(initialElapsed)
+      setPipelineTimer(initialElapsed)
       
       timerIntervalRef.current = setInterval(() => {
         const elapsed = Math.floor((Date.now() - startTime.getTime()) / 1000)
-        setResearchTimer(elapsed)
+        setPipelineTimer(elapsed)
         
-        // Auto-abort after 30 minutes (1800 seconds)
-        if (elapsed >= RESEARCH_TIMEOUT_SECONDS) {
-          handleAbortResearch()
+        if (elapsed >= PIPELINE_TIMEOUT_SECONDS) {
+          handleAbortPipeline()
         }
       }, 1000)
-    } else if (isDone && timerIntervalRef.current) {
-      // Stop timer when all are complete or errored
+    } else if (!isPipelineRunning && timerIntervalRef.current) {
       clearInterval(timerIntervalRef.current)
       timerIntervalRef.current = null
-      setResearchTimer(null)
-      setResearchStartTime(null)
+      setPipelineTimer(null)
+      setPipelineStartTime(null)
     }
     
     return () => {
       if (timerIntervalRef.current) {
         clearInterval(timerIntervalRef.current)
-        timerIntervalRef.current = null  // Reset ref so effect can re-create interval
+        timerIntervalRef.current = null
       }
     }
-  }, [flowState.discoveryCall, flowState.discoveryDoc, flowState.generalContext, researchStartTime])
-
-  // Polling interval refs
-  const ddPollingRef = useRef<NodeJS.Timeout | null>(null)
-  const gcPollingRef = useRef<NodeJS.Timeout | null>(null)
-
-  // Polling ref for strategy (defined early so cleanup can reference it)
-  const stratPollingRef = useRef<NodeJS.Timeout | null>(null)
-  // Polling ref for ground truth enhancement
-  const groundTruthPollingRef = useRef<NodeJS.Timeout | null>(null)
+  }, [isPipelineRunning, pipelineStartTime])
 
   // Cleanup polling on unmount
   useEffect(() => {
     return () => {
+      if (dcPollingRef.current) clearInterval(dcPollingRef.current)
       if (ddPollingRef.current) clearInterval(ddPollingRef.current)
       if (gcPollingRef.current) clearInterval(gcPollingRef.current)
-      if (dcPollingRef.current) clearInterval(dcPollingRef.current)
-      if (ddivePollingRef.current) clearInterval(ddivePollingRef.current)
-      if (stratPollingRef.current) clearInterval(stratPollingRef.current)
-      if (groundTruthPollingRef.current) clearInterval(groundTruthPollingRef.current)
     }
   }, [])
   
-  // Track if initial load is complete (to avoid saving on mount)
+  // Auto-save domain when user types (debounced)
   const domainLoadedRef = useRef(false)
   const domainSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   
-  // Auto-save domain when user types (debounced, 1 second)
   useEffect(() => {
-    // Skip saving on initial load or if empty
-    if (!domainLoadedRef.current || !domainInput.trim() || readOnly) {
-      return
-    }
+    if (!domainLoadedRef.current || !domainInput.trim() || readOnly) return
     
-    // Clear existing timeout
-    if (domainSaveTimeoutRef.current) {
-      clearTimeout(domainSaveTimeoutRef.current)
-    }
+    if (domainSaveTimeoutRef.current) clearTimeout(domainSaveTimeoutRef.current)
     
-    // Debounce save by 1 second
     domainSaveTimeoutRef.current = setTimeout(async () => {
       try {
         await api.saveDiscoveryDocument(client.id, { domain: domainInput.trim() })
-        console.log("[Domain] Auto-saved domain:", domainInput.trim())
       } catch (e) {
-        console.error("[Domain] Failed to auto-save domain:", e)
+        console.error("[Domain] Failed to auto-save:", e)
       }
     }, 1000)
     
     return () => {
-      if (domainSaveTimeoutRef.current) {
-        clearTimeout(domainSaveTimeoutRef.current)
-      }
+      if (domainSaveTimeoutRef.current) clearTimeout(domainSaveTimeoutRef.current)
     }
   }, [domainInput, client.id, readOnly])
 
-  // Define polling functions first so they can be used in useEffect
-  const pollDDStatus = () => {
-    // Clear any existing polling first
-    if (ddPollingRef.current) {
-      clearInterval(ddPollingRef.current)
-    }
+  // Polling functions
+  const pollDCStatus = (onComplete?: () => void) => {
+    if (dcPollingRef.current) clearInterval(dcPollingRef.current)
+    dcPollingRef.current = setInterval(async () => {
+      try {
+        const status = await api.getDiscoveryCallProcessStatus(client.id)
+        console.log("[DC Poll] Status:", status.status)
+        
+        if (status.progress_steps) setDcProgressSteps(status.progress_steps)
+        
+        if (status.status === "complete") {
+          clearInterval(dcPollingRef.current!)
+          dcPollingRef.current = null
+          setFlowState(prev => ({ ...prev, discoveryCall: "complete" }))
+          setDcProgressSteps([])
+          onComplete?.()
+        } else if (status.status === "error" || status.status === "cancelled") {
+          clearInterval(dcPollingRef.current!)
+          dcPollingRef.current = null
+          setFlowState(prev => ({ ...prev, discoveryCall: status.status === "error" ? "error" : "idle" }))
+          setDcProgressSteps([])
+        }
+      } catch (e) {
+        console.error("DC poll error:", e)
+      }
+    }, 5000)
+  }
+
+  const pollDeepDiveStatus = (onComplete?: () => void) => {
+    if (ddPollingRef.current) clearInterval(ddPollingRef.current)
     ddPollingRef.current = setInterval(async () => {
       try {
-        const status = await api.getInitialDraftStatus(client.id)
+        const status = await api.getDeepDiveProcessStatus(client.id)
         console.log("[DD Poll] Status:", status.status)
+        
+        if (status.progress_steps) setDdProgressSteps(status.progress_steps)
         
         if (status.status === "complete") {
           clearInterval(ddPollingRef.current!)
           ddPollingRef.current = null
-          setFlowState(prev => ({ ...prev, discoveryDoc: "complete" }))
-        } else if (status.status === "error") {
+          setFlowState(prev => ({ ...prev, deepDive: "complete" }))
+          setDdProgressSteps([])
+          onComplete?.()
+        } else if (status.status === "error" || status.status === "cancelled") {
           clearInterval(ddPollingRef.current!)
           ddPollingRef.current = null
-          console.error("DD job error:", status.error_message)
-          setFlowState(prev => ({ ...prev, discoveryDoc: "error" }))
-        } else if (status.status === "cancelled") {
-          clearInterval(ddPollingRef.current!)
-          ddPollingRef.current = null
-          console.log("DD job cancelled")
-          setFlowState(prev => ({ ...prev, discoveryDoc: "idle" }))
+          setFlowState(prev => ({ ...prev, deepDive: status.status === "error" ? "error" : "idle" }))
+          setDdProgressSteps([])
         }
       } catch (e) {
         console.error("DD poll error:", e)
       }
-    }, 3000) // Poll every 3 seconds
+    }, 5000)
   }
 
   const pollGCStatus = () => {
-    // Clear any existing polling first
-    if (gcPollingRef.current) {
-      clearInterval(gcPollingRef.current)
-    }
+    if (gcPollingRef.current) clearInterval(gcPollingRef.current)
     gcPollingRef.current = setInterval(async () => {
       try {
         const status = await api.getContextFetchStatus(client.id)
@@ -237,709 +208,228 @@ export function ClientContextView({ client, readOnly = false }: Props) {
           clearInterval(gcPollingRef.current!)
           gcPollingRef.current = null
           setFlowState(prev => ({ ...prev, generalContext: "complete" }))
-        } else if (status.status === "error") {
+        } else if (status.status === "error" || status.status === "cancelled") {
           clearInterval(gcPollingRef.current!)
           gcPollingRef.current = null
-          console.error("GC job error:", status.error_message)
-          setFlowState(prev => ({ ...prev, generalContext: "error" }))
-        } else if (status.status === "cancelled") {
-          clearInterval(gcPollingRef.current!)
-          gcPollingRef.current = null
-          console.log("GC job cancelled")
-          setFlowState(prev => ({ ...prev, generalContext: "idle" }))
+          setFlowState(prev => ({ ...prev, generalContext: status.status === "error" ? "error" : "idle" }))
         }
       } catch (e) {
         console.error("GC poll error:", e)
       }
-    }, 3000) // Poll every 3 seconds
+    }, 3000)
   }
 
-  const pollDCStatus = () => {
-    // Clear any existing polling first
-    if (dcPollingRef.current) {
-      clearInterval(dcPollingRef.current)
-    }
-    dcPollingRef.current = setInterval(async () => {
-      try {
-        const status = await api.getDiscoveryCallProcessStatus(client.id)
-        console.log("[DC Poll] Status:", status.status, "Progress:", status.progress_steps)
-        
-        // Update progress steps
-        if (status.progress_steps) {
-          setDcProgressSteps(status.progress_steps)
-        }
-        
-        if (status.status === "complete") {
-          clearInterval(dcPollingRef.current!)
-          dcPollingRef.current = null
-          setFlowState(prev => ({ ...prev, discoveryCall: "complete" }))
-          setDcProgressSteps([]) // Clear on complete
-        } else if (status.status === "error") {
-          clearInterval(dcPollingRef.current!)
-          dcPollingRef.current = null
-          console.error("DC job error:", status.error_message)
-          setFlowState(prev => ({ ...prev, discoveryCall: "error" }))
-          setDcProgressSteps([])
-        } else if (status.status === "cancelled") {
-          clearInterval(dcPollingRef.current!)
-          dcPollingRef.current = null
-          console.log("DC job cancelled")
-          setFlowState(prev => ({ ...prev, discoveryCall: "idle" }))
-          setDcProgressSteps([])
-        }
-      } catch (e) {
-        console.error("DC poll error:", e)
-      }
-    }, 5000) // Poll every 5 seconds (this job takes longer)
-  }
-
-  const pollDeepDiveStatus = () => {
-    // Clear any existing polling first
-    if (ddivePollingRef.current) {
-      clearInterval(ddivePollingRef.current)
-    }
-    ddivePollingRef.current = setInterval(async () => {
-      try {
-        const status = await api.getDeepDiveProcessStatus(client.id)
-        console.log("[DeepDive Poll] Status:", status.status, "Progress:", status.progress_steps)
-        
-        // Update progress steps
-        if (status.progress_steps) {
-          setDdProgressSteps(status.progress_steps)
-        }
-        
-        if (status.status === "complete") {
-          clearInterval(ddivePollingRef.current!)
-          ddivePollingRef.current = null
-          setFlowState(prev => ({ ...prev, deepDive: "complete" }))
-          setDdProgressSteps([]) // Clear on complete
-        } else if (status.status === "error") {
-          clearInterval(ddivePollingRef.current!)
-          ddivePollingRef.current = null
-          console.error("DeepDive job error:", status.error_message)
-          setFlowState(prev => ({ ...prev, deepDive: "error" }))
-          setDdProgressSteps([])
-        } else if (status.status === "cancelled") {
-          clearInterval(ddivePollingRef.current!)
-          ddivePollingRef.current = null
-          console.log("DeepDive job cancelled")
-          setFlowState(prev => ({ ...prev, deepDive: "idle" }))
-          setDdProgressSteps([])
-        }
-      } catch (e) {
-        console.error("DeepDive poll error:", e)
-      }
-    }, 5000)
-  }
-
-  // Check for running jobs when returning to admin view (e.g., after manual fetch from General Context)
+  // Load existing data on mount
   useEffect(() => {
-    if (activeView !== "admin") return
-    
-    const checkRunningJobs = async () => {
-      try {
-        // Check GC status
-        const gcStatus = await api.getContextFetchStatus(client.id).catch(() => null)
-        if (gcStatus && (gcStatus.status === "running" || gcStatus.status === "pending")) {
-          console.log("[View Change] GC job is running, resuming poll")
-          setFlowState(prev => ({ ...prev, generalContext: "processing" }))
-          pollGCStatus()
-        }
-        
-        // Check DD status
-        const ddStatus = await api.getInitialDraftStatus(client.id).catch(() => null)
-        if (ddStatus && (ddStatus.status === "running" || ddStatus.status === "pending")) {
-          console.log("[View Change] DD job is running, resuming poll")
-          setFlowState(prev => ({ ...prev, discoveryDoc: "processing" }))
-          pollDDStatus()
-        }
-        
-        // Check DC status
-        const dcStatus = await api.getDiscoveryCallProcessStatus(client.id).catch(() => null)
-        if (dcStatus && (dcStatus.status === "running" || dcStatus.status === "pending")) {
-          console.log("[View Change] DC job is running, resuming poll")
-          setFlowState(prev => ({ ...prev, discoveryCall: "processing" }))
-          pollDCStatus()
-        }
-      } catch (e) {
-        console.error("[View Change] Error checking job status:", e)
-      }
-    }
-    
-    checkRunningJobs()
-  }, [activeView, client.id])
-
-  // Load existing data AND check for in-progress jobs on mount
-  useEffect(() => {
-    // Reset all state when client changes
-    domainLoadedRef.current = false // Reset so auto-save doesn't trigger on load
+    domainLoadedRef.current = false
     setDomainInput("")
     setDiscoveryCallUrl("")
-    setIsActivating(false)
-    setInputsActivated(false)
     setDeepDiveUrl("")
-    setGammaUrl(null)
+    setIsActivating(false)
     setDcProgressSteps([])
     setDdProgressSteps([])
-    setResearchTimer(null)
-    setResearchStartTime(null)
+    setPipelineTimer(null)
+    setPipelineStartTime(null)
     setActiveView("admin")
-    setFlowState({
-      domain: "idle",
-      discoveryCall: "idle",
-      discoveryDoc: "idle",
-      generalContext: "idle",
-      deepDive: "idle",
-      groundTruth: "idle",
-      strategyDoc: "idle",
-      gamma: "idle",
-      serviceDocs: "idle",
-    })
+    setFlowState({ discoveryCall: "idle", deepDive: "idle", generalContext: "idle" })
     
-    // Clear any existing polling intervals
-    if (timerIntervalRef.current) {
-      clearInterval(timerIntervalRef.current)
-      timerIntervalRef.current = null
-    }
-    if (dcPollingRef.current) {
-      clearInterval(dcPollingRef.current)
-      dcPollingRef.current = null
-    }
-    if (ddPollingRef.current) {
-      clearInterval(ddPollingRef.current)
-      ddPollingRef.current = null
-    }
-    if (gcPollingRef.current) {
-      clearInterval(gcPollingRef.current)
-      gcPollingRef.current = null
-    }
-    if (ddivePollingRef.current) {
-      clearInterval(ddivePollingRef.current)
-      ddivePollingRef.current = null
-    }
-    if (stratPollingRef.current) {
-      clearInterval(stratPollingRef.current)
-      stratPollingRef.current = null
-    }
-    if (groundTruthPollingRef.current) {
-      clearInterval(groundTruthPollingRef.current)
-      groundTruthPollingRef.current = null
-    }
+    // Clear polling
+    if (timerIntervalRef.current) { clearInterval(timerIntervalRef.current); timerIntervalRef.current = null }
+    if (dcPollingRef.current) { clearInterval(dcPollingRef.current); dcPollingRef.current = null }
+    if (ddPollingRef.current) { clearInterval(ddPollingRef.current); ddPollingRef.current = null }
+    if (gcPollingRef.current) { clearInterval(gcPollingRef.current); gcPollingRef.current = null }
 
-    const loadExistingDataAndJobStatus = async () => {
+    const loadData = async () => {
       try {
-        // First check job statuses and collect start times
-        let ddJobStatus: string | null = null
-        let gcJobStatus: string | null = null
-        let ddStartedAt: string | null = null
-        let gcStartedAt: string | null = null
-        let dcStartedAt: string | null = null
-        
+        // Load domain
         try {
-          const ddStatus = await api.getInitialDraftStatus(client.id)
-          ddJobStatus = ddStatus.status
-          ddStartedAt = ddStatus.started_at
-          console.log("[Load] DD job status:", ddJobStatus, "started_at:", ddStartedAt)
-        } catch (e) {
-          // No DD job found
-        }
-        
-        try {
-          const gcStatus = await api.getContextFetchStatus(client.id)
-          gcJobStatus = gcStatus.status
-          gcStartedAt = gcStatus.started_at
-          console.log("[Load] GC job status:", gcJobStatus, "started_at:", gcStartedAt)
-        } catch (e) {
-          // No GC job found
-        }
-        
-        // Load document data
-        let doc: any = null
-        try {
-          doc = await api.getDiscoveryDocument(client.id)
-          if (doc && doc.domain) {
-            setDomainInput(doc.domain)
-          }
-        } catch (e) {
-          // No document
-        }
-        // Mark domain as loaded so auto-save can kick in
+          const doc = await api.getDiscoveryDocument(client.id)
+          if (doc?.domain) setDomainInput(doc.domain)
+        } catch {}
         domainLoadedRef.current = true
         
-        // Determine DD state based on job status first, then data
-        let ddState: ComponentStatus = "idle"
-        if (ddJobStatus === "running" || ddJobStatus === "pending") {
-          ddState = "processing"
-          // Resume polling for this job
-          pollDDStatus()
-        } else if (ddJobStatus === "error") {
-          ddState = "error"
-        } else if (ddJobStatus === "cancelled") {
-          ddState = "idle"  // Cancelled jobs show as idle, allowing restart
-        } else if (ddJobStatus === "complete" || (doc && doc.client_name)) {
-          ddState = "complete"
-        }
+        // Load discovery call URL and deep dive URL from context
+        try {
+          const ctx = await api.getContext(client.id)
+          if (ctx?.discovery_call_url) setDiscoveryCallUrl(ctx.discovery_call_url)
+          if (ctx?.deep_dive_url) setDeepDiveUrl(ctx.deep_dive_url)
+        } catch {}
         
-        // Check discovery call status
-        let dcJobStatus: string | null = null
+        // Check job statuses
         let dcState: ComponentStatus = "idle"
+        let ddState: ComponentStatus = "idle"
+        let gcState: ComponentStatus = "idle"
+        let earliestStart: Date | null = null
+        
+        // DC status
         try {
           const dcStatus = await api.getDiscoveryCallProcessStatus(client.id)
-          dcJobStatus = dcStatus.status
-          dcStartedAt = dcStatus.started_at
-          console.log("[Load] DC job status:", dcJobStatus, "started_at:", dcStartedAt)
-        } catch (e) {
-          // No DC job found
-        }
-        
-        if (dcJobStatus === "running" || dcJobStatus === "pending") {
-          dcState = "processing"
-          pollDCStatus()
-        } else if (dcJobStatus === "error") {
-          dcState = "error"
-        } else if (dcJobStatus === "cancelled") {
-          dcState = "idle"  // Cancelled jobs show as idle, allowing restart
-        } else {
-          // Check if results actually exist (job status "complete" doesn't guarantee data was saved)
-          try {
-            const dcResult = await api.getDiscoveryCallResult(client.id)
-            if (dcResult && dcResult.id && dcResult.answers_data) {
-              dcState = "complete"
-            }
-          } catch (e) {
-            // No results - stay idle
-          }
-        }
-        
-        // Determine GC state based on job status first, then data
-        let gcState: ComponentStatus = "idle"
-        let contextData: any = null
-        try {
-          contextData = await api.getContext(client.id)
-          // Load persisted discovery call URL
-          if (contextData && contextData.discovery_call_url) {
-            setDiscoveryCallUrl(contextData.discovery_call_url)
-          }
-        } catch (e) {
-          // No context data
-        }
-        
-        if (gcJobStatus === "running" || gcJobStatus === "pending") {
-          gcState = "processing"
-          // Resume polling for this job
-          pollGCStatus()
-        } else if (gcJobStatus === "error") {
-          gcState = "error"
-        } else if (gcJobStatus === "cancelled") {
-          gcState = "idle"  // Cancelled jobs show as idle, allowing restart
-        } else if (gcJobStatus === "complete" || (contextData && (contextData.about || contextData.author_tone))) {
-          gcState = "complete"
-        }
-        
-        // Check deep dive status
-        let deepDiveState: ComponentStatus = "idle"
-        try {
-          const ddiveStatus = await api.getDeepDiveProcessStatus(client.id)
-          console.log("[Load] Deep dive job status:", ddiveStatus.status)
-          if (ddiveStatus.status === "running" || ddiveStatus.status === "pending") {
-            deepDiveState = "processing"
-            pollDeepDiveStatus()
-          } else if (ddiveStatus.status === "error") {
-            deepDiveState = "error"
+          if (dcStatus.status === "running" || dcStatus.status === "pending") {
+            dcState = "processing"
+            pollDCStatus()
+            if (dcStatus.started_at) earliestStart = new Date(dcStatus.started_at)
+          } else if (dcStatus.status === "complete") {
+            dcState = "complete"
+          } else if (dcStatus.status === "error") {
+            dcState = "error"
           } else {
             // Check if results exist
             try {
-              const ddiveResult = await api.getDeepDiveResult(client.id)
-              if (ddiveResult && ddiveResult.id && ddiveResult.answers_data) {
-                deepDiveState = "complete"
-              }
-            } catch (e2) {
-              // No results
-            }
+              const dcResult = await api.getDiscoveryCallResult(client.id)
+              if (dcResult?.answers_data) dcState = "complete"
+            } catch {}
           }
-        } catch (e) {
-          // No job found, check if results exist
-          try {
-            const ddiveResult = await api.getDeepDiveResult(client.id)
-            if (ddiveResult && ddiveResult.id && ddiveResult.answers_data) {
-              deepDiveState = "complete"
-            }
-          } catch (e2) {
-            // No results
-          }
-        }
-
-        // Check strategy document status
-        let strategyState: ComponentStatus = "idle"
+        } catch {}
+        
+        // DD status
         try {
-          const strategyStatus = await api.getStrategyGenerationStatus(client.id)
-          if (strategyStatus.status === "running" || strategyStatus.status === "pending") {
-            strategyState = "processing"
-          } else if (strategyStatus.status === "error") {
-            strategyState = "error"
-          } else if (strategyStatus.status === "complete") {
-            strategyState = "complete"
-          }
-        } catch (e) {
-          // No job found, check if document exists
-          try {
-            const strategyDoc = await api.getStrategyDocument(client.id)
-            if (strategyDoc && strategyDoc.content) {
-              strategyState = "complete"
+          const ddStatus = await api.getDeepDiveProcessStatus(client.id)
+          if (ddStatus.status === "running" || ddStatus.status === "pending") {
+            ddState = "processing"
+            pollDeepDiveStatus()
+            if (ddStatus.started_at && (!earliestStart || new Date(ddStatus.started_at) < earliestStart)) {
+              earliestStart = new Date(ddStatus.started_at)
             }
-          } catch (e2) {
-            // No document
+          } else if (ddStatus.status === "complete") {
+            ddState = "complete"
+          } else if (ddStatus.status === "error") {
+            ddState = "error"
+          } else {
+            try {
+              const ddResult = await api.getDeepDiveResult(client.id)
+              if (ddResult?.answers_data) ddState = "complete"
+            } catch {}
           }
-        }
-
-        // Note: domain/inputs are session-only (don't persist green on refresh)
-        // Only research modules check database for status
-        setFlowState(prev => ({
-          ...prev,
-          discoveryCall: dcState,
-          discoveryDoc: ddState,
-          generalContext: gcState,
-          deepDive: deepDiveState,
-          strategyDoc: strategyState,
-        }))
+        } catch {}
         
-        // If any research jobs are running, find the earliest start time for the timer
-        const runningStartTimes: Date[] = []
-        if ((ddState === "processing") && ddStartedAt) {
-          runningStartTimes.push(new Date(ddStartedAt))
-        }
-        if ((gcState === "processing") && gcStartedAt) {
-          runningStartTimes.push(new Date(gcStartedAt))
-        }
-        if ((dcState === "processing") && dcStartedAt) {
-          runningStartTimes.push(new Date(dcStartedAt))
-        }
+        // GC status
+        try {
+          const gcStatus = await api.getContextFetchStatus(client.id)
+          if (gcStatus.status === "running" || gcStatus.status === "pending") {
+            gcState = "processing"
+            pollGCStatus()
+            if (gcStatus.started_at && (!earliestStart || new Date(gcStatus.started_at) < earliestStart)) {
+              earliestStart = new Date(gcStatus.started_at)
+            }
+          } else if (gcStatus.status === "complete") {
+            gcState = "complete"
+          } else if (gcStatus.status === "error") {
+            gcState = "error"
+          } else {
+            try {
+              const ctx = await api.getContext(client.id)
+              if (ctx?.about || ctx?.author_tone) gcState = "complete"
+            } catch {}
+          }
+        } catch {}
         
-        if (runningStartTimes.length > 0) {
-          // Use the earliest start time
-          const earliestStart = new Date(Math.min(...runningStartTimes.map(d => d.getTime())))
-          console.log("[Load] Setting research start time to:", earliestStart)
-          setResearchStartTime(earliestStart)
+        setFlowState({ discoveryCall: dcState, deepDive: ddState, generalContext: gcState })
+        
+        if (earliestStart) {
+          setPipelineStartTime(earliestStart)
           setIsActivating(true)
         }
-        
       } catch (e) {
-        console.error("Error loading existing data:", e)
+        console.error("Error loading data:", e)
       }
     }
-    loadExistingDataAndJobStatus()
+    
+    loadData()
   }, [client.id])
 
+  // Check if all inputs are filled
+  const allInputsFilled = domainInput.trim() && discoveryCallUrl.trim() && deepDiveUrl.trim()
+
+  // Sequential pipeline: DC -> DD -> GC
   const handleActivate = async () => {
-    if (!domainInput.trim()) return
+    if (!allInputsFilled) return
     
     setIsActivating(true)
-    setInputsActivated(true) // Mark inputs as activated (session-only, resets on refresh)
     
-    // Determine which jobs to start
-    const hasDiscoveryCallUrl = discoveryCallUrl.trim().length > 0
-    
-    // Note: discoveryDoc is FROZEN - not started
-    setFlowState(prev => ({
-      ...prev,
-      discoveryCall: hasDiscoveryCallUrl ? "processing" : prev.discoveryCall,
-      generalContext: "processing",
-    }))
-
-    // Save domain to DiscoveryDocument for persistence
+    // Save inputs
     try {
-      await api.saveDiscoveryDocument(client.id, { 
-        domain: domainInput.trim()
+      await api.saveDiscoveryDocument(client.id, { domain: domainInput.trim() })
+      await api.saveContext(client.id, { 
+        domain: domainInput.trim(),
+        discovery_call_url: discoveryCallUrl.trim(),
+        deep_dive_url: deepDiveUrl.trim()
       })
-      console.log("[Activate] Domain saved to discovery document")
     } catch (e) {
-      console.error("Failed to save domain to discovery document:", e)
+      console.error("Failed to save inputs:", e)
     }
 
-    // Save discovery call URL to context if provided
-    if (hasDiscoveryCallUrl) {
-      try {
-        await api.saveContext(client.id, { 
-          domain: domainInput.trim(),
-          discovery_call_url: discoveryCallUrl.trim() 
-        })
-        console.log("[Activate] Discovery call URL saved to context")
-      } catch (e) {
-        console.error("Failed to save discovery call URL:", e)
-      }
-    }
-
-    // Start jobs in parallel (DD is frozen, not started)
+    // Step 1: Start Discovery Call
+    setFlowState(prev => ({ ...prev, discoveryCall: "processing" }))
     try {
-      const promises: Promise<any>[] = [
-        api.fetchContextFromSiteAsync(client.id, domainInput.trim()),
-      ]
-      
-      if (hasDiscoveryCallUrl) {
-        promises.push(api.processDiscoveryCall(client.id, discoveryCallUrl.trim()))
-      }
-      
-      const results = await Promise.all(promises)
-      
-      console.log("[Activate] GC job started:", results[0])
-      if (hasDiscoveryCallUrl) {
-        console.log("[Activate] DC job started:", results[1])
-      }
-      
-      // Start polling (DD is frozen)
-      pollGCStatus()
-      if (hasDiscoveryCallUrl) {
-        pollDCStatus()
-      }
-      
+      await api.processDiscoveryCall(client.id, discoveryCallUrl.trim())
+      pollDCStatus(async () => {
+        // Step 2: Start Deep Dive after DC completes
+        setFlowState(prev => ({ ...prev, deepDive: "processing" }))
+        try {
+          await api.processDeepDive(client.id, deepDiveUrl.trim())
+          pollDeepDiveStatus(async () => {
+            // Step 3: Start General Context after DD completes
+            setFlowState(prev => ({ ...prev, generalContext: "processing" }))
+            try {
+              await api.fetchContextFromSiteAsync(client.id, domainInput.trim())
+              pollGCStatus()
+            } catch (e) {
+              console.error("Failed to start GC:", e)
+              setFlowState(prev => ({ ...prev, generalContext: "error" }))
+            }
+          })
+        } catch (e) {
+          console.error("Failed to start DD:", e)
+          setFlowState(prev => ({ ...prev, deepDive: "error" }))
+        }
+      })
     } catch (e) {
-      console.error("Failed to start jobs:", e)
-      setFlowState(prev => ({
-        ...prev,
-        discoveryCall: hasDiscoveryCallUrl ? "error" : prev.discoveryCall,
-        generalContext: "error",
-      }))
+      console.error("Failed to start DC:", e)
+      setFlowState(prev => ({ ...prev, discoveryCall: "error" }))
     }
-    
-    setIsActivating(false)
   }
 
-  const handleAbortResearch = async () => {
-    console.log("[Abort] Aborting research...")
-    
-    // Cancel jobs on the backend first (DD is frozen, not included)
+  const handleAbortPipeline = async () => {
     try {
-      const result = await api.cancelJobs(client.id, [
-        "discovery_call",
-        "general_context"
-      ])
-      console.log("[Abort] Backend cancel result:", result)
+      await api.cancelJobs(client.id, ["discovery_call", "deep_dive", "general_context"])
     } catch (e) {
-      console.error("[Abort] Failed to cancel backend jobs:", e)
+      console.error("Failed to cancel jobs:", e)
     }
     
-    // Stop all polling
-    if (dcPollingRef.current) {
-      clearInterval(dcPollingRef.current)
-      dcPollingRef.current = null
-    }
-    if (ddPollingRef.current) {
-      clearInterval(ddPollingRef.current)
-      ddPollingRef.current = null
-    }
-    if (gcPollingRef.current) {
-      clearInterval(gcPollingRef.current)
-      gcPollingRef.current = null
-    }
+    // Stop polling
+    if (dcPollingRef.current) { clearInterval(dcPollingRef.current); dcPollingRef.current = null }
+    if (ddPollingRef.current) { clearInterval(ddPollingRef.current); ddPollingRef.current = null }
+    if (gcPollingRef.current) { clearInterval(gcPollingRef.current); gcPollingRef.current = null }
+    if (timerIntervalRef.current) { clearInterval(timerIntervalRef.current); timerIntervalRef.current = null }
     
-    // Stop timer
-    if (timerIntervalRef.current) {
-      clearInterval(timerIntervalRef.current)
-      timerIntervalRef.current = null
-    }
-    setResearchTimer(null)
-    setResearchStartTime(null)
+    setPipelineTimer(null)
+    setPipelineStartTime(null)
     
-    // Set all processing states to idle (cancelled)
     setFlowState(prev => ({
-      ...prev,
       discoveryCall: prev.discoveryCall === "processing" ? "idle" : prev.discoveryCall,
-      // discoveryDoc is frozen - don't touch its state
+      deepDive: prev.deepDive === "processing" ? "idle" : prev.deepDive,
       generalContext: prev.generalContext === "processing" ? "idle" : prev.generalContext,
     }))
     
     setIsActivating(false)
-    setInputsActivated(false)
-  }
-
-  const handleDeepDive = async () => {
-    if (!deepDiveUrl.trim()) return
-    if (flowState.discoveryCall !== "complete") {
-      alert("Discovery Call must be completed first")
-      return
-    }
-    
-    setFlowState(prev => ({ ...prev, deepDive: "processing" }))
-    
-    try {
-      const result = await api.processDeepDive(client.id, deepDiveUrl.trim())
-      console.log("[DeepDive] Job started:", result)
-      pollDeepDiveStatus()
-    } catch (e) {
-      console.error("Failed to start deep dive:", e)
-      setFlowState(prev => ({ ...prev, deepDive: "error" }))
-    }
-  }
-
-  const pollGroundTruthStatus = () => {
-    if (groundTruthPollingRef.current) clearInterval(groundTruthPollingRef.current)
-    groundTruthPollingRef.current = setInterval(async () => {
-      try {
-        const status = await api.getGroundTruthStatus(client.id)
-        console.log("[GroundTruth Poll] Status:", status.status)
-        
-        if (status.status === "complete") {
-          clearInterval(groundTruthPollingRef.current!)
-          groundTruthPollingRef.current = null
-          setFlowState(prev => ({ ...prev, groundTruth: "complete" }))
-        } else if (status.status === "error") {
-          clearInterval(groundTruthPollingRef.current!)
-          groundTruthPollingRef.current = null
-          console.error("GroundTruth job error:", status.error_message)
-          setFlowState(prev => ({ ...prev, groundTruth: "error" }))
-        }
-      } catch (e) {
-        console.error("GroundTruth poll error:", e)
-      }
-    }, 5000)
-  }
-
-  const handleGroundTruthEnhancement = async () => {
-    if (flowState.discoveryCall !== "complete" && flowState.deepDive !== "complete") {
-      alert("Discovery Call or Deep Dive must be completed first")
-      return
-    }
-    
-    setFlowState(prev => ({ ...prev, groundTruth: "processing" }))
-    
-    // Start polling immediately
-    pollGroundTruthStatus()
-    
-    try {
-      const result = await api.runGroundTruthEnhancement(client.id)
-      console.log("[GroundTruth] Job started:", result)
-    } catch (e) {
-      console.error("Failed to start ground truth enhancement (polling continues):", e)
-      // Don't set error - let polling determine actual status
-    }
-  }
-
-  const pollStrategyStatus = () => {
-    if (stratPollingRef.current) clearInterval(stratPollingRef.current)
-    stratPollingRef.current = setInterval(async () => {
-      try {
-        const status = await api.getStrategyGenerationStatus(client.id)
-        console.log("[Strategy Poll] Status:", status.status)
-        
-        if (status.status === "complete") {
-          clearInterval(stratPollingRef.current!)
-          stratPollingRef.current = null
-          setFlowState(prev => ({ ...prev, strategyDoc: "complete" }))
-        } else if (status.status === "error") {
-          clearInterval(stratPollingRef.current!)
-          stratPollingRef.current = null
-          console.error("Strategy job error:", status.error_message)
-          setFlowState(prev => ({ ...prev, strategyDoc: "error" }))
-        }
-      } catch (e) {
-        console.error("Strategy poll error:", e)
-      }
-    }, 5000)
-  }
-
-  const handleStrategyGenerate = async () => {
-    setFlowState(prev => ({ ...prev, strategyDoc: "processing" }))
-    
-    // Always start polling - even if the trigger request fails/times out,
-    // a job may have been created on the backend
-    pollStrategyStatus()
-    
-    try {
-      const response = await api.generateStrategyDocument(client.id)
-      console.log("[Strategy] Generation started:", response)
-    } catch (e) {
-      console.error("Failed to start strategy generation (polling continues):", e)
-      // Don't set error - let polling determine the actual status
-    }
-  }
-
-  const handleGammaGenerate = async () => {
-    if (flowState.strategyDoc !== "complete") {
-      alert("Strategy Document must be completed first")
-      return
-    }
-    
-    setFlowState(prev => ({ ...prev, gamma: "processing" }))
-    
-    try {
-      const response = await api.generateGammaPresentation(client.id)
-      
-      if (response.success && response.presentation_url) {
-        setGammaUrl(response.presentation_url)
-        setFlowState(prev => ({ ...prev, gamma: "complete" }))
-        // Open the presentation in a new tab
-        window.open(response.presentation_url, "_blank")
-      } else {
-        console.error("Gamma generation failed:", response.message)
-        setFlowState(prev => ({ ...prev, gamma: "error" }))
-      }
-    } catch (e) {
-      console.error("Failed to generate Gamma presentation:", e)
-      setFlowState(prev => ({ ...prev, gamma: "error" }))
-    }
-  }
-
-  const handleServiceDocsGenerate = async () => {
-    setFlowState(prev => ({ ...prev, serviceDocs: "processing" }))
-    await new Promise(resolve => setTimeout(resolve, 2000))
-    setFlowState(prev => ({ ...prev, serviceDocs: "complete" }))
   }
 
   // Detail views
   if (activeView !== "admin") {
     return (
       <div className="h-full overflow-auto">
-        {/* Don't show parent back button for strategy view - it handles its own navigation */}
-        {activeView !== "strategy" && (
-          <Button 
-            variant="ghost" 
-            onClick={() => setActiveView("admin")}
-            className="mb-6 gap-2 text-muted-foreground hover:text-foreground"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Back to Pipeline
-          </Button>
-        )}
+        <Button 
+          variant="ghost" 
+          onClick={() => setActiveView("admin")}
+          className="mb-6 gap-2 text-muted-foreground hover:text-foreground"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Back to Pipeline
+        </Button>
         
-        {activeView === "discovery" && (
-          <DiscoveryDocumentForm client={client} initialDomain={domainInput} />
-        )}
-        {activeView === "discovery-call" && (
-          <DiscoveryCallView client={client} />
-        )}
-        {activeView === "deep-dive" && (
-          <DiscoveryCallView client={client} isDeepDive />
-        )}
-        {activeView === "general" && (
-          <GeneralContextForm client={client} readOnly={readOnly} />
-        )}
-        {activeView === "ground-truth" && (
-          <GroundTruthView 
-            client={client}
-            onNavigateTo={(view) => setActiveView(view as ActiveView)}
-          />
-        )}
-        {activeView === "strategy" && (
-          <CarsonStrategyView client={client} onBack={() => setActiveView("admin")} />
-        )}
-        {activeView === "gamma" && (
-          <StubView 
-            title="Gamma Presentation" 
-            description="Auto-generated slide deck presentation"
-            icon={<Presentation className="h-8 w-8" />}
-            onGenerate={handleGammaGenerate}
-            status={flowState.gamma}
-          />
-        )}
-        {activeView === "service-docs" && (
-          <StubView 
-            title="Service Documents" 
-            description="Client deliverable documents"
-            icon={<FileStack className="h-8 w-8" />}
-            onGenerate={handleServiceDocsGenerate}
-            status={flowState.serviceDocs}
-          />
-        )}
+        {activeView === "discovery-call" && <DiscoveryCallView client={client} />}
+        {activeView === "deep-dive" && <DiscoveryCallView client={client} isDeepDive />}
+        {activeView === "general" && <GeneralContextForm client={client} readOnly={readOnly} />}
       </div>
     )
   }
@@ -964,359 +454,137 @@ export function ClientContextView({ client, readOnly = false }: Props) {
       {/* Main Pipeline Flow */}
       <div className="space-y-8">
         
-        {/* Research + Context Section */}
+        {/* Input Section */}
         <div className="relative rounded-xl border-2 border-dashed border-slate-700 p-6 pt-10">
-          {/* Section Label */}
           <div className="absolute -top-3 left-6 bg-slate-950 px-3">
-            <span className="text-sm font-semibold text-slate-400 uppercase tracking-wider">Research + Context</span>
+            <span className="text-sm font-semibold text-slate-400 uppercase tracking-wider">Inputs</span>
           </div>
           
-          <div className="space-y-8">
-            {/* Stage 1: Input */}
+          <div className="space-y-6">
+            {/* Input Row */}
             <div className="flex items-start gap-6">
-          <StageLabel number={1} label="Input" />
-          <div className="flex gap-4">
-            <PipelineCard
-              title="Domain / Company Info"
-              icon={<Globe className="h-5 w-5" />}
-              status={inputsActivated ? "complete" : "idle"}
-              className="w-80"
-            >
-              <Textarea
-                placeholder="Enter domain (e.g., acme.com) or company description..."
-                value={domainInput}
-                onChange={(e) => setDomainInput(e.target.value)}
-                className="bg-slate-800/50 border-slate-700 text-white placeholder:text-slate-500 min-h-[60px] resize-none"
-              />
-            </PipelineCard>
-            <PipelineCard
-              title="Discovery Call URL"
-              icon={<Phone className="h-5 w-5" />}
-              status={inputsActivated && discoveryCallUrl.trim() ? "complete" : "idle"}
-              className="w-80"
-            >
-              <Textarea
-                placeholder="Fathom URL (e.g., https://fathom.video/calls/...)"
-                value={discoveryCallUrl}
-                onChange={(e) => setDiscoveryCallUrl(e.target.value)}
-                className="bg-slate-800/50 border-slate-700 text-white placeholder:text-slate-500 min-h-[60px] resize-none"
-              />
-            </PipelineCard>
-          </div>
-        </div>
-        
-        {/* Activate Button */}
-        <div className="flex items-center gap-6">
-          <div className="w-20" />
-          {(isActivating || flowState.discoveryCall === "processing" || flowState.generalContext === "processing") ? (
-            <div className="flex items-center gap-2">
-              <Button
-                disabled
-                className="px-8 bg-gradient-to-r from-violet-600 to-indigo-600 text-white border-0 cursor-not-allowed"
-              >
-                <Spinner className="h-4 w-4 mr-2" />
-                Processing...
-              </Button>
-              <Button
-                onClick={handleAbortResearch}
-                variant="outline"
-                className="px-4 border-red-500/50 text-red-400 hover:bg-red-900/30 hover:text-red-300"
-              >
-                <X className="h-4 w-4 mr-1" />
-                Abort
-              </Button>
+              <StageLabel number={1} label="Input" />
+              <div className="flex gap-4 flex-wrap">
+                <InputCard
+                  title="Domain / Company Info"
+                  icon={<Globe className="h-5 w-5" />}
+                  filled={!!domainInput.trim()}
+                >
+                  <Textarea
+                    placeholder="https://example.com/"
+                    value={domainInput}
+                    onChange={(e) => setDomainInput(e.target.value)}
+                    className="bg-slate-800/50 border-slate-700 text-white placeholder:text-slate-500 min-h-[60px] resize-none"
+                    disabled={isPipelineRunning}
+                  />
+                </InputCard>
+                <InputCard
+                  title="Discovery Call URL"
+                  icon={<Phone className="h-5 w-5" />}
+                  filled={!!discoveryCallUrl.trim()}
+                >
+                  <Textarea
+                    placeholder="Fathom URL (e.g., https://fathom.video/calls/...)"
+                    value={discoveryCallUrl}
+                    onChange={(e) => setDiscoveryCallUrl(e.target.value)}
+                    className="bg-slate-800/50 border-slate-700 text-white placeholder:text-slate-500 min-h-[60px] resize-none"
+                    disabled={isPipelineRunning}
+                  />
+                </InputCard>
+                <InputCard
+                  title="Deep Dive URL"
+                  icon={<Search className="h-5 w-5" />}
+                  filled={!!deepDiveUrl.trim()}
+                >
+                  <Textarea
+                    placeholder="Deep Dive Fathom URL (e.g., https://fathom.video/calls/...)"
+                    value={deepDiveUrl}
+                    onChange={(e) => setDeepDiveUrl(e.target.value)}
+                    className="bg-slate-800/50 border-slate-700 text-white placeholder:text-slate-500 min-h-[60px] resize-none"
+                    disabled={isPipelineRunning}
+                  />
+                </InputCard>
+              </div>
             </div>
-          ) : (
-            <Button
-              onClick={handleActivate}
-              disabled={!domainInput.trim() || readOnly}
-              className="px-8 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white border-0 disabled:opacity-50"
-            >
-              <Zap className="h-4 w-4 mr-2" />
-              {readOnly ? "View Only" : "Activate Pipeline"}
-            </Button>
-          )}
+            
+            {/* Activate Button */}
+            <div className="flex items-center gap-6">
+              <div className="w-20" />
+              {isPipelineRunning ? (
+                <div className="flex items-center gap-2">
+                  <Button
+                    disabled
+                    className="px-8 bg-gradient-to-r from-violet-600 to-indigo-600 text-white border-0 cursor-not-allowed"
+                  >
+                    <Spinner className="h-4 w-4 mr-2" />
+                    Pipeline Running...
+                  </Button>
+                  <Button
+                    onClick={handleAbortPipeline}
+                    variant="outline"
+                    className="px-4 border-red-500/50 text-red-400 hover:bg-red-900/30 hover:text-red-300"
+                  >
+                    <X className="h-4 w-4 mr-1" />
+                    Abort
+                  </Button>
+                  {pipelineTimer !== null && (
+                    <div className="flex items-center gap-2 text-sm text-violet-400 ml-4">
+                      <Clock className="h-4 w-4 animate-pulse" />
+                      <span className="font-mono">{formatTime(pipelineTimer)}</span>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <Button
+                  onClick={handleActivate}
+                  disabled={!allInputsFilled || readOnly}
+                  className="px-8 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white border-0 disabled:opacity-50"
+                >
+                  <Zap className="h-4 w-4 mr-2" />
+                  {readOnly ? "View Only" : "Activate Pipeline"}
+                </Button>
+              )}
+            </div>
+          </div>
         </div>
 
         {/* Connection Line */}
-        <ConnectionLine active={inputsActivated} />
+        <ConnectionLine active={flowState.discoveryCall !== "idle" || flowState.deepDive !== "idle" || flowState.generalContext !== "idle"} />
 
-        {/* Stage 2: Research */}
-        <div className="flex items-start gap-6">
-          <StageLabel number={2} label="Research" />
-          <div className="space-y-3">
-            <div className="flex gap-4">
-              <PipelineCard
-                title="Discovery Call"
-                subtitle="Fathom transcript analysis"
+        {/* Results Section */}
+        <div className="relative rounded-xl border-2 border-dashed border-slate-700 p-6 pt-10">
+          <div className="absolute -top-3 left-6 bg-slate-950 px-3">
+            <span className="text-sm font-semibold text-slate-400 uppercase tracking-wider">Results</span>
+          </div>
+          
+          <div className="flex items-start gap-6">
+            <StageLabel number={2} label="Output" />
+            <div className="flex gap-4 flex-wrap">
+              <ResultCard
+                title="Discovery Call Results"
                 icon={<Phone className="h-5 w-5" />}
                 status={flowState.discoveryCall}
                 onClick={() => setActiveView("discovery-call")}
-                clickable
                 progressSteps={dcProgressSteps}
+                progressStepsConfig={DC_PROGRESS_STEPS}
               />
-              <PipelineCard
-                title="Auto Discovery Document"
-                subtitle="Frozen - not used in strategy"
-                icon={<FileText className="h-5 w-5" />}
-                status="idle"
-                className="opacity-50 pointer-events-none"
+              <ResultCard
+                title="Deep Dive Results"
+                icon={<Search className="h-5 w-5" />}
+                status={flowState.deepDive}
+                onClick={() => setActiveView("deep-dive")}
+                progressSteps={ddProgressSteps}
+                progressStepsConfig={DD_PROGRESS_STEPS}
               />
-              <PipelineCard
-                title="General Context"
-                subtitle="Writing rules & overview"
+              <ResultCard
+                title="General Context Results"
                 icon={<Database className="h-5 w-5" />}
                 status={flowState.generalContext}
                 onClick={() => setActiveView("general")}
-                clickable
               />
             </div>
-            {/* Research Timer - counts up from start */}
-            {researchTimer !== null && (
-              <div className="flex items-center gap-2 text-sm text-violet-400">
-                <Clock className="h-4 w-4 animate-pulse" />
-                <span className="font-mono">
-                  Elapsed: {formatTime(researchTimer)}
-                </span>
-                <span className="text-slate-500 text-xs">(may take 10-15 minutes)</span>
-            </div>
-            )}
           </div>
         </div>
-
-        {/* Connection Line */}
-        <ConnectionLine active={flowState.discoveryCall === "complete" || flowState.discoveryDoc === "complete" || flowState.generalContext === "complete"} />
-
-        {/* Stage 2.5: Deep Dive (Optional) */}
-        <div className="flex items-start gap-6">
-          <div className="w-20 flex-shrink-0 text-center">
-            <div className="w-10 h-10 mx-auto rounded-full bg-slate-800 border-2 border-dashed border-slate-600 flex items-center justify-center text-slate-500 font-mono text-xs mb-1">
-              2.5
-            </div>
-            <span className="text-xs text-slate-500 uppercase tracking-wider">Optional</span>
-          </div>
-          <PipelineCard
-            title="Deep Dive"
-            subtitle="Additional call analysis"
-            icon={<Search className="h-5 w-5" />}
-            status={flowState.deepDive}
-            onClick={() => setActiveView("deep-dive")}
-            clickable={flowState.deepDive === "complete"}
-            floating
-            className="w-80"
-            progressSteps={ddProgressSteps}
-            progressStepsConfig={DD_PROGRESS_STEPS}
-          >
-            {!readOnly && (
-              <>
-                <Textarea
-                  placeholder="Deep Dive Fathom URL (optional)"
-                  value={deepDiveUrl}
-                  onChange={(e) => setDeepDiveUrl(e.target.value)}
-                  onClick={(e) => e.stopPropagation()}
-                  className="bg-slate-800/50 border-slate-700 text-white placeholder:text-slate-500 min-h-[40px] resize-none text-sm"
-                  disabled={flowState.discoveryCall !== "complete"}
-                />
-                <Button
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    handleDeepDive()
-                  }}
-                  disabled={!deepDiveUrl.trim() || flowState.discoveryCall !== "complete" || flowState.deepDive === "processing"}
-                  size="sm"
-                  className="w-full mt-2 bg-slate-700 hover:bg-slate-600 text-white border-0"
-                >
-                  {flowState.deepDive === "processing" ? (
-                    <Spinner className="h-3 w-3 mr-2" />
-                  ) : (
-                    <Search className="h-3 w-3 mr-2" />
-                  )}
-                  {flowState.deepDive === "processing" ? "Processing..." : "Run Deep Dive"}
-                </Button>
-              </>
-            )}
-          </PipelineCard>
-        </div>
-
-        {/* Connection Line */}
-        <ConnectionLine active={flowState.discoveryCall === "complete" || flowState.deepDive === "complete"} />
-
-        {/* Stage 2.6: Ground Truth Enhancement */}
-        <div className="flex items-start gap-6">
-          <div className="w-20 flex-shrink-0 text-center">
-            <div className="w-10 h-10 mx-auto rounded-full bg-slate-800 border-2 border-emerald-600/50 flex items-center justify-center text-emerald-500 font-mono text-xs mb-1">
-              2.6
-            </div>
-            <span className="text-xs text-emerald-500 uppercase tracking-wider">Final</span>
-          </div>
-          <PipelineCard
-            title="Ground Truth"
-            subtitle="Enhance DD + GC with client Q&A"
-            icon={<ScanSearch className="h-5 w-5" />}
-            status={flowState.groundTruth}
-            onClick={() => flowState.groundTruth === "complete" ? setActiveView("ground-truth") : undefined}
-            clickable={flowState.groundTruth === "complete"}
-            className="w-80"
-          >
-            {!readOnly && (
-              <Button
-                onClick={(e) => {
-                  e.stopPropagation()
-                  handleGroundTruthEnhancement()
-                }}
-                disabled={
-                  flowState.groundTruth === "processing" || 
-                  (flowState.discoveryCall !== "complete" && flowState.deepDive !== "complete")
-                }
-                size="sm"
-                className="w-full bg-emerald-700 hover:bg-emerald-600 text-white border-0"
-              >
-                {flowState.groundTruth === "processing" ? (
-                  <>
-                    <Spinner className="h-3 w-3 mr-2" />
-                    Enhancing...
-                  </>
-                ) : flowState.groundTruth === "complete" ? (
-                  <>
-                    <RefreshCw className="h-3 w-3 mr-2" />
-                    Re-enhance
-                  </>
-                ) : (
-                  <>
-                    <ScanSearch className="h-3 w-3 mr-2" />
-                    Apply Ground Truth
-                  </>
-                )}
-              </Button>
-            )}
-          </PipelineCard>
-        </div>
-          </div>
-        </div>
-        {/* End Research + Context Section */}
-
-        {/* Connection Line */}
-        <ConnectionLine active={flowState.groundTruth === "complete" || flowState.discoveryCall === "complete"} />
-
-        {/* Stage 3: Strategy */}
-        <div className="flex items-center gap-6">
-          <StageLabel number={3} label="Strategy" />
-          <PipelineCard
-            title="Carson Strategy System"
-            subtitle="4-stage AI strategy pipeline"
-            icon={<ChefHat className="h-5 w-5" />}
-            status={flowState.strategyDoc}
-            onClick={() => flowState.strategyDoc === "complete" ? setActiveView("strategy") : undefined}
-            clickable={flowState.strategyDoc === "complete"}
-            className="w-80"
-          >
-            {!readOnly && (
-              <Button
-                onClick={(e) => {
-                  e.stopPropagation()
-                  handleStrategyGenerate()
-                }}
-                disabled={flowState.strategyDoc === "processing" || flowState.discoveryDoc !== "complete"}
-                size="sm"
-                className="w-full bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white border-0"
-              >
-                {flowState.strategyDoc === "processing" ? (
-                  <>
-                    <Spinner className="h-3 w-3 mr-2" />
-                    Generating...
-                  </>
-                ) : flowState.strategyDoc === "complete" ? (
-                  <>
-                    <RefreshCw className="h-3 w-3 mr-2" />
-                    Regenerate
-                  </>
-                ) : (
-                  <>
-                    <Zap className="h-3 w-3 mr-2" />
-                    Generate Strategy
-                  </>
-                )}
-              </Button>
-            )}
-          </PipelineCard>
-        </div>
-
-        {/* Connection Line */}
-        <ConnectionLine active={flowState.strategyDoc === "complete"} />
-
-        {/* Stage 4: Output */}
-        <div className="flex items-start gap-6">
-          <StageLabel number={4} label="Output" />
-          <div className="flex gap-4">
-            <PipelineCard
-              title="Gamma Presentation"
-              subtitle="Slide deck"
-              icon={<Presentation className="h-5 w-5" />}
-              status={flowState.gamma}
-              onClick={() => gammaUrl ? window.open(gammaUrl, "_blank") : undefined}
-              clickable={flowState.gamma === "complete" && !!gammaUrl}
-              className="w-64"
-            >
-              {!readOnly && (
-                <Button
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    handleGammaGenerate()
-                  }}
-                  disabled={flowState.strategyDoc !== "complete" || flowState.gamma === "processing"}
-                  size="sm"
-                  className="w-full bg-teal-600 hover:bg-teal-500 text-white border-0"
-                >
-                  {flowState.gamma === "processing" ? (
-                    <>
-                      <Spinner className="h-3 w-3 mr-2" />
-                      Generating...
-                    </>
-                  ) : flowState.gamma === "complete" ? (
-                    <>
-                      <RefreshCw className="h-3 w-3 mr-2" />
-                      Regenerate
-                    </>
-                  ) : (
-                    <>
-                      <Presentation className="h-3 w-3 mr-2" />
-                      Create Slides
-                    </>
-                  )}
-                </Button>
-              )}
-            </PipelineCard>
-            <PipelineCard
-              title="Service Documents"
-              subtitle="Deliverables"
-              icon={<FileStack className="h-5 w-5" />}
-              status={flowState.serviceDocs}
-              onClick={() => setActiveView("service-docs")}
-              clickable
-            />
-          </div>
-          </div>
-      </div>
-
-      {/* Ground Truth - Standalone Section */}
-      <div className="mt-12 pt-8 border-t border-slate-800">
-        <div className="flex items-center gap-6">
-          <div className="w-20 flex-shrink-0 text-center">
-            <div className="w-10 h-10 mx-auto rounded-full bg-slate-800 border-2 border-dashed border-slate-600 flex items-center justify-center text-slate-500">
-              <Shield className="h-4 w-4" />
-            </div>
-            <span className="text-xs text-slate-500 uppercase tracking-wider mt-1 block">Manual</span>
-          </div>
-          <PipelineCard
-            title="Ground Truth"
-            subtitle="Manual override & verification"
-            icon={<Shield className="h-5 w-5" />}
-            status="idle"
-            onClick={() => setActiveView("ground-truth")}
-            clickable
-            floating
-              />
-            </div>
       </div>
     </div>
   )
@@ -1331,7 +599,7 @@ function StageLabel({ number, label }: { number: number; label: string }) {
         {number}
       </div>
       <span className="text-xs text-slate-500 uppercase tracking-wider">{label}</span>
-            </div>
+    </div>
   )
 }
 
@@ -1342,11 +610,54 @@ function ConnectionLine({ active }: { active: boolean }) {
         <div className={`w-0.5 h-8 ${active ? "bg-gradient-to-b from-emerald-500 to-emerald-500/20" : "bg-slate-700"}`} />
       </div>
       <ChevronRight className={`h-4 w-4 ${active ? "text-emerald-500" : "text-slate-700"}`} />
-            </div>
+    </div>
   )
 }
 
-// Progress step definitions for Discovery Call
+function LegendItem({ color, label, pulse }: { color: string; label: string; pulse?: boolean }) {
+  return (
+    <div className="flex items-center gap-2 text-slate-400">
+      <div className={`w-2.5 h-2.5 rounded-full ${color} ${pulse ? "animate-pulse" : ""}`} />
+      <span>{label}</span>
+    </div>
+  )
+}
+
+interface InputCardProps {
+  title: string
+  icon: React.ReactNode
+  filled: boolean
+  children: React.ReactNode
+}
+
+function InputCard({ title, icon, filled, children }: InputCardProps) {
+  return (
+    <Card className={`
+      w-80 transition-all duration-200
+      ${filled 
+        ? "border-emerald-500/50 bg-emerald-950/20 shadow-lg shadow-emerald-500/10" 
+        : "border-slate-700 bg-slate-800/40"
+      }
+    `}>
+      <CardContent className="p-4">
+        <div className="flex items-start gap-3">
+          <div className={`p-2 rounded-lg flex-shrink-0 ${filled ? "bg-emerald-600 text-white" : "bg-slate-700 text-slate-400"}`}>
+            {icon}
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <h3 className="font-medium text-white text-sm">{title}</h3>
+              {filled && <CheckCircle className="h-4 w-4 text-emerald-500" />}
+            </div>
+            <div className="mt-3">{children}</div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+// Progress step definitions
 const DC_PROGRESS_STEPS = [
   { key: "meetings_fetched", label: "Meetings" },
   { key: "recording_found", label: "Recording" },
@@ -1358,7 +669,6 @@ const DC_PROGRESS_STEPS = [
   { key: "parsing_complete", label: "Parse" },
 ]
 
-// Progress step definitions for Deep Dive
 const DD_PROGRESS_STEPS = [
   { key: "meetings_fetched", label: "Meetings" },
   { key: "recording_found", label: "Recording" },
@@ -1370,33 +680,16 @@ const DD_PROGRESS_STEPS = [
   { key: "parsing_complete", label: "Parse" },
 ]
 
-interface PipelineCardProps {
+interface ResultCardProps {
   title: string
-  subtitle?: string
   icon: React.ReactNode
   status: ComponentStatus
-  onClick?: () => void
-  clickable?: boolean
-  children?: React.ReactNode
-  className?: string
-  floating?: boolean
+  onClick: () => void
   progressSteps?: string[]
   progressStepsConfig?: { key: string; label: string }[]
 }
 
-function PipelineCard({ 
-  title, 
-  subtitle,
-  icon, 
-  status, 
-  onClick, 
-  clickable, 
-  children,
-  className = "",
-  floating,
-  progressSteps = [],
-  progressStepsConfig = DC_PROGRESS_STEPS
-}: PipelineCardProps) {
+function ResultCard({ title, icon, status, onClick, progressSteps = [], progressStepsConfig = [] }: ResultCardProps) {
   const statusConfig = {
     idle: {
       border: "border-slate-700",
@@ -1404,6 +697,7 @@ function PipelineCard({
       iconBg: "bg-slate-700",
       iconColor: "text-slate-400",
       glow: "",
+      clickable: false,
     },
     processing: {
       border: "border-violet-500/50",
@@ -1411,6 +705,7 @@ function PipelineCard({
       iconBg: "bg-violet-600",
       iconColor: "text-white",
       glow: "shadow-lg shadow-violet-500/20 animate-pulse",
+      clickable: false,
     },
     complete: {
       border: "border-emerald-500/50",
@@ -1418,6 +713,7 @@ function PipelineCard({
       iconBg: "bg-emerald-600",
       iconColor: "text-white",
       glow: "shadow-lg shadow-emerald-500/10",
+      clickable: true,
     },
     error: {
       border: "border-red-500/50",
@@ -1425,24 +721,21 @@ function PipelineCard({
       iconBg: "bg-red-600",
       iconColor: "text-white",
       glow: "shadow-lg shadow-red-500/20",
+      clickable: false,
     },
   }
 
   const config = statusConfig[status]
-  
-  // Show progress dots when processing
-  const showProgress = status === "processing" && progressSteps.length > 0
+  const showProgress = status === "processing" && progressSteps.length > 0 && progressStepsConfig.length > 0
 
   return (
     <Card 
       className={`
+        w-64 transition-all duration-200
         ${config.border} ${config.bg} ${config.glow}
-        ${clickable ? "cursor-pointer hover:brightness-110 hover:border-opacity-100" : ""}
-        ${floating ? "border-dashed" : ""}
-        transition-all duration-200
-        ${className}
+        ${config.clickable ? "cursor-pointer hover:brightness-110 hover:border-opacity-100" : ""}
       `}
-      onClick={clickable ? onClick : undefined}
+      onClick={config.clickable ? onClick : undefined}
     >
       <CardContent className="p-4">
         <div className="flex items-start gap-3">
@@ -1451,12 +744,9 @@ function PipelineCard({
           </div>
           <div className="flex-1 min-w-0">
             <h3 className="font-medium text-white text-sm">{title}</h3>
-            {subtitle && !showProgress && (
-              <p className="text-xs text-slate-400 mt-0.5">{subtitle}</p>
-            )}
             {/* Progress dots */}
             {showProgress && (
-              <div className="flex items-center gap-1.5 mt-1.5">
+              <div className="flex items-center gap-1.5 mt-2">
                 {progressStepsConfig.map((step, idx) => {
                   const isComplete = progressSteps.includes(step.key)
                   const isActive = !isComplete && idx === progressSteps.length
@@ -1473,70 +763,21 @@ function PipelineCard({
                 })}
               </div>
             )}
-            {children && <div className="mt-3">{children}</div>}
-          </div>
-          {clickable && (
-            <ChevronRight className="h-4 w-4 text-slate-500 flex-shrink-0 mt-1" />
+            {/* Status text */}
+            {!showProgress && (
+              <p className="text-xs text-slate-400 mt-1">
+                {status === "idle" && "Not started"}
+                {status === "processing" && "Processing..."}
+                {status === "complete" && "Click to view"}
+                {status === "error" && "Error occurred"}
+              </p>
             )}
           </div>
-        </CardContent>
-      </Card>
-  )
-}
-
-function LegendItem({ color, label, pulse }: { color: string; label: string; pulse?: boolean }) {
-  return (
-    <div className="flex items-center gap-2 text-slate-400">
-      <div className={`w-2.5 h-2.5 rounded-full ${color} ${pulse ? "animate-pulse" : ""}`} />
-      <span>{label}</span>
-          </div>
-  )
-}
-
-interface StubViewProps {
-  title: string
-  description: string
-  icon: React.ReactNode
-  onGenerate?: () => void
-  status?: ComponentStatus
-}
-
-function StubView({ title, description, icon, onGenerate, status }: StubViewProps) {
-  return (
-    <div className="max-w-2xl mx-auto">
-      <Card className="border-slate-700 bg-slate-800/40">
-        <CardContent className="py-16 text-center">
-          <div className="w-16 h-16 mx-auto mb-6 rounded-2xl bg-slate-700 flex items-center justify-center text-slate-400">
-            {icon}
-          </div>
-          <h2 className="text-2xl font-bold text-white mb-2">{title}</h2>
-          <p className="text-slate-400 mb-8">{description}</p>
-          {onGenerate && (
-                  <Button
-              onClick={onGenerate}
-              disabled={status === "processing"}
-              className="bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500"
-            >
-              {status === "processing" ? (
-                <>
-                  <Spinner className="h-4 w-4 mr-2" />
-                  Generating...
-                </>
-              ) : status === "complete" ? (
-                "Regenerate"
-              ) : (
-                "Generate"
-              )}
-                  </Button>
+          {config.clickable && (
+            <ChevronRight className="h-4 w-4 text-slate-500 flex-shrink-0 mt-1" />
           )}
-          {status === "complete" && (
-            <p className="mt-4 text-sm text-emerald-400">✓ Generated successfully (stub)</p>
-          )}
-          {!onGenerate && (
-            <p className="text-sm text-slate-500">Coming soon</p>
-          )}
-        </CardContent>
-      </Card>
-    </div>
+        </div>
+      </CardContent>
+    </Card>
   )
 }

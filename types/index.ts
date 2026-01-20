@@ -59,6 +59,7 @@ export interface ClientContext {
   questionnaire?: Array<{ question: string; answer: string }>
   ready?: boolean
   discovery_call_url?: string | null
+  deep_dive_url?: string | null
 }
 
 // Alias for clarity
