@@ -875,7 +875,7 @@ export const api = {
     }
   },
 
-  // Strategy Generation Pipeline (Waiter → Cook → Plater)
+  // Strategy Generation Pipeline (Waiter → Cook)
   startStrategyPipeline: (
     clientId: number, 
     versionNumber: number, 
@@ -900,7 +900,6 @@ export const api = {
       status: string
       waiter_status: string
       cook_status: string
-      plater_status: string
       message: string | null
       error: string | null
     }>(`/clients/${clientId}/strategy/${versionNumber}/pipeline/status`),
@@ -914,12 +913,6 @@ export const api = {
   runCook: (clientId: number, versionNumber: number) =>
     fetchJson<{ status: string; message: string; next_agent: string | null; output: string | null }>(
       `/clients/${clientId}/strategy/${versionNumber}/pipeline/cook`,
-      { method: "POST" }
-    ),
-  
-  runPlater: (clientId: number, versionNumber: number) =>
-    fetchJson<{ status: string; message: string; next_agent: string | null; output: string | null }>(
-      `/clients/${clientId}/strategy/${versionNumber}/pipeline/plater`,
       { method: "POST" }
     ),
   
