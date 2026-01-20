@@ -35,74 +35,52 @@ export function StrategyChat({ clientId, versionNumber, onStrategyUpdated }: Pro
       timestamp: new Date().toISOString(),
     }
 
+    // Build history from previous messages (excluding the one we're about to add)
+    const history = messages.map((msg) => ({
+      role: msg.role,
+      content: msg.content,
+    }))
+
     setMessages((prev) => [...prev, userMessage])
     setInputValue("")
     setIsLoading(true)
 
     const assistantMessageId = `assistant-${Date.now()}`
-    const assistantMessage: ChatMessage = {
-      id: assistantMessageId,
-      role: "assistant",
-      content: "",
-      timestamp: new Date().toISOString(),
-      toolCalls: [],
-    }
-    setMessages((prev) => [...prev, assistantMessage])
 
     try {
-      await api.sendStrategyChatMessage(
+      const result = await api.sendStrategyChatMessage(
         clientId,
         versionNumber,
         userMessage.content,
-        (chunk) => {
-          setMessages((prev) =>
-            prev.map((msg) =>
-              msg.id === assistantMessageId
-                ? { ...msg, content: msg.content + chunk }
-                : msg
-            )
-          )
-        },
-        (toolName, args) => {
-          setMessages((prev) =>
-            prev.map((msg) =>
-              msg.id === assistantMessageId
-                ? {
-                    ...msg,
-                    toolCalls: [
-                      ...(msg.toolCalls || []),
-                      { name: toolName, arguments: args },
-                    ],
-                  }
-                : msg
-            )
-          )
-          if (toolName.startsWith("editStrategy")) {
-            onStrategyUpdated?.()
-          }
-        },
-        () => {
-          setIsLoading(false)
-        },
-        (error) => {
-          setMessages((prev) =>
-            prev.map((msg) =>
-              msg.id === assistantMessageId
-                ? { ...msg, content: `Error: ${error}` }
-                : msg
-            )
-          )
-          setIsLoading(false)
-        }
+        history
       )
+
+      const assistantMessage: ChatMessage = {
+        id: assistantMessageId,
+        role: "assistant",
+        content: result.response,
+        timestamp: new Date().toISOString(),
+        toolCalls: result.tool_calls?.map((tc) => ({
+          name: tc.name,
+          arguments: tc.arguments || {},
+        })),
+      }
+
+      setMessages((prev) => [...prev, assistantMessage])
+
+      // If any editStrategy tools were called, refresh the strategy
+      if (result.tool_calls?.some((tc) => tc.name.startsWith("editStrategy"))) {
+        onStrategyUpdated?.()
+      }
     } catch (error: any) {
-      setMessages((prev) =>
-        prev.map((msg) =>
-          msg.id === assistantMessageId
-            ? { ...msg, content: `Error: ${error.message}` }
-            : msg
-        )
-      )
+      const errorMessage: ChatMessage = {
+        id: assistantMessageId,
+        role: "assistant",
+        content: `Error: ${error.message || "Failed to get response"}`,
+        timestamp: new Date().toISOString(),
+      }
+      setMessages((prev) => [...prev, errorMessage])
+    } finally {
       setIsLoading(false)
     }
   }

@@ -778,102 +778,23 @@ export const api = {
     ),
 
   // Strategy Chat (sends message to backend which invokes MCP tools)
-  sendStrategyChatMessage: async (
+  sendStrategyChatMessage: (
     clientId: number,
     versionNumber: number,
     message: string,
-    onChunk: (chunk: string) => void,
-    onToolCall?: (toolName: string, args: Record<string, unknown>) => void,
-    onComplete?: () => void,
-    onError?: (error: string) => void,
-  ) => {
-    const baseUrl = BACKEND_BASE_URL.replace(/\/$/, "")
-    const endpoint = `/clients/${clientId}/strategy/${versionNumber}/chat`
-
-    try {
-      const response = await fetch(`${baseUrl}${endpoint}`, {
+    history: { role: string; content: string }[] = []
+  ) =>
+    fetchJson<{
+      response: string
+      tool_calls: { name: string; arguments?: Record<string, unknown>; output?: string }[]
+      usage: { input_tokens: number; output_tokens: number; reasoning_tokens?: number } | null
+    }>(
+      `/clients/${clientId}/strategy/${versionNumber}/chat`,
+      {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ message }),
-      })
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+        body: JSON.stringify({ message, history }),
       }
-
-      const reader = response.body?.getReader()
-      const decoder = new TextDecoder()
-
-      if (!reader) {
-        throw new Error("No response body")
-      }
-
-      let buffer = ""
-
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) {
-          if (buffer.trim()) {
-            // Process any remaining buffer
-            const lines = buffer.split("\n")
-            for (const line of lines) {
-              if (line.startsWith("data: ")) {
-                const data = line.slice(6).trim()
-                if (data && data !== "[DONE]") {
-                  try {
-                    const event = JSON.parse(data)
-                    if (event.type === "chunk") {
-                      onChunk(event.content)
-                    } else if (event.type === "tool_call" && onToolCall) {
-                      onToolCall(event.name, event.arguments)
-                    }
-                  } catch (e) {
-                    // ignore parse errors
-                  }
-                }
-              }
-            }
-          }
-          onComplete?.()
-          break
-        }
-
-        buffer += decoder.decode(value, { stream: true })
-        const lines = buffer.split("\n")
-        buffer = lines.pop() || ""
-
-        for (const line of lines) {
-          if (line.startsWith("data: ")) {
-            const data = line.slice(6).trim()
-            if (data === "[DONE]") {
-              onComplete?.()
-              continue
-            }
-
-            try {
-              const event = JSON.parse(data)
-              if (event.type === "chunk") {
-                onChunk(event.content)
-              } else if (event.type === "tool_call" && onToolCall) {
-                onToolCall(event.name, event.arguments)
-              } else if (event.type === "error") {
-                onError?.(event.message || "Unknown error")
-              }
-            } catch (e) {
-              // If not JSON, treat as plain text chunk
-              if (data) {
-                onChunk(data)
-              }
-            }
-          }
-        }
-      }
-    } catch (e: any) {
-      onError?.(e.message || "Failed to send chat message")
-    }
-  },
+    ),
 
   // Strategy Generation Pipeline (Waiter → Cook)
   startStrategyPipeline: (
