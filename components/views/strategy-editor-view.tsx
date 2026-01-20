@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import type { Client, VersionedStrategy, StrategyVersion } from "@/types"
+import { useState, useEffect, useRef } from "react"
+import type { Client, VersionedStrategy, StrategyVersion, DiscoveryCallResult } from "@/types"
 import { api } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { Spinner } from "@/components/ui/spinner"
@@ -20,6 +20,12 @@ import {
   Search,
   Database,
   X,
+  ChefHat,
+  Utensils,
+  Sparkles,
+  Check,
+  AlertCircle,
+  Play,
 } from "lucide-react"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
@@ -30,6 +36,15 @@ interface Props {
 }
 
 type ContextPopup = "discovery-call" | "deep-dive" | "general-context" | null
+type AgentStatus = "idle" | "processing" | "complete" | "error"
+
+interface PipelineState {
+  status: "idle" | "waiter_processing" | "cook_processing" | "plater_processing" | "complete" | "error"
+  waiter: AgentStatus
+  cook: AgentStatus
+  plater: AgentStatus
+  error?: string
+}
 
 export function StrategyEditorView({ client, readOnly = false }: Props) {
   const [versions, setVersions] = useState<StrategyVersion[]>([])
@@ -41,16 +56,33 @@ export function StrategyEditorView({ client, readOnly = false }: Props) {
   const [error, setError] = useState<string | null>(null)
   const [contextExpanded, setContextExpanded] = useState(false)
   const [activePopup, setActivePopup] = useState<ContextPopup>(null)
+  
+  // Agent Pipeline State
+  const [pipelineState, setPipelineState] = useState<PipelineState>({
+    status: "idle",
+    waiter: "idle",
+    cook: "idle",
+    plater: "idle",
+  })
+  const [isPipelineStarting, setIsPipelineStarting] = useState(false)
+  const pipelinePollingRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Chat is only enabled after pipeline completes
+  const chatEnabled = pipelineState.status === "complete"
 
   // Load versions on mount
   useEffect(() => {
     loadVersions()
+    return () => {
+      if (pipelinePollingRef.current) clearInterval(pipelinePollingRef.current)
+    }
   }, [client.id])
 
   // Load strategy when version changes
   useEffect(() => {
     if (selectedVersion !== null) {
       loadStrategy(selectedVersion)
+      checkPipelineStatus(selectedVersion)
     }
   }, [selectedVersion])
 
@@ -85,6 +117,87 @@ export function StrategyEditorView({ client, readOnly = false }: Props) {
     }
   }
 
+  const checkPipelineStatus = async (versionNumber: number) => {
+    try {
+      const status = await api.getStrategyPipelineStatus(client.id, versionNumber)
+      setPipelineState({
+        status: status.status as PipelineState["status"],
+        waiter: status.waiter_status as AgentStatus,
+        cook: status.cook_status as AgentStatus,
+        plater: status.plater_status as AgentStatus,
+        error: status.error || undefined,
+      })
+      
+      // If pipeline is running, start polling
+      if (status.status !== "idle" && status.status !== "complete" && status.status !== "error") {
+        startPipelinePolling(versionNumber)
+      }
+    } catch (e) {
+      console.log("No active pipeline")
+    }
+  }
+
+  const startPipelinePolling = (versionNumber: number) => {
+    if (pipelinePollingRef.current) clearInterval(pipelinePollingRef.current)
+    
+    pipelinePollingRef.current = setInterval(async () => {
+      try {
+        const status = await api.getStrategyPipelineStatus(client.id, versionNumber)
+        setPipelineState({
+          status: status.status as PipelineState["status"],
+          waiter: status.waiter_status as AgentStatus,
+          cook: status.cook_status as AgentStatus,
+          plater: status.plater_status as AgentStatus,
+          error: status.error || undefined,
+        })
+        
+        // Run agents sequentially
+        if (status.waiter_status === "processing") {
+          // Simulate waiter completion after a delay
+          setTimeout(async () => {
+            try {
+              await api.runWaiter(client.id, versionNumber)
+            } catch (e) {
+              console.error("Waiter error:", e)
+            }
+          }, 2000)
+        } else if (status.waiter_status === "complete" && status.cook_status === "processing") {
+          setTimeout(async () => {
+            try {
+              await api.runCook(client.id, versionNumber)
+            } catch (e) {
+              console.error("Cook error:", e)
+            }
+          }, 2000)
+        } else if (status.cook_status === "complete" && status.plater_status === "processing") {
+          setTimeout(async () => {
+            try {
+              await api.runPlater(client.id, versionNumber)
+              // Reload strategy after plater completes
+              loadStrategy(versionNumber)
+            } catch (e) {
+              console.error("Plater error:", e)
+            }
+          }, 2000)
+        }
+        
+        // Stop polling when complete or error
+        if (status.status === "complete" || status.status === "error") {
+          if (pipelinePollingRef.current) {
+            clearInterval(pipelinePollingRef.current)
+            pipelinePollingRef.current = null
+          }
+          // Reload strategy on completion
+          if (status.status === "complete") {
+            loadStrategy(versionNumber)
+          }
+        }
+      } catch (e) {
+        console.error("Pipeline polling error:", e)
+      }
+    }, 3000)
+  }
+
   const handleCreateVersion = async () => {
     setIsCreating(true)
     try {
@@ -97,6 +210,52 @@ export function StrategyEditorView({ client, readOnly = false }: Props) {
       setError(e.message || "Failed to create version")
     } finally {
       setIsCreating(false)
+    }
+  }
+
+  const handleStartPipeline = async () => {
+    if (selectedVersion === null) return
+    
+    setIsPipelineStarting(true)
+    
+    try {
+      // Gather context data
+      const [dcResult, ddResult] = await Promise.all([
+        api.getDiscoveryCallResult(client.id.toString()).catch(() => null),
+        api.getDeepDiveResult(client.id.toString()).catch(() => null),
+      ])
+      
+      // Format the data
+      const call1Notes = (dcResult as DiscoveryCallResult)?.factoids_summary || "No Call 1 notes available"
+      const call2Notes = (ddResult as DiscoveryCallResult)?.factoids_summary || "No Call 2 notes available"
+      
+      // Format Q&A
+      let call2QA = "No Q&A available"
+      if ((ddResult as DiscoveryCallResult)?.answers_data) {
+        call2QA = (ddResult as DiscoveryCallResult).answers_data!.map(a => {
+          const certaintyLabel = a.certainty === 1 ? "Verified" : a.certainty === 2 ? "Likely" : "Unknown"
+          return `Q${a.question_number}: ${a.question}\nA: ${a.answer || "No answer"}\nCertainty: ${certaintyLabel}`
+        }).join("\n\n---\n\n")
+      }
+      
+      // Start the pipeline
+      await api.startStrategyPipeline(client.id, selectedVersion, call1Notes, call2Notes, call2QA)
+      
+      // Update state and start polling
+      setPipelineState({
+        status: "waiter_processing",
+        waiter: "processing",
+        cook: "idle",
+        plater: "idle",
+      })
+      
+      startPipelinePolling(selectedVersion)
+      
+    } catch (e: any) {
+      console.error("Failed to start pipeline:", e)
+      setPipelineState(prev => ({ ...prev, status: "error", error: e.message }))
+    } finally {
+      setIsPipelineStarting(false)
     }
   }
 
@@ -130,7 +289,7 @@ export function StrategyEditorView({ client, readOnly = false }: Props) {
   }
 
   return (
-    <div className="flex flex-col h-full bg-gradient-to-br from-zinc-950 via-zinc-900 to-zinc-950">
+    <div className="flex flex-col h-full bg-gradient-to-br from-zinc-950 via-zinc-900 to-zinc-950 relative">
       {/* Context Dropdown Bar */}
       <div className="flex-shrink-0 border-b border-zinc-800">
         <button
@@ -277,15 +436,32 @@ export function StrategyEditorView({ client, readOnly = false }: Props) {
                     Updated {formatDate(strategy.updated_at)}
                   </p>
                 </div>
-                <Button
-                  onClick={() => loadStrategy(selectedVersion)}
-                  variant="outline"
-                  size="sm"
-                  className="gap-2 border-zinc-700 hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200"
-                >
-                  <RefreshCw className="h-4 w-4" />
-                  Refresh
-                </Button>
+                <div className="flex items-center gap-2">
+                  {pipelineState.status === "idle" && !strategy.full_document && (
+                    <Button
+                      onClick={handleStartPipeline}
+                      disabled={isPipelineStarting}
+                      size="sm"
+                      className="gap-2 bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-500 hover:to-purple-500 text-white"
+                    >
+                      {isPipelineStarting ? (
+                        <Spinner className="h-4 w-4" />
+                      ) : (
+                        <Play className="h-4 w-4" />
+                      )}
+                      Generate Strategy
+                    </Button>
+                  )}
+                  <Button
+                    onClick={() => loadStrategy(selectedVersion)}
+                    variant="outline"
+                    size="sm"
+                    className="gap-2 border-zinc-700 hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200"
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                    Refresh
+                  </Button>
+                </div>
               </div>
 
               <div className="flex-1 overflow-y-auto">
@@ -399,7 +575,9 @@ export function StrategyEditorView({ client, readOnly = false }: Props) {
                       <FileText className="h-12 w-12 mx-auto mb-3 text-zinc-700" />
                       <p>This strategy version is empty</p>
                       <p className="text-sm mt-1 text-zinc-600">
-                        Use the chat to add content to sections
+                        {pipelineState.status === "idle" 
+                          ? "Click 'Generate Strategy' to create content"
+                          : "Strategy generation in progress..."}
                       </p>
                     </div>
                   )}
@@ -413,30 +591,48 @@ export function StrategyEditorView({ client, readOnly = false }: Props) {
           )}
         </div>
 
-        {/* Chat Copilot */}
+        {/* Chat Copilot - Only enabled after pipeline complete */}
         {selectedVersion !== null && !readOnly && (
-          <div className="w-80 flex-shrink-0 border-l border-zinc-800">
-            <StrategyChat
-              clientId={client.id}
-              versionNumber={selectedVersion}
-              onStrategyUpdated={handleStrategyUpdated}
-            />
+          <div className="w-80 flex-shrink-0 border-l border-zinc-800 relative">
+            {chatEnabled ? (
+              <StrategyChat
+                clientId={client.id}
+                versionNumber={selectedVersion}
+                onStrategyUpdated={handleStrategyUpdated}
+              />
+            ) : (
+              <div className="h-full flex flex-col items-center justify-center p-6 text-center">
+                <div className="w-16 h-16 rounded-2xl bg-zinc-800/50 flex items-center justify-center mb-4">
+                  <Sparkles className="h-8 w-8 text-zinc-600" />
+                </div>
+                <h3 className="font-semibold text-zinc-400 mb-2">Chat Locked</h3>
+                <p className="text-sm text-zinc-600">
+                  {pipelineState.status === "idle" 
+                    ? "Generate a strategy first to unlock the chat"
+                    : "Chat will unlock once strategy generation completes"}
+                </p>
+              </div>
+            )}
           </div>
         )}
       </div>
 
+      {/* Agent Pipeline Status - Bottom Left */}
+      {pipelineState.status !== "idle" && pipelineState.status !== "complete" && (
+        <div className="absolute bottom-4 left-4 z-40">
+          <AgentPipelineStatus pipelineState={pipelineState} />
+        </div>
+      )}
+
       {/* Context Popups */}
       {activePopup && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
-          {/* Backdrop */}
           <div 
             className="absolute inset-0 bg-black/70 backdrop-blur-sm"
             onClick={() => setActivePopup(null)}
           />
           
-          {/* Popup Content */}
           <div className="relative w-full max-w-5xl h-[85vh] mx-4 bg-zinc-900 rounded-xl border border-zinc-700 shadow-2xl flex flex-col overflow-hidden">
-            {/* Popup Header */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800 bg-zinc-900">
               <div className="flex items-center gap-3">
                 {activePopup === "discovery-call" && (
@@ -466,7 +662,6 @@ export function StrategyEditorView({ client, readOnly = false }: Props) {
               </button>
             </div>
             
-            {/* Popup Body */}
             <div className="flex-1 overflow-y-auto p-6">
               {activePopup === "discovery-call" && (
                 <DiscoveryCallView client={client} />
@@ -481,6 +676,104 @@ export function StrategyEditorView({ client, readOnly = false }: Props) {
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+// Agent Pipeline Status Component
+function AgentPipelineStatus({ pipelineState }: { pipelineState: PipelineState }) {
+  const agents = [
+    { 
+      key: "waiter", 
+      name: "The Waiter", 
+      status: pipelineState.waiter,
+      icon: Utensils,
+      description: "Analyzing context...",
+      color: "violet"
+    },
+    { 
+      key: "cook", 
+      name: "The Cook", 
+      status: pipelineState.cook,
+      icon: ChefHat,
+      description: "Creating strategy...",
+      color: "orange"
+    },
+    { 
+      key: "plater", 
+      name: "The Plater", 
+      status: pipelineState.plater,
+      icon: Sparkles,
+      description: "Formatting sections...",
+      color: "emerald"
+    },
+  ]
+
+  const activeAgent = agents.find(a => a.status === "processing")
+
+  if (!activeAgent) return null
+
+  const colorClasses = {
+    violet: {
+      bg: "bg-violet-500/20",
+      border: "border-violet-500/30",
+      text: "text-violet-400",
+      glow: "shadow-violet-500/20",
+    },
+    orange: {
+      bg: "bg-orange-500/20",
+      border: "border-orange-500/30",
+      text: "text-orange-400",
+      glow: "shadow-orange-500/20",
+    },
+    emerald: {
+      bg: "bg-emerald-500/20",
+      border: "border-emerald-500/30",
+      text: "text-emerald-400",
+      glow: "shadow-emerald-500/20",
+    },
+  }
+
+  const colors = colorClasses[activeAgent.color as keyof typeof colorClasses]
+  const Icon = activeAgent.icon
+
+  return (
+    <div className={`
+      rounded-xl border ${colors.border} ${colors.bg} 
+      backdrop-blur-sm shadow-lg ${colors.glow}
+      p-4 min-w-[200px] animate-pulse
+    `}>
+      <div className="flex items-center gap-3">
+        <div className={`w-10 h-10 rounded-lg ${colors.bg} flex items-center justify-center`}>
+          <Icon className={`h-5 w-5 ${colors.text}`} />
+        </div>
+        <div>
+          <div className="flex items-center gap-2">
+            <span className={`font-semibold ${colors.text}`}>{activeAgent.name}</span>
+            <Spinner className={`h-3 w-3 ${colors.text}`} />
+          </div>
+          <p className="text-xs text-zinc-500">{activeAgent.description}</p>
+        </div>
+      </div>
+      
+      {/* Progress dots */}
+      <div className="flex items-center gap-2 mt-3 pt-3 border-t border-zinc-800/50">
+        {agents.map((agent, idx) => (
+          <div key={agent.key} className="flex items-center gap-1">
+            <div className={`
+              w-2 h-2 rounded-full transition-all duration-300
+              ${agent.status === "complete" ? "bg-emerald-500" : 
+                agent.status === "processing" ? "bg-blue-400 animate-pulse" : 
+                "bg-zinc-700"}
+            `} />
+            {idx < agents.length - 1 && (
+              <div className={`w-4 h-0.5 ${
+                agent.status === "complete" ? "bg-emerald-500/50" : "bg-zinc-800"
+              }`} />
+            )}
+          </div>
+        ))}
+      </div>
     </div>
   )
 }

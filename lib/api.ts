@@ -874,4 +874,58 @@ export const api = {
       onError?.(e.message || "Failed to send chat message")
     }
   },
+
+  // Strategy Generation Pipeline (Waiter → Cook → Plater)
+  startStrategyPipeline: (
+    clientId: number, 
+    versionNumber: number, 
+    call1Notes: string, 
+    call2Notes: string, 
+    call2QA: string
+  ) =>
+    fetchJson<{ status: string; client_id: number; version_number: number; message: string }>(
+      `/clients/${clientId}/strategy/${versionNumber}/pipeline/start`,
+      {
+        method: "POST",
+        body: JSON.stringify({ 
+          call1_notes: call1Notes, 
+          call2_notes: call2Notes, 
+          call2_qa: call2QA 
+        }),
+      }
+    ),
+  
+  getStrategyPipelineStatus: (clientId: number, versionNumber: number) =>
+    fetchJson<{
+      status: string
+      waiter_status: string
+      cook_status: string
+      plater_status: string
+      message: string | null
+      error: string | null
+    }>(`/clients/${clientId}/strategy/${versionNumber}/pipeline/status`),
+  
+  runWaiter: (clientId: number, versionNumber: number) =>
+    fetchJson<{ status: string; message: string; next_agent: string | null; output: string | null }>(
+      `/clients/${clientId}/strategy/${versionNumber}/pipeline/waiter`,
+      { method: "POST" }
+    ),
+  
+  runCook: (clientId: number, versionNumber: number) =>
+    fetchJson<{ status: string; message: string; next_agent: string | null; output: string | null }>(
+      `/clients/${clientId}/strategy/${versionNumber}/pipeline/cook`,
+      { method: "POST" }
+    ),
+  
+  runPlater: (clientId: number, versionNumber: number) =>
+    fetchJson<{ status: string; message: string; next_agent: string | null; output: string | null }>(
+      `/clients/${clientId}/strategy/${versionNumber}/pipeline/plater`,
+      { method: "POST" }
+    ),
+  
+  cancelStrategyPipeline: (clientId: number, versionNumber: number) =>
+    fetchJson<{ status: string; message: string }>(
+      `/clients/${clientId}/strategy/${versionNumber}/pipeline/cancel`,
+      { method: "POST" }
+    ),
 }
