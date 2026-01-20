@@ -928,4 +928,15 @@ export const api = {
       `/clients/${clientId}/strategy/${versionNumber}/pipeline/cancel`,
       { method: "POST" }
     ),
+  
+  getAgentOutput: (clientId: number, versionNumber: number, agentName: string) =>
+    fetchJson<{
+      id: string | null
+      model: string | null
+      output_text: string | null
+      reasoning_summary: string | null
+      tool_calls: Array<{ name: string; output: string | null }>
+      usage: { input_tokens: number; output_tokens: number; reasoning_tokens: number } | null
+      completed_at: string | null
+    } | null>(`/clients/${clientId}/strategy/${versionNumber}/pipeline/agent/${agentName}`),
 }

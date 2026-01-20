@@ -37,6 +37,21 @@ interface Props {
 
 type ContextPopup = "discovery-call" | "deep-dive" | "general-context" | null
 type AgentStatus = "idle" | "processing" | "complete" | "error"
+type AgentPopup = "waiter" | "cook" | "plater" | null
+
+interface AgentOutput {
+  id?: string | null
+  model?: string | null
+  output_text?: string | null
+  reasoning_summary?: string | null
+  tool_calls?: { name: string; output?: string | null }[]
+  usage?: {
+    input_tokens: number
+    output_tokens: number
+    reasoning_tokens: number
+  } | null
+  completed_at?: string | null
+}
 
 interface PipelineState {
   status: "idle" | "waiter_processing" | "cook_processing" | "plater_processing" | "complete" | "error"
@@ -44,6 +59,9 @@ interface PipelineState {
   cook: AgentStatus
   plater: AgentStatus
   error?: string
+  waiterOutput?: AgentOutput | null
+  cookOutput?: AgentOutput | null
+  platerOutput?: AgentOutput | null
 }
 
 export function StrategyEditorView({ client, readOnly = false }: Props) {
@@ -56,6 +74,7 @@ export function StrategyEditorView({ client, readOnly = false }: Props) {
   const [error, setError] = useState<string | null>(null)
   const [contextExpanded, setContextExpanded] = useState(false)
   const [activePopup, setActivePopup] = useState<ContextPopup>(null)
+  const [activeAgentPopup, setActiveAgentPopup] = useState<AgentPopup>(null)
   
   // Agent Pipeline State
   const [pipelineState, setPipelineState] = useState<PipelineState>({
@@ -126,6 +145,9 @@ export function StrategyEditorView({ client, readOnly = false }: Props) {
         cook: status.cook_status as AgentStatus,
         plater: status.plater_status as AgentStatus,
         error: status.error || undefined,
+        waiterOutput: status.waiter_output || null,
+        cookOutput: status.cook_output || null,
+        platerOutput: status.plater_output || null,
       })
       
       // If pipeline is running, start polling
@@ -149,6 +171,9 @@ export function StrategyEditorView({ client, readOnly = false }: Props) {
           cook: status.cook_status as AgentStatus,
           plater: status.plater_status as AgentStatus,
           error: status.error || undefined,
+          waiterOutput: status.waiter_output || null,
+          cookOutput: status.cook_output || null,
+          platerOutput: status.plater_output || null,
         })
         
         // Run agents sequentially
@@ -618,10 +643,22 @@ export function StrategyEditorView({ client, readOnly = false }: Props) {
       </div>
 
       {/* Agent Pipeline Status - Bottom Left */}
-      {pipelineState.status !== "idle" && pipelineState.status !== "complete" && (
+      {pipelineState.status !== "idle" && (
         <div className="absolute bottom-4 left-4 z-40">
-          <AgentPipelineStatus pipelineState={pipelineState} />
+          <AgentPipelineStatus 
+            pipelineState={pipelineState} 
+            onAgentClick={(agent) => setActiveAgentPopup(agent)}
+          />
         </div>
+      )}
+
+      {/* Agent Output Modal */}
+      {activeAgentPopup && (
+        <AgentOutputModal
+          agent={activeAgentPopup}
+          pipelineState={pipelineState}
+          onClose={() => setActiveAgentPopup(null)}
+        />
       )}
 
       {/* Context Popups */}
@@ -681,37 +718,42 @@ export function StrategyEditorView({ client, readOnly = false }: Props) {
 }
 
 // Agent Pipeline Status Component
-function AgentPipelineStatus({ pipelineState }: { pipelineState: PipelineState }) {
+function AgentPipelineStatus({ 
+  pipelineState, 
+  onAgentClick 
+}: { 
+  pipelineState: PipelineState
+  onAgentClick: (agent: AgentPopup) => void
+}) {
   const agents = [
     { 
-      key: "waiter", 
+      key: "waiter" as const, 
       name: "The Waiter", 
       status: pipelineState.waiter,
       icon: Utensils,
       description: "Analyzing context...",
+      completedDescription: "Context analyzed",
       color: "violet"
     },
     { 
-      key: "cook", 
+      key: "cook" as const, 
       name: "The Cook", 
       status: pipelineState.cook,
       icon: ChefHat,
       description: "Creating strategy...",
+      completedDescription: "Strategy created",
       color: "orange"
     },
     { 
-      key: "plater", 
+      key: "plater" as const, 
       name: "The Plater", 
       status: pipelineState.plater,
       icon: Sparkles,
       description: "Formatting sections...",
+      completedDescription: "Sections formatted",
       color: "emerald"
     },
   ]
-
-  const activeAgent = agents.find(a => a.status === "processing")
-
-  if (!activeAgent) return null
 
   const colorClasses = {
     violet: {
@@ -719,60 +761,271 @@ function AgentPipelineStatus({ pipelineState }: { pipelineState: PipelineState }
       border: "border-violet-500/30",
       text: "text-violet-400",
       glow: "shadow-violet-500/20",
+      hoverBg: "hover:bg-violet-500/30",
     },
     orange: {
       bg: "bg-orange-500/20",
       border: "border-orange-500/30",
       text: "text-orange-400",
       glow: "shadow-orange-500/20",
+      hoverBg: "hover:bg-orange-500/30",
     },
     emerald: {
       bg: "bg-emerald-500/20",
       border: "border-emerald-500/30",
       text: "text-emerald-400",
       glow: "shadow-emerald-500/20",
+      hoverBg: "hover:bg-emerald-500/30",
     },
   }
 
-  const colors = colorClasses[activeAgent.color as keyof typeof colorClasses]
-  const Icon = activeAgent.icon
+  const activeAgent = agents.find(a => a.status === "processing")
+  const isComplete = pipelineState.status === "complete"
 
   return (
     <div className={`
-      rounded-xl border ${colors.border} ${colors.bg} 
-      backdrop-blur-sm shadow-lg ${colors.glow}
-      p-4 min-w-[200px] animate-pulse
+      rounded-xl border border-zinc-700/50 bg-zinc-900/90
+      backdrop-blur-sm shadow-lg
+      p-3 min-w-[220px]
+      ${!isComplete ? "animate-pulse" : ""}
     `}>
-      <div className="flex items-center gap-3">
-        <div className={`w-10 h-10 rounded-lg ${colors.bg} flex items-center justify-center`}>
-          <Icon className={`h-5 w-5 ${colors.text}`} />
-        </div>
-        <div>
-          <div className="flex items-center gap-2">
-            <span className={`font-semibold ${colors.text}`}>{activeAgent.name}</span>
-            <Spinner className={`h-3 w-3 ${colors.text}`} />
-          </div>
-          <p className="text-xs text-zinc-500">{activeAgent.description}</p>
-        </div>
+      {/* Agent buttons */}
+      <div className="space-y-2">
+        {agents.map((agent) => {
+          const colors = colorClasses[agent.color as keyof typeof colorClasses]
+          const Icon = agent.icon
+          const isActive = agent.status === "processing"
+          const isClickable = agent.status === "complete"
+          
+          return (
+            <button
+              key={agent.key}
+              onClick={() => isClickable && onAgentClick(agent.key)}
+              disabled={!isClickable}
+              className={`
+                w-full flex items-center gap-3 p-2.5 rounded-lg transition-all
+                ${isActive ? `${colors.bg} ${colors.border} border` : ""}
+                ${isClickable ? `${colors.hoverBg} cursor-pointer` : "cursor-default"}
+                ${agent.status === "idle" ? "opacity-40" : ""}
+              `}
+            >
+              <div className={`
+                w-8 h-8 rounded-lg flex items-center justify-center
+                ${agent.status !== "idle" ? colors.bg : "bg-zinc-800"}
+              `}>
+                <Icon className={`h-4 w-4 ${agent.status !== "idle" ? colors.text : "text-zinc-600"}`} />
+              </div>
+              <div className="flex-1 text-left">
+                <div className="flex items-center gap-2">
+                  <span className={`font-medium text-sm ${agent.status !== "idle" ? colors.text : "text-zinc-600"}`}>
+                    {agent.name}
+                  </span>
+                  {isActive && <Spinner className={`h-3 w-3 ${colors.text}`} />}
+                  {agent.status === "complete" && <CheckCircle2 className="h-3 w-3 text-emerald-500" />}
+                </div>
+                <p className="text-xs text-zinc-500">
+                  {isActive ? agent.description : agent.status === "complete" ? agent.completedDescription : "Waiting..."}
+                </p>
+              </div>
+            </button>
+          )
+        })}
       </div>
       
-      {/* Progress dots */}
-      <div className="flex items-center gap-2 mt-3 pt-3 border-t border-zinc-800/50">
+      {/* Progress bar */}
+      <div className="flex items-center gap-1 mt-3 pt-3 border-t border-zinc-800/50">
         {agents.map((agent, idx) => (
-          <div key={agent.key} className="flex items-center gap-1">
+          <div key={agent.key} className="flex-1 flex items-center gap-1">
             <div className={`
-              w-2 h-2 rounded-full transition-all duration-300
+              flex-1 h-1 rounded-full transition-all duration-300
               ${agent.status === "complete" ? "bg-emerald-500" : 
                 agent.status === "processing" ? "bg-blue-400 animate-pulse" : 
-                "bg-zinc-700"}
+                "bg-zinc-800"}
             `} />
-            {idx < agents.length - 1 && (
-              <div className={`w-4 h-0.5 ${
-                agent.status === "complete" ? "bg-emerald-500/50" : "bg-zinc-800"
-              }`} />
-            )}
           </div>
         ))}
+      </div>
+      
+      {isComplete && (
+        <p className="text-xs text-zinc-500 mt-2 text-center">Click an agent to view its output</p>
+      )}
+    </div>
+  )
+}
+
+// Agent Output Modal
+function AgentOutputModal({ 
+  agent, 
+  pipelineState, 
+  onClose 
+}: { 
+  agent: AgentPopup
+  pipelineState: PipelineState
+  onClose: () => void
+}) {
+  const agentConfig = {
+    waiter: {
+      name: "The Waiter",
+      icon: Utensils,
+      color: "violet",
+      output: pipelineState.waiterOutput,
+    },
+    cook: {
+      name: "The Cook",
+      icon: ChefHat,
+      color: "orange",
+      output: pipelineState.cookOutput,
+    },
+    plater: {
+      name: "The Plater",
+      icon: Sparkles,
+      color: "emerald",
+      output: pipelineState.platerOutput,
+    },
+  }
+
+  if (!agent) return null
+
+  const config = agentConfig[agent]
+  const Icon = config.icon
+  const output = config.output
+
+  const colorClasses = {
+    violet: { text: "text-violet-400", bg: "bg-violet-500/20", border: "border-violet-500/30" },
+    orange: { text: "text-orange-400", bg: "bg-orange-500/20", border: "border-orange-500/30" },
+    emerald: { text: "text-emerald-400", bg: "bg-emerald-500/20", border: "border-emerald-500/30" },
+  }
+
+  const colors = colorClasses[config.color as keyof typeof colorClasses]
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      <div 
+        className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+        onClick={onClose}
+      />
+      
+      <div className="relative w-full max-w-3xl max-h-[85vh] mx-4 bg-zinc-900 rounded-xl border border-zinc-700 shadow-2xl flex flex-col overflow-hidden">
+        {/* Header */}
+        <div className={`flex items-center justify-between px-6 py-4 border-b ${colors.border} ${colors.bg}`}>
+          <div className="flex items-center gap-3">
+            <Icon className={`h-6 w-6 ${colors.text}`} />
+            <h2 className={`text-lg font-semibold ${colors.text}`}>{config.name} Output</h2>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-2 rounded-lg hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 transition-colors"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+          {output ? (
+            <>
+              {/* Reasoning Summary */}
+              {output.reasoning_summary && (
+                <div>
+                  <h3 className="text-sm font-semibold text-zinc-300 mb-2 flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-blue-500" />
+                    Reasoning
+                  </h3>
+                  <div className="bg-zinc-800/50 rounded-lg p-4 border border-zinc-700/50">
+                    <p className="text-zinc-300 text-sm leading-relaxed whitespace-pre-wrap">
+                      {output.reasoning_summary}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Output Text */}
+              {output.output_text && (
+                <div>
+                  <h3 className="text-sm font-semibold text-zinc-300 mb-2 flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                    Output
+                  </h3>
+                  <div className="bg-zinc-800/50 rounded-lg p-4 border border-zinc-700/50 max-h-64 overflow-y-auto">
+                    <pre className="text-zinc-300 text-sm whitespace-pre-wrap font-mono">
+                      {output.output_text}
+                    </pre>
+                  </div>
+                </div>
+              )}
+
+              {/* Tool Calls */}
+              {output.tool_calls && output.tool_calls.length > 0 && (
+                <div>
+                  <h3 className="text-sm font-semibold text-zinc-300 mb-2 flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-amber-500" />
+                    Tool Calls ({output.tool_calls.length})
+                  </h3>
+                  <div className="space-y-2">
+                    {output.tool_calls.map((tool, idx) => (
+                      <div 
+                        key={idx}
+                        className="bg-zinc-800/50 rounded-lg p-3 border border-zinc-700/50"
+                      >
+                        <span className="text-amber-400 font-mono text-sm">{tool.name}</span>
+                        {tool.output && (
+                          <p className="text-zinc-500 text-xs mt-1 truncate">{tool.output}</p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Usage Stats */}
+              {output.usage && (
+                <div>
+                  <h3 className="text-sm font-semibold text-zinc-300 mb-2 flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-purple-500" />
+                    Token Usage
+                  </h3>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="bg-zinc-800/50 rounded-lg p-3 border border-zinc-700/50 text-center">
+                      <p className="text-lg font-semibold text-zinc-200">
+                        {output.usage.input_tokens.toLocaleString()}
+                      </p>
+                      <p className="text-xs text-zinc-500">Input Tokens</p>
+                    </div>
+                    <div className="bg-zinc-800/50 rounded-lg p-3 border border-zinc-700/50 text-center">
+                      <p className="text-lg font-semibold text-zinc-200">
+                        {output.usage.output_tokens.toLocaleString()}
+                      </p>
+                      <p className="text-xs text-zinc-500">Output Tokens</p>
+                    </div>
+                    <div className="bg-zinc-800/50 rounded-lg p-3 border border-zinc-700/50 text-center">
+                      <p className="text-lg font-semibold text-blue-400">
+                        {output.usage.reasoning_tokens.toLocaleString()}
+                      </p>
+                      <p className="text-xs text-zinc-500">Reasoning Tokens</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Metadata */}
+              <div className="flex items-center gap-4 pt-4 border-t border-zinc-800 text-xs text-zinc-500">
+                {output.model && <span>Model: <span className="text-zinc-400">{output.model}</span></span>}
+                {output.id && <span>ID: <span className="text-zinc-400 font-mono">{output.id}</span></span>}
+                {output.completed_at && (
+                  <span>
+                    Completed: <span className="text-zinc-400">
+                      {new Date(output.completed_at).toLocaleString()}
+                    </span>
+                  </span>
+                )}
+              </div>
+            </>
+          ) : (
+            <div className="text-center py-12 text-zinc-500">
+              <p>No output data available yet</p>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )
