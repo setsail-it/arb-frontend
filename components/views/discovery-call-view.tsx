@@ -42,13 +42,27 @@ export function DiscoveryCallView({ client, isDeepDive = false }: Props) {
   const [result, setResult] = useState<DiscoveryCallResult | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [copied, setCopied] = useState(false)
+  const [copiedFactoids, setCopiedFactoids] = useState(false)
+  const [copiedQA, setCopiedQA] = useState(false)
 
   const copyFactoids = () => {
     if (!result?.factoids_summary) return
     navigator.clipboard.writeText(result.factoids_summary)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
+    setCopiedFactoids(true)
+    setTimeout(() => setCopiedFactoids(false), 2000)
+  }
+
+  const copyAllQA = () => {
+    if (!result?.answers_data) return
+    
+    const qaText = result.answers_data.map(a => {
+      const certaintyLabel = a.certainty === 1 ? "Verified" : a.certainty === 2 ? "Likely" : "Unknown"
+      return `Q${a.question_number}: ${a.question}\nA: ${a.answer || "No answer provided"}\nCertainty: ${certaintyLabel}\n`
+    }).join("\n---\n\n")
+    
+    navigator.clipboard.writeText(qaText)
+    setCopiedQA(true)
+    setTimeout(() => setCopiedQA(false), 2000)
   }
 
   const downloadCSV = () => {
@@ -219,7 +233,7 @@ export function DiscoveryCallView({ client, isDeepDive = false }: Props) {
               className="flex items-center gap-2 border-cyan-600/50 hover:bg-cyan-800/30 text-cyan-300"
             >
               <Copy className="h-4 w-4" />
-              {copied ? "Copied!" : "Copy All"}
+              {copiedFactoids ? "Copied!" : "Copy All"}
             </Button>
           </div>
           <div className="p-6">
@@ -232,8 +246,17 @@ export function DiscoveryCallView({ client, isDeepDive = false }: Props) {
 
       {/* Answers List */}
       <div className="rounded-xl border-2 border-slate-700 bg-slate-900/80 overflow-hidden">
-        <div className="px-6 py-4 border-b border-slate-700 bg-slate-800/50">
+        <div className="px-6 py-4 border-b border-slate-700 bg-slate-800/50 flex items-center justify-between">
           <h3 className="text-xl font-semibold text-white">Questions & Answers</h3>
+          <Button
+            onClick={copyAllQA}
+            variant="outline"
+            size="sm"
+            className="flex items-center gap-2 border-slate-600 hover:bg-slate-700 text-slate-300"
+          >
+            <Copy className="h-4 w-4" />
+            {copiedQA ? "Copied!" : "Copy All"}
+          </Button>
         </div>
         <div className="divide-y divide-slate-700/50 max-h-[700px] overflow-y-auto">
           {result.answers_data?.map((answer, idx) => {
