@@ -48,7 +48,7 @@ interface AgentOutput {
   usage?: {
     input_tokens: number
     output_tokens: number
-    reasoning_tokens: number
+    reasoning_tokens?: number
   } | null
   completed_at?: string | null
 }
@@ -73,6 +73,7 @@ export function StrategyEditorView({ client, readOnly = false }: Props) {
   const [contextExpanded, setContextExpanded] = useState(false)
   const [activePopup, setActivePopup] = useState<ContextPopup>(null)
   const [activeAgentPopup, setActiveAgentPopup] = useState<AgentPopup>(null)
+  const [justRefreshed, setJustRefreshed] = useState(false)
   
   // Agent Pipeline State (2-agent pipeline: Waiter → Plater)
   const [pipelineState, setPipelineState] = useState<PipelineState>({
@@ -120,11 +121,17 @@ export function StrategyEditorView({ client, readOnly = false }: Props) {
     }
   }
 
-  const loadStrategy = async (versionNumber: number) => {
+  const loadStrategy = async (versionNumber: number, isRefresh = false) => {
     setIsLoadingStrategy(true)
     try {
       const result = await api.getVersionedStrategy(client.id, versionNumber)
       setStrategy(result)
+      
+      // Show refresh indicator if this was a refresh (not initial load)
+      if (isRefresh) {
+        setJustRefreshed(true)
+        setTimeout(() => setJustRefreshed(false), 2000)
+      }
     } catch (e: any) {
       console.error("Failed to load strategy:", e)
       setStrategy(null)
@@ -185,7 +192,7 @@ export function StrategyEditorView({ client, readOnly = false }: Props) {
             try {
               await api.runPlater(client.id, versionNumber)
               // Reload strategy after plater completes
-              loadStrategy(versionNumber)
+              loadStrategy(versionNumber, true)
             } catch (e) {
               console.error("Plater error:", e)
             }
@@ -200,7 +207,7 @@ export function StrategyEditorView({ client, readOnly = false }: Props) {
           }
           // Reload strategy on completion
           if (status.status === "complete") {
-            loadStrategy(versionNumber)
+            loadStrategy(versionNumber, true)
           }
         }
       } catch (e) {
@@ -209,13 +216,44 @@ export function StrategyEditorView({ client, readOnly = false }: Props) {
     }, 3000)
   }
 
-  const handleCreateVersion = async () => {
+  const handleCreateVersion = async (triggerPipeline = false) => {
     setIsCreating(true)
     try {
+      const isFirstVersion = versions.length === 0
       const copyFrom = versions.length > 0 ? versions[0].version_number : undefined
       const result = await api.createStrategyVersion(client.id, copyFrom)
       await loadVersions()
       setSelectedVersion(result.version_number)
+      
+      // If this is the first version OR explicitly requested, trigger the pipeline
+      if (isFirstVersion || triggerPipeline) {
+        // Gather context data and start pipeline
+        const [dcResult, ddResult] = await Promise.all([
+          api.getDiscoveryCallResult(client.id.toString()).catch(() => null),
+          api.getDeepDiveResult(client.id.toString()).catch(() => null),
+        ])
+        
+        const call1Notes = (dcResult as DiscoveryCallResult)?.factoids_summary || "No Call 1 notes available"
+        const call2Notes = (ddResult as DiscoveryCallResult)?.factoids_summary || "No Call 2 notes available"
+        
+        let call2QA = "No Q&A available"
+        if ((ddResult as DiscoveryCallResult)?.answers_data) {
+          call2QA = (ddResult as DiscoveryCallResult).answers_data!.map(a => {
+            const certaintyLabel = a.certainty === "1" ? "Verified" : a.certainty === "2" ? "Likely" : "Unknown"
+            return `Q${a.question_number}: ${a.question}\nA: ${a.answer || "No answer"}\nCertainty: ${certaintyLabel}`
+          }).join("\n\n---\n\n")
+        }
+        
+        await api.startStrategyPipeline(client.id, result.version_number, call1Notes, call2Notes, call2QA)
+        
+        setPipelineState({
+          status: "waiter_processing",
+          waiter: "processing",
+          plater: "idle",
+        })
+        
+        startPipelinePolling(result.version_number)
+      }
     } catch (e: any) {
       console.error("Failed to create strategy version:", e)
       setError(e.message || "Failed to create version")
@@ -244,7 +282,7 @@ export function StrategyEditorView({ client, readOnly = false }: Props) {
       let call2QA = "No Q&A available"
       if ((ddResult as DiscoveryCallResult)?.answers_data) {
         call2QA = (ddResult as DiscoveryCallResult).answers_data!.map(a => {
-          const certaintyLabel = a.certainty === 1 ? "Verified" : a.certainty === 2 ? "Likely" : "Unknown"
+          const certaintyLabel = a.certainty === "1" ? "Verified" : a.certainty === "2" ? "Likely" : "Unknown"
           return `Q${a.question_number}: ${a.question}\nA: ${a.answer || "No answer"}\nCertainty: ${certaintyLabel}`
         }).join("\n\n---\n\n")
       }
@@ -271,7 +309,7 @@ export function StrategyEditorView({ client, readOnly = false }: Props) {
 
   const handleStrategyUpdated = () => {
     if (selectedVersion !== null) {
-      loadStrategy(selectedVersion)
+      loadStrategy(selectedVersion, true)
     }
   }
 
@@ -354,7 +392,7 @@ export function StrategyEditorView({ client, readOnly = false }: Props) {
               <h3 className="font-semibold text-zinc-200 text-sm tracking-wide">Versions</h3>
               {!readOnly && (
                 <Button
-                  onClick={handleCreateVersion}
+                  onClick={() => handleCreateVersion()}
                   disabled={isCreating}
                   size="sm"
                   className="h-7 px-2 bg-emerald-600 hover:bg-emerald-500 text-white"
@@ -375,7 +413,7 @@ export function StrategyEditorView({ client, readOnly = false }: Props) {
                 <p className="text-sm text-zinc-500">No versions yet</p>
                 {!readOnly && (
                   <Button
-                    onClick={handleCreateVersion}
+                    onClick={() => handleCreateVersion()}
                     disabled={isCreating}
                     size="sm"
                     className="mt-3 bg-emerald-600 hover:bg-emerald-500 text-white"
@@ -463,7 +501,7 @@ export function StrategyEditorView({ client, readOnly = false }: Props) {
                     </Button>
                   )}
                   <Button
-                    onClick={() => loadStrategy(selectedVersion)}
+                    onClick={() => loadStrategy(selectedVersion, true)}
                     variant="outline"
                     size="sm"
                     className="gap-2 border-zinc-700 hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200"
@@ -472,6 +510,14 @@ export function StrategyEditorView({ client, readOnly = false }: Props) {
                     Refresh
                   </Button>
                 </div>
+                
+                {/* Refresh indicator */}
+                {justRefreshed && (
+                  <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-500/20 border border-emerald-500/30 rounded-full text-sm text-emerald-400 animate-pulse">
+                    <CheckCircle2 className="h-4 w-4" />
+                    Strategy updated
+                  </div>
+                )}
               </div>
 
               <div className="flex-1 overflow-y-auto">
@@ -969,7 +1015,7 @@ function AgentOutputModal({
                     </div>
                     <div className="bg-zinc-800/50 rounded-lg p-3 border border-zinc-700/50 text-center">
                       <p className="text-lg font-semibold text-blue-400">
-                        {output.usage.reasoning_tokens.toLocaleString()}
+                        {(output.usage.reasoning_tokens ?? 0).toLocaleString()}
                       </p>
                       <p className="text-xs text-zinc-500">Reasoning Tokens</p>
                     </div>
