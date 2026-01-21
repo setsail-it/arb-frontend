@@ -25,8 +25,6 @@ export function StrategyChat({ clientId, versionNumber, onStrategyUpdated, isLoc
 
   // Load chat history on mount and when version changes
   const loadChatHistory = useCallback(async () => {
-    // Clear messages immediately when starting to load
-    setMessages([])
     setIsLoadingHistory(true)
     try {
       const history = await api.getStrategyChatMessages(clientId, versionNumber)
@@ -44,7 +42,6 @@ export function StrategyChat({ clientId, versionNumber, onStrategyUpdated, isLoc
       setMessages(loadedMessages)
     } catch (e) {
       console.error("Failed to load chat history:", e)
-      setMessages([]) // Ensure messages are empty on error
     } finally {
       setIsLoadingHistory(false)
     }

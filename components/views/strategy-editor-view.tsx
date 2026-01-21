@@ -29,6 +29,7 @@ import {
   Lock,
   Unlock,
   Download,
+  Copy,
 } from "lucide-react"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
@@ -77,6 +78,7 @@ export function StrategyEditorView({ client, readOnly = false }: Props) {
   const [activePopup, setActivePopup] = useState<ContextPopup>(null)
   const [activeAgentPopup, setActiveAgentPopup] = useState<AgentPopup>(null)
   const [justRefreshed, setJustRefreshed] = useState(false)
+  const [justCopied, setJustCopied] = useState(false)
   
   // Agent Pipeline State (2-agent pipeline: Waiter → Plater)
   const [pipelineState, setPipelineState] = useState<PipelineState>({
@@ -124,12 +126,10 @@ export function StrategyEditorView({ client, readOnly = false }: Props) {
   // Load strategy when version changes
   useEffect(() => {
     if (selectedVersion !== null) {
-      // Reset strategy immediately to show loading state
-      setStrategy(null)
       loadStrategy(selectedVersion)
       checkPipelineStatus(selectedVersion)
     }
-  }, [selectedVersion, client.id])
+  }, [selectedVersion])
 
   const loadVersions = async () => {
     setIsLoadingVersions(true)
@@ -357,6 +357,18 @@ export function StrategyEditorView({ client, readOnly = false }: Props) {
     }
   }
 
+  const handleCopyStrategy = async () => {
+    if (!strategy?.full_document) return
+    
+    try {
+      await navigator.clipboard.writeText(strategy.full_document)
+      setJustCopied(true)
+      setTimeout(() => setJustCopied(false), 2000)
+    } catch (err) {
+      console.error("Failed to copy strategy:", err)
+    }
+  }
+
   const formatDate = (dateStr: string | null) => {
     if (!dateStr) return "Unknown"
     try {
@@ -552,14 +564,32 @@ export function StrategyEditorView({ client, readOnly = false }: Props) {
                     </Button>
                   )}
                   {strategy.full_document && (
-                    <a
-                      href={api.getStrategyPdfUrl(client.id, strategy.version_number)}
-                      download
-                      className="inline-flex items-center gap-2 px-3 py-1.5 text-sm rounded-md border border-zinc-700 hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 transition-colors"
-                    >
-                      <Download className="h-4 w-4" />
-                      Export PDF
-                    </a>
+                    <>
+                      <button
+                        onClick={handleCopyStrategy}
+                        className="inline-flex items-center gap-2 px-3 py-1.5 text-sm rounded-md border border-zinc-700 hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 transition-colors"
+                      >
+                        {justCopied ? (
+                          <>
+                            <Check className="h-4 w-4 text-emerald-400" />
+                            <span className="text-emerald-400">Copied!</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="h-4 w-4" />
+                            Copy All
+                          </>
+                        )}
+                      </button>
+                      <a
+                        href={api.getStrategyPdfUrl(client.id, strategy.version_number)}
+                        download
+                        className="inline-flex items-center gap-2 px-3 py-1.5 text-sm rounded-md border border-zinc-700 hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 transition-colors"
+                      >
+                        <Download className="h-4 w-4" />
+                        Export PDF
+                      </a>
+                    </>
                   )}
                   {strategy.is_locked ? (
                     <Button
@@ -734,7 +764,6 @@ export function StrategyEditorView({ client, readOnly = false }: Props) {
           <div className="w-80 flex-shrink-0 border-l border-zinc-800 relative">
             {chatEnabled ? (
               <StrategyChat
-                key={`${client.id}-${selectedVersion}`}
                 clientId={client.id}
                 versionNumber={selectedVersion}
                 onStrategyUpdated={handleStrategyUpdated}
