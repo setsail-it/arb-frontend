@@ -969,4 +969,64 @@ export const api = {
       `/clients/${clientId}/files/${fileId}`,
       { method: "DELETE" }
     ),
+
+  // =============================================================================
+  // Strategy Version Locking
+  // =============================================================================
+
+  lockStrategyVersion: (clientId: number, versionNumber: number, lockedBy?: string) =>
+    fetchJson<{ status: string; message: string }>(
+      `/clients/${clientId}/strategy/${versionNumber}/lock`,
+      {
+        method: "POST",
+        body: JSON.stringify({ locked_by: lockedBy }),
+      }
+    ),
+
+  unlockStrategyVersion: (clientId: number, versionNumber: number) =>
+    fetchJson<{ status: string; message: string }>(
+      `/clients/${clientId}/strategy/${versionNumber}/unlock`,
+      { method: "POST" }
+    ),
+
+  // =============================================================================
+  // Strategy Chat Message Persistence
+  // =============================================================================
+
+  getStrategyChatMessages: (clientId: number, versionNumber: number) =>
+    fetchJson<Array<{
+      id: number
+      role: string
+      content: string
+      reasoning: string | null
+      tool_calls: Array<{ name: string; arguments?: Record<string, unknown> }> | null
+      created_at: string
+    }>>(`/clients/${clientId}/strategy/${versionNumber}/messages`),
+
+  saveStrategyChatMessage: (
+    clientId: number,
+    versionNumber: number,
+    message: {
+      role: string
+      content: string
+      reasoning?: string | null
+      tool_calls?: Array<{ name: string; arguments?: Record<string, unknown> }> | null
+    }
+  ) =>
+    fetchJson<{ status: string; message_id: number }>(
+      `/clients/${clientId}/strategy/${versionNumber}/messages`,
+      {
+        method: "POST",
+        body: JSON.stringify(message),
+      }
+    ),
+
+  // =============================================================================
+  // Strategy PDF Export
+  // =============================================================================
+
+  getStrategyPdfUrl: (clientId: number, versionNumber: number) => {
+    const baseUrl = BACKEND_BASE_URL.replace(/\/$/, "")
+    return `${baseUrl}/clients/${clientId}/strategy/${versionNumber}/export/pdf`
+  },
 }

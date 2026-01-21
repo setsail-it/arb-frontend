@@ -454,18 +454,29 @@ export interface VersionedStrategy {
   updated_at: string
   full_document: string
   sections: Record<string, StrategySection>
+  is_locked?: boolean
 }
 
 export interface StrategyVersion {
   version_number: number
   created_at: string | null
   updated_at: string | null
+  is_locked?: boolean
 }
 
 export interface StrategyVersionList {
   client_id: number
   total_versions: number
   versions: StrategyVersion[]
+}
+
+export interface PersistedChatMessage {
+  id: number
+  role: "user" | "assistant"
+  content: string
+  reasoning?: string | null
+  tool_calls?: Array<{ name: string; arguments?: Record<string, unknown> }> | null
+  created_at: string
 }
 
 export interface ChatMessage {

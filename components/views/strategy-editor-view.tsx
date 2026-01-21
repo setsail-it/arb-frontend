@@ -26,6 +26,9 @@ import {
   Check,
   AlertCircle,
   Play,
+  Lock,
+  Unlock,
+  Download,
 } from "lucide-react"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
@@ -241,6 +244,44 @@ export function StrategyEditorView({ client, readOnly = false }: Props) {
     }
   }
 
+  const handleLockVersion = async () => {
+    if (selectedVersion === null) return
+    
+    if (!confirm(`Lock version ${selectedVersion}? This will prevent further edits until unlocked.`)) {
+      return
+    }
+    
+    try {
+      await api.lockStrategyVersion(client.id, selectedVersion)
+      // Refresh the strategy to get the updated lock status
+      await loadStrategy(selectedVersion, true)
+      // Refresh versions list to update lock indicators
+      await loadVersions()
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : "Failed to lock version"
+      alert(message)
+    }
+  }
+
+  const handleUnlockVersion = async () => {
+    if (selectedVersion === null) return
+    
+    if (!confirm(`Unlock version ${selectedVersion}? This will allow edits again.`)) {
+      return
+    }
+    
+    try {
+      await api.unlockStrategyVersion(client.id, selectedVersion)
+      // Refresh the strategy to get the updated lock status
+      await loadStrategy(selectedVersion, true)
+      // Refresh versions list to update lock indicators
+      await loadVersions()
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : "Failed to unlock version"
+      alert(message)
+    }
+  }
+
   const handleStartPipeline = async () => {
     if (selectedVersion === null) return
     
@@ -410,21 +451,28 @@ export function StrategyEditorView({ client, readOnly = false }: Props) {
                     onClick={() => setSelectedVersion(v.version_number)}
                     className={`w-full text-left px-3 py-2.5 rounded-lg transition-all ${
                       selectedVersion === v.version_number
-                        ? "bg-emerald-600/20 border border-emerald-500/40"
+                        ? "bg-blue-600/20 border border-blue-500/40"
                         : "hover:bg-zinc-800 border border-transparent"
                     }`}
                   >
                     <div className="flex items-center gap-2">
-                      {selectedVersion === v.version_number ? (
-                        <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+                      {v.is_locked ? (
+                        <Lock className="h-4 w-4 text-amber-400" />
+                      ) : selectedVersion === v.version_number ? (
+                        <CheckCircle2 className="h-4 w-4 text-blue-400" />
                       ) : (
-                        <FileText className="h-4 w-4 text-zinc-600" />
+                        <FileText className="h-4 w-4 text-blue-600" />
                       )}
                       <span className={`font-medium text-sm ${
-                        selectedVersion === v.version_number ? "text-emerald-300" : "text-zinc-400"
+                        selectedVersion === v.version_number ? "text-blue-300" : "text-blue-400"
                       }`}>
                         v{v.version_number}
                       </span>
+                      {v.is_locked && (
+                        <span className="text-[10px] px-1.5 py-0.5 bg-amber-500/20 text-amber-400 rounded ml-auto">
+                          LOCKED
+                        </span>
+                      )}
                     </div>
                     <div className="flex items-center gap-1 mt-1 ml-6">
                       <Clock className="h-3 w-3 text-zinc-600" />
@@ -477,6 +525,37 @@ export function StrategyEditorView({ client, readOnly = false }: Props) {
                         <Play className="h-4 w-4" />
                       )}
                       Generate Strategy
+                    </Button>
+                  )}
+                  {strategy.full_document && (
+                    <a
+                      href={api.getStrategyPdfUrl(client.id, strategy.version_number)}
+                      download
+                      className="inline-flex items-center gap-2 px-3 py-1.5 text-sm rounded-md border border-zinc-700 hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 transition-colors"
+                    >
+                      <Download className="h-4 w-4" />
+                      Export PDF
+                    </a>
+                  )}
+                  {strategy.is_locked ? (
+                    <Button
+                      onClick={handleUnlockVersion}
+                      variant="outline"
+                      size="sm"
+                      className="gap-2 border-amber-700 hover:bg-amber-900/30 text-amber-400 hover:text-amber-300"
+                    >
+                      <Unlock className="h-4 w-4" />
+                      Unlock
+                    </Button>
+                  ) : strategy.full_document && (
+                    <Button
+                      onClick={handleLockVersion}
+                      variant="outline"
+                      size="sm"
+                      className="gap-2 border-zinc-700 hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200"
+                    >
+                      <Lock className="h-4 w-4" />
+                      Lock
                     </Button>
                   )}
                   <Button
@@ -634,6 +713,7 @@ export function StrategyEditorView({ client, readOnly = false }: Props) {
                 clientId={client.id}
                 versionNumber={selectedVersion}
                 onStrategyUpdated={handleStrategyUpdated}
+                isLocked={strategy?.is_locked}
               />
             ) : (
               <div className="h-full flex flex-col items-center justify-center p-6 text-center">
