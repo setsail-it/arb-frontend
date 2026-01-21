@@ -91,9 +91,31 @@ export function StrategyEditorView({ client, readOnly = false }: Props) {
   const strategyHasContent = !!(strategy?.full_document)
   const chatEnabled = pipelineState.status === "complete" || strategyHasContent
 
-  // Load versions on mount
+  // Load versions on mount and when client changes
   useEffect(() => {
+    // Reset state when client changes
+    setVersions([])
+    setSelectedVersion(null)
+    setStrategy(null)
+    setPipelineState({
+      status: "idle",
+      waiter: "idle",
+      plater: "idle",
+    })
+    setError(null)
+    setContextExpanded(false)
+    setActivePopup(null)
+    setActiveAgentPopup(null)
+    
+    // Clear any existing polling
+    if (pipelinePollingRef.current) {
+      clearInterval(pipelinePollingRef.current)
+      pipelinePollingRef.current = null
+    }
+    
+    // Load versions for the new client
     loadVersions()
+    
     return () => {
       if (pipelinePollingRef.current) clearInterval(pipelinePollingRef.current)
     }
