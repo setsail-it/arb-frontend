@@ -480,3 +480,19 @@ export interface ChatMessage {
     result?: string
   }>
 }
+
+// Client Files (Additional Context)
+export interface ClientFile {
+  id: number
+  client_id: number
+  filename: string
+  content_type: string
+  file_size: number
+  description?: string | null
+  uploaded_at: string
+}
+
+export interface ClientFileListResponse {
+  files: ClientFile[]
+  total_size: number
+}

@@ -906,4 +906,67 @@ export const api = {
       usage: { input_tokens: number; output_tokens: number; reasoning_tokens: number } | null
       completed_at: string | null
     } | null>(`/clients/${clientId}/strategy/${versionNumber}/pipeline/agent/${agentName}`),
+
+  // =============================================================================
+  // Client Files (Additional Context)
+  // =============================================================================
+  
+  getClientFiles: (clientId: number) =>
+    fetchJson<{
+      files: Array<{
+        id: number
+        client_id: number
+        filename: string
+        content_type: string
+        file_size: number
+        description: string | null
+        uploaded_at: string
+      }>
+      total_size: number
+    }>(`/clients/${clientId}/files`),
+
+  uploadClientFile: async (clientId: number, file: File, description?: string) => {
+    const baseUrl = BACKEND_BASE_URL.replace(/\/$/, "")
+    const formData = new FormData()
+    formData.append("file", file)
+    if (description) {
+      formData.append("description", description)
+    }
+    
+    const res = await fetch(`${baseUrl}/clients/${clientId}/files`, {
+      method: "POST",
+      body: formData,
+      // Note: Don't set Content-Type header - browser will set it with boundary
+    })
+    
+    if (!res.ok) {
+      let errorMessage = `Upload failed: ${res.status}`
+      try {
+        const errorBody = await res.json()
+        if (errorBody.detail) errorMessage = errorBody.detail
+      } catch {}
+      throw new Error(errorMessage)
+    }
+    
+    return res.json() as Promise<{
+      id: number
+      client_id: number
+      filename: string
+      content_type: string
+      file_size: number
+      description: string | null
+      uploaded_at: string
+    }>
+  },
+
+  downloadClientFile: (clientId: number, fileId: number) => {
+    const baseUrl = BACKEND_BASE_URL.replace(/\/$/, "")
+    return `${baseUrl}/clients/${clientId}/files/${fileId}`
+  },
+
+  deleteClientFile: (clientId: number, fileId: number) =>
+    fetchJson<{ status: string; filename: string }>(
+      `/clients/${clientId}/files/${fileId}`,
+      { method: "DELETE" }
+    ),
 }

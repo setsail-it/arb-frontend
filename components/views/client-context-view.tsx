@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
-import type { Client } from "@/types"
+import { useState, useEffect, useRef, useCallback } from "react"
+import type { Client, ClientFile } from "@/types"
 import { api } from "@/lib/api"
 import { GeneralContextForm } from "@/components/views/general-context-form"
 import { DiscoveryCallView } from "@/components/views/discovery-call-view"
@@ -20,6 +20,11 @@ import {
   Database,
   X,
   CheckCircle,
+  Paperclip,
+  Upload,
+  FileText,
+  Trash2,
+  Download,
 } from "lucide-react"
 
 interface Props {
@@ -28,7 +33,7 @@ interface Props {
 }
 
 type ComponentStatus = "idle" | "processing" | "complete" | "error"
-type ActiveView = "admin" | "discovery-call" | "deep-dive" | "general"
+type ActiveView = "admin" | "discovery-call" | "deep-dive" | "general" | "files"
 
 interface FlowState {
   discoveryCall: ComponentStatus
@@ -71,6 +76,12 @@ export function ClientContextView({ client, readOnly = false }: Props) {
   const dcPollingRef = useRef<NodeJS.Timeout | null>(null)
   const ddPollingRef = useRef<NodeJS.Timeout | null>(null)
   const gcPollingRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Files state (Additional Context)
+  const [files, setFiles] = useState<ClientFile[]>([])
+  const [filesLoading, setFilesLoading] = useState(false)
+  const [uploadingFile, setUploadingFile] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Pipeline is still running if any job is processing
   const isPipelineRunning = flowState.discoveryCall === "processing" || 
@@ -409,6 +420,12 @@ export function ClientContextView({ client, readOnly = false }: Props) {
         
         setFlowState({ discoveryCall: dcState, deepDive: ddState, generalContext: gcState })
         
+        // Load files
+        try {
+          const filesResponse = await api.getClientFiles(client.id)
+          setFiles(filesResponse.files)
+        } catch {}
+        
         if (earliestStart) {
           setPipelineStartTime(earliestStart)
           setIsActivating(true)
@@ -564,6 +581,52 @@ export function ClientContextView({ client, readOnly = false }: Props) {
     setIsActivating(false)
   }
 
+  // File management functions
+  const loadFiles = useCallback(async () => {
+    setFilesLoading(true)
+    try {
+      const response = await api.getClientFiles(client.id)
+      setFiles(response.files)
+    } catch (e) {
+      console.error("Failed to load files:", e)
+    } finally {
+      setFilesLoading(false)
+    }
+  }, [client.id])
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setUploadingFile(true)
+    try {
+      await api.uploadClientFile(client.id, file)
+      await loadFiles()
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Upload failed"
+      alert(message)
+    } finally {
+      setUploadingFile(false)
+      if (fileInputRef.current) fileInputRef.current.value = ""
+    }
+  }
+
+  const handleDeleteFile = async (fileId: number, filename: string) => {
+    if (!confirm(`Delete "${filename}"?`)) return
+    try {
+      await api.deleteClientFile(client.id, fileId)
+      await loadFiles()
+    } catch {
+      alert("Failed to delete file")
+    }
+  }
+
+  const formatFileSize = (bytes: number): string => {
+    if (bytes < 1024) return `${bytes} B`
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+  }
+
   // Detail views
   if (activeView !== "admin") {
     return (
@@ -580,6 +643,89 @@ export function ClientContextView({ client, readOnly = false }: Props) {
         {activeView === "discovery-call" && <DiscoveryCallView client={client} />}
         {activeView === "deep-dive" && <DiscoveryCallView client={client} isDeepDive />}
         {activeView === "general" && <GeneralContextForm client={client} readOnly={readOnly} />}
+        {activeView === "files" && (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-2xl font-bold text-white">Additional Context</h2>
+                <p className="text-slate-400 mt-1">Upload documents, images, and other reference files</p>
+              </div>
+              <div>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  onChange={handleFileUpload}
+                  className="hidden"
+                  accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.md,.json,.jpg,.jpeg,.png,.gif,.webp"
+                />
+                <Button
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploadingFile}
+                  className="gap-2 bg-violet-600 hover:bg-violet-500"
+                >
+                  {uploadingFile ? <Spinner className="h-4 w-4" /> : <Upload className="h-4 w-4" />}
+                  Upload File
+                </Button>
+              </div>
+            </div>
+
+            {filesLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <Spinner className="h-8 w-8 text-violet-500" />
+              </div>
+            ) : files.length === 0 ? (
+              <Card className="border-dashed border-2 border-slate-700 bg-slate-800/30">
+                <CardContent className="py-12 text-center">
+                  <Paperclip className="h-12 w-12 mx-auto text-slate-600 mb-4" />
+                  <p className="text-slate-400">No files uploaded yet</p>
+                  <p className="text-sm text-slate-500 mt-1">
+                    Upload PDFs, documents, images, or other reference materials
+                  </p>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="space-y-2">
+                {files.map((file) => (
+                  <Card key={file.id} className="bg-slate-800/50 border-slate-700">
+                    <CardContent className="py-3 px-4">
+                      <div className="flex items-center gap-4">
+                        <div className="p-2 bg-slate-700 rounded-lg">
+                          <FileText className="h-5 w-5 text-slate-300" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-white truncate">{file.filename}</p>
+                          <p className="text-xs text-slate-400">
+                            {formatFileSize(file.file_size)} • {new Date(file.uploaded_at).toLocaleDateString()}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <a
+                            href={api.downloadClientFile(client.id, file.id)}
+                            download={file.filename}
+                            className="p-2 hover:bg-slate-700 rounded-lg transition-colors"
+                            title="Download"
+                          >
+                            <Download className="h-4 w-4 text-slate-400 hover:text-white" />
+                          </a>
+                          <button
+                            onClick={() => handleDeleteFile(file.id, file.filename)}
+                            className="p-2 hover:bg-red-900/50 rounded-lg transition-colors"
+                            title="Delete"
+                          >
+                            <Trash2 className="h-4 w-4 text-slate-400 hover:text-red-400" />
+                          </button>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+                <p className="text-xs text-slate-500 text-right mt-2">
+                  Total: {formatFileSize(files.reduce((sum, f) => sum + f.file_size, 0))} / 50 MB
+                </p>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     )
   }
@@ -742,6 +888,13 @@ export function ClientContextView({ client, readOnly = false }: Props) {
                 status={flowState.generalContext}
                 onClick={() => setActiveView("general")}
               />
+              <ResultCard
+                title="Additional Context"
+                icon={<Paperclip className="h-5 w-5" />}
+                status={files.length > 0 ? "complete" : "idle"}
+                onClick={() => { loadFiles(); setActiveView("files") }}
+                filesCount={files.length}
+              />
             </div>
           </div>
         </div>
@@ -850,9 +1003,10 @@ interface ResultCardProps {
   skipped?: boolean
   progressSteps?: string[]
   progressStepsConfig?: { key: string; label: string }[]
+  filesCount?: number  // For Additional Context card
 }
 
-function ResultCard({ title, icon, status, onClick, skipped, progressSteps = [], progressStepsConfig = [] }: ResultCardProps) {
+function ResultCard({ title, icon, status, onClick, skipped, progressSteps = [], progressStepsConfig = [], filesCount }: ResultCardProps) {
   const statusConfig = {
     idle: {
       border: "border-slate-700",
@@ -892,16 +1046,20 @@ function ResultCard({ title, icon, status, onClick, skipped, progressSteps = [],
   const effectiveStatus = skipped && status === "idle" ? "idle" : status
   const config = statusConfig[effectiveStatus]
   const showProgress = status === "processing" && progressSteps.length > 0 && progressStepsConfig.length > 0
+  
+  // Files card is always clickable
+  const isFilesCard = filesCount !== undefined
+  const isClickable = config.clickable || isFilesCard
 
   return (
     <Card 
       className={`
         w-64 transition-all duration-200
         ${config.border} ${config.bg} ${config.glow}
-        ${config.clickable ? "cursor-pointer hover:brightness-110 hover:border-opacity-100" : ""}
+        ${isClickable ? "cursor-pointer hover:brightness-110 hover:border-opacity-100" : ""}
         ${skipped && status === "idle" ? "opacity-50" : ""}
       `}
-      onClick={config.clickable ? onClick : undefined}
+      onClick={isClickable ? onClick : undefined}
     >
       <CardContent className="p-4">
         <div className="flex items-start gap-3">
@@ -932,15 +1090,17 @@ function ResultCard({ title, icon, status, onClick, skipped, progressSteps = [],
             {/* Status text */}
             {!showProgress && (
               <p className="text-xs text-slate-400 mt-1">
-                {skipped && status === "idle" && "Skipped (no URL)"}
-                {!skipped && status === "idle" && "Not started"}
-                {status === "processing" && "Processing..."}
-                {status === "complete" && "Click to view"}
-                {status === "error" && "Error occurred"}
+                {isFilesCard && filesCount === 0 && "Click to upload"}
+                {isFilesCard && filesCount! > 0 && `${filesCount} file${filesCount === 1 ? "" : "s"}`}
+                {!isFilesCard && skipped && status === "idle" && "Skipped (no URL)"}
+                {!isFilesCard && !skipped && status === "idle" && "Not started"}
+                {!isFilesCard && status === "processing" && "Processing..."}
+                {!isFilesCard && status === "complete" && "Click to view"}
+                {!isFilesCard && status === "error" && "Error occurred"}
               </p>
             )}
           </div>
-          {config.clickable && (
+          {isClickable && (
             <ChevronRight className="h-4 w-4 text-slate-500 flex-shrink-0 mt-1" />
           )}
         </div>
