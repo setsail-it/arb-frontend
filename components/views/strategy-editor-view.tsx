@@ -124,10 +124,12 @@ export function StrategyEditorView({ client, readOnly = false }: Props) {
   // Load strategy when version changes
   useEffect(() => {
     if (selectedVersion !== null) {
+      // Reset strategy immediately to show loading state
+      setStrategy(null)
       loadStrategy(selectedVersion)
       checkPipelineStatus(selectedVersion)
     }
-  }, [selectedVersion])
+  }, [selectedVersion, client.id])
 
   const loadVersions = async () => {
     setIsLoadingVersions(true)
@@ -732,6 +734,7 @@ export function StrategyEditorView({ client, readOnly = false }: Props) {
           <div className="w-80 flex-shrink-0 border-l border-zinc-800 relative">
             {chatEnabled ? (
               <StrategyChat
+                key={`${client.id}-${selectedVersion}`}
                 clientId={client.id}
                 versionNumber={selectedVersion}
                 onStrategyUpdated={handleStrategyUpdated}
