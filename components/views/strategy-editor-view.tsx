@@ -30,6 +30,8 @@ import {
   Unlock,
   Download,
   Copy,
+  Wand2,
+  Wrench,
 } from "lucide-react"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
@@ -41,7 +43,7 @@ interface Props {
 
 type ContextPopup = "discovery-call" | "deep-dive" | "general-context" | null
 type AgentStatus = "idle" | "processing" | "complete" | "error"
-type AgentPopup = "waiter" | "plater" | null
+type AgentPopup = "waiter" | "plater" | "wizard" | "fixer" | null
 
 interface AgentOutput {
   id?: string | null
@@ -58,12 +60,16 @@ interface AgentOutput {
 }
 
 interface PipelineState {
-  status: "idle" | "waiter_processing" | "plater_processing" | "complete" | "error"
+  status: "idle" | "waiter_processing" | "plater_processing" | "wizard_processing" | "fixer_processing" | "complete" | "error"
   waiter: AgentStatus
   plater: AgentStatus
+  wizard: AgentStatus
+  fixer: AgentStatus
   error?: string
   waiterOutput?: AgentOutput | null
   platerOutput?: AgentOutput | null
+  wizardOutput?: AgentOutput | null
+  fixerOutput?: AgentOutput | null
 }
 
 export function StrategyEditorView({ client, readOnly = false }: Props) {
@@ -80,11 +86,13 @@ export function StrategyEditorView({ client, readOnly = false }: Props) {
   const [justRefreshed, setJustRefreshed] = useState(false)
   const [justCopied, setJustCopied] = useState(false)
   
-  // Agent Pipeline State (2-agent pipeline: Waiter → Plater)
+  // Agent Pipeline State (4-agent pipeline: Waiter → Plater → Wizard → Fixer)
   const [pipelineState, setPipelineState] = useState<PipelineState>({
     status: "idle",
     waiter: "idle",
     plater: "idle",
+    wizard: "idle",
+    fixer: "idle",
   })
   const [isPipelineStarting, setIsPipelineStarting] = useState(false)
   const pipelinePollingRef = useRef<NodeJS.Timeout | null>(null)
@@ -175,9 +183,13 @@ export function StrategyEditorView({ client, readOnly = false }: Props) {
         status: status.status as PipelineState["status"],
         waiter: status.waiter_status as AgentStatus,
         plater: status.plater_status as AgentStatus,
+        wizard: status.wizard_status as AgentStatus,
+        fixer: status.fixer_status as AgentStatus,
         error: status.error || undefined,
         waiterOutput: status.waiter_output || null,
         platerOutput: status.plater_output || null,
+        wizardOutput: status.wizard_output || null,
+        fixerOutput: status.fixer_output || null,
       })
       
       // If pipeline is running, start polling
@@ -200,9 +212,13 @@ export function StrategyEditorView({ client, readOnly = false }: Props) {
           status: status.status as PipelineState["status"],
           waiter: status.waiter_status as AgentStatus,
           plater: status.plater_status as AgentStatus,
+          wizard: status.wizard_status as AgentStatus,
+          fixer: status.fixer_status as AgentStatus,
           error: status.error || undefined,
           waiterOutput: status.waiter_output || null,
           platerOutput: status.plater_output || null,
+          wizardOutput: status.wizard_output || null,
+          fixerOutput: status.fixer_output || null,
         })
         
         // Stop polling when complete or error
@@ -256,6 +272,8 @@ export function StrategyEditorView({ client, readOnly = false }: Props) {
           status: "waiter_processing",
           waiter: "processing",
           plater: "idle",
+          wizard: "idle",
+          fixer: "idle",
         })
         
         startPipelinePolling(result.version_number)
@@ -888,6 +906,24 @@ function AgentPipelineStatus({
       completedDescription: "Strategy complete",
       color: "emerald"
     },
+    { 
+      key: "wizard" as const, 
+      name: "The Wizard", 
+      status: pipelineState.wizard,
+      icon: Wand2,
+      description: "Enhancing strategy...",
+      completedDescription: "Enhancements complete",
+      color: "orange"
+    },
+    { 
+      key: "fixer" as const, 
+      name: "The Fixer", 
+      status: pipelineState.fixer,
+      icon: Wrench,
+      description: "Finalizing strategy...",
+      completedDescription: "Finalization complete",
+      color: "orange"
+    },
   ]
 
   const colorClasses = {
@@ -1010,6 +1046,18 @@ function AgentOutputModal({
       icon: ChefHat,
       color: "emerald",
       output: pipelineState.platerOutput,
+    },
+    wizard: {
+      name: "The Wizard",
+      icon: Wand2,
+      color: "orange",
+      output: pipelineState.wizardOutput,
+    },
+    fixer: {
+      name: "The Fixer",
+      icon: Wrench,
+      color: "orange",
+      output: pipelineState.fixerOutput,
     },
   }
 

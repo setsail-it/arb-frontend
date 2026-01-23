@@ -856,6 +856,8 @@ export const api = {
       status: string
       waiter_status: string
       plater_status: string
+      wizard_status: string
+      fixer_status: string
       message: string | null
       error: string | null
       waiter_output: {
@@ -868,6 +870,24 @@ export const api = {
         completed_at: string | null
       } | null
       plater_output: {
+        id: string | null
+        model: string | null
+        output_text: string | null
+        reasoning_summary: string | null
+        tool_calls: { name: string; output?: string }[]
+        usage: { input_tokens: number; output_tokens: number; reasoning_tokens?: number } | null
+        completed_at: string | null
+      } | null
+      wizard_output: {
+        id: string | null
+        model: string | null
+        output_text: string | null
+        reasoning_summary: string | null
+        tool_calls: { name: string; output?: string }[]
+        usage: { input_tokens: number; output_tokens: number; reasoning_tokens?: number } | null
+        completed_at: string | null
+      } | null
+      fixer_output: {
         id: string | null
         model: string | null
         output_text: string | null
