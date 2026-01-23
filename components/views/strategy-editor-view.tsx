@@ -148,12 +148,19 @@ export function StrategyEditorView({ client, readOnly = false }: Props) {
     setError(null)
     try {
       const result = await api.getStrategyVersions(client.id)
+      console.log(`[StrategyEditor] Loaded ${result.versions.length} versions for client ${client.id}:`, result.versions)
       setVersions(result.versions)
       if (result.versions.length > 0 && selectedVersion === null) {
         setSelectedVersion(result.versions[0].version_number)
       }
     } catch (e: any) {
       console.error("Failed to load strategy versions:", e)
+      console.error("Error details:", {
+        message: e.message,
+        status: e.status,
+        response: e.response,
+        clientId: client.id
+      })
       setError(e.message || "Failed to load versions")
       setVersions([])
     } finally {
