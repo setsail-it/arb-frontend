@@ -552,6 +552,42 @@ export function StrategyEditorView({ client, readOnly = false }: Props) {
               </div>
             )}
           </div>
+
+          {/* Agent Pipeline Status - Compact Icons */}
+          {pipelineState.status !== "idle" && (
+            <div className="border-t border-zinc-800 p-2">
+              <div className="flex items-center gap-1">
+                <CompactAgentStatus
+                  agentKey="waiter"
+                  status={pipelineState.waiter}
+                  icon={Utensils}
+                  color="violet"
+                  onClick={() => setActiveAgentPopup("waiter")}
+                />
+                <CompactAgentStatus
+                  agentKey="plater"
+                  status={pipelineState.plater}
+                  icon={ChefHat}
+                  color="emerald"
+                  onClick={() => setActiveAgentPopup("plater")}
+                />
+                <CompactAgentStatus
+                  agentKey="wizard"
+                  status={pipelineState.wizard}
+                  icon={Wand2}
+                  color="orange"
+                  onClick={() => setActiveAgentPopup("wizard")}
+                />
+                <CompactAgentStatus
+                  agentKey="fixer"
+                  status={pipelineState.fixer}
+                  icon={Wrench}
+                  color="orange"
+                  onClick={() => setActiveAgentPopup("fixer")}
+                />
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Strategy Document */}
@@ -818,14 +854,6 @@ export function StrategyEditorView({ client, readOnly = false }: Props) {
       </div>
 
       {/* Agent Pipeline Status - Bottom Left */}
-      {pipelineState.status !== "idle" && (
-        <div className="absolute bottom-4 left-4 z-40">
-          <AgentPipelineStatus 
-            pipelineState={pipelineState} 
-            onAgentClick={(agent) => setActiveAgentPopup(agent)}
-          />
-        </div>
-      )}
 
       {/* Agent Output Modal */}
       {activeAgentPopup && (
@@ -892,148 +920,70 @@ export function StrategyEditorView({ client, readOnly = false }: Props) {
   )
 }
 
-// Agent Pipeline Status Component
-function AgentPipelineStatus({ 
-  pipelineState, 
-  onAgentClick 
-}: { 
-  pipelineState: PipelineState
-  onAgentClick: (agent: AgentPopup) => void
+// Compact Agent Status Component (for sidebar)
+function CompactAgentStatus({
+  agentKey,
+  status,
+  icon: Icon,
+  color,
+  onClick,
+}: {
+  agentKey: AgentPopup
+  status: AgentStatus
+  icon: any
+  color: "violet" | "emerald" | "orange"
+  onClick: () => void
 }) {
-  const agents = [
-    { 
-      key: "waiter" as const, 
-      name: "The Waiter", 
-      status: pipelineState.waiter,
-      icon: Utensils,
-      description: "Analyzing context...",
-      completedDescription: "Service stack identified",
-      color: "violet"
-    },
-    { 
-      key: "plater" as const, 
-      name: "The Plater", 
-      status: pipelineState.plater,
-      icon: ChefHat,
-      description: "Building strategy...",
-      completedDescription: "Strategy complete",
-      color: "emerald"
-    },
-    { 
-      key: "wizard" as const, 
-      name: "The Wizard", 
-      status: pipelineState.wizard,
-      icon: Wand2,
-      description: "Enhancing strategy...",
-      completedDescription: "Enhancements complete",
-      color: "orange"
-    },
-    { 
-      key: "fixer" as const, 
-      name: "The Fixer", 
-      status: pipelineState.fixer,
-      icon: Wrench,
-      description: "Finalizing strategy...",
-      completedDescription: "Finalization complete",
-      color: "orange"
-    },
-  ]
-
   const colorClasses = {
     violet: {
       bg: "bg-violet-500/20",
       border: "border-violet-500/30",
       text: "text-violet-400",
-      glow: "shadow-violet-500/20",
       hoverBg: "hover:bg-violet-500/30",
     },
     orange: {
       bg: "bg-orange-500/20",
       border: "border-orange-500/30",
       text: "text-orange-400",
-      glow: "shadow-orange-500/20",
       hoverBg: "hover:bg-orange-500/30",
     },
     emerald: {
       bg: "bg-emerald-500/20",
       border: "border-emerald-500/30",
       text: "text-emerald-400",
-      glow: "shadow-emerald-500/20",
       hoverBg: "hover:bg-emerald-500/30",
     },
   }
 
-  const activeAgent = agents.find(a => a.status === "processing")
-  const isComplete = pipelineState.status === "complete"
+  const colors = colorClasses[color]
+  const isProcessing = status === "processing"
+  const isComplete = status === "complete"
+  const isIdle = status === "idle"
+  const isError = status === "error"
 
   return (
-    <div className={`
-      rounded-xl border border-zinc-700/50 bg-zinc-900/90
-      backdrop-blur-sm shadow-lg
-      p-3 min-w-[220px]
-      ${!isComplete ? "animate-pulse" : ""}
-    `}>
-      {/* Agent buttons */}
-      <div className="space-y-2">
-        {agents.map((agent) => {
-          const colors = colorClasses[agent.color as keyof typeof colorClasses]
-          const Icon = agent.icon
-          const isActive = agent.status === "processing"
-          const isClickable = agent.status === "complete"
-          
-          return (
-            <button
-              key={agent.key}
-              onClick={() => isClickable && onAgentClick(agent.key)}
-              disabled={!isClickable}
-              className={`
-                w-full flex items-center gap-3 p-2.5 rounded-lg transition-all
-                ${isActive ? `${colors.bg} ${colors.border} border` : ""}
-                ${isClickable ? `${colors.hoverBg} cursor-pointer` : "cursor-default"}
-                ${agent.status === "idle" ? "opacity-40" : ""}
-              `}
-            >
-              <div className={`
-                w-8 h-8 rounded-lg flex items-center justify-center
-                ${agent.status !== "idle" ? colors.bg : "bg-zinc-800"}
-              `}>
-                <Icon className={`h-4 w-4 ${agent.status !== "idle" ? colors.text : "text-zinc-600"}`} />
-              </div>
-              <div className="flex-1 text-left">
-                <div className="flex items-center gap-2">
-                  <span className={`font-medium text-sm ${agent.status !== "idle" ? colors.text : "text-zinc-600"}`}>
-                    {agent.name}
-                  </span>
-                  {isActive && <Spinner className={`h-3 w-3 ${colors.text}`} />}
-                  {agent.status === "complete" && <CheckCircle2 className="h-3 w-3 text-emerald-500" />}
-                </div>
-                <p className="text-xs text-zinc-500">
-                  {isActive ? agent.description : agent.status === "complete" ? agent.completedDescription : "Waiting..."}
-                </p>
-              </div>
-            </button>
-          )
-        })}
-      </div>
-      
-      {/* Progress bar */}
-      <div className="flex items-center gap-1 mt-3 pt-3 border-t border-zinc-800/50">
-        {agents.map((agent, idx) => (
-          <div key={agent.key} className="flex-1 flex items-center gap-1">
-            <div className={`
-              flex-1 h-1 rounded-full transition-all duration-300
-              ${agent.status === "complete" ? "bg-emerald-500" : 
-                agent.status === "processing" ? "bg-blue-400 animate-pulse" : 
-                "bg-zinc-800"}
-            `} />
-          </div>
-        ))}
-      </div>
-      
-      {isComplete && (
-        <p className="text-xs text-zinc-500 mt-2 text-center">Click an agent to view its output</p>
-      )}
-    </div>
+    <button
+      onClick={onClick}
+      className={`
+        flex-1 flex items-center justify-center p-1.5 rounded transition-all
+        ${isProcessing ? `${colors.bg} ${colors.border} border animate-pulse` : ""}
+        ${isComplete ? `${colors.bg} ${colors.border} border` : ""}
+        ${isIdle ? "opacity-30" : ""}
+        ${isError ? "bg-red-500/20 border border-red-500/30" : ""}
+        ${colors.hoverBg} cursor-pointer
+      `}
+      title={
+        isProcessing ? "In progress - click to view status" :
+        isComplete ? "Complete - click to view output" :
+        isIdle ? "Not started - click to view status" :
+        isError ? "Error - click to view details" :
+        "Click to view status"
+      }
+    >
+      <Icon className={`h-4 w-4 ${isIdle ? "text-zinc-600" : colors.text}`} />
+      {isProcessing && <Spinner className={`h-3 w-3 ml-1 ${colors.text}`} />}
+      {isComplete && <CheckCircle2 className="h-3 w-3 ml-1 text-emerald-500" />}
+    </button>
   )
 }
 
@@ -1080,6 +1030,14 @@ function AgentOutputModal({
   const Icon = config.icon
   const output = config.output
 
+  // Get agent status
+  const agentStatus = 
+    agent === "waiter" ? pipelineState.waiter :
+    agent === "plater" ? pipelineState.plater :
+    agent === "wizard" ? pipelineState.wizard :
+    agent === "fixer" ? pipelineState.fixer :
+    "idle"
+
   const colorClasses = {
     violet: { text: "text-violet-400", bg: "bg-violet-500/20", border: "border-violet-500/30" },
     orange: { text: "text-orange-400", bg: "bg-orange-500/20", border: "border-orange-500/30" },
@@ -1113,7 +1071,25 @@ function AgentOutputModal({
         
         {/* Body */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
-          {output ? (
+          {agentStatus === "processing" ? (
+            <div className="flex flex-col items-center justify-center py-12">
+              <Spinner className="h-8 w-8 mb-4 text-zinc-400" />
+              <p className="text-zinc-400 text-sm">In progress...</p>
+            </div>
+          ) : agentStatus === "idle" ? (
+            <div className="flex flex-col items-center justify-center py-12">
+              <Icon className={`h-8 w-8 mb-4 ${colors.text} opacity-50`} />
+              <p className="text-zinc-400 text-sm">Not started</p>
+            </div>
+          ) : agentStatus === "error" ? (
+            <div className="flex flex-col items-center justify-center py-12">
+              <AlertCircle className="h-8 w-8 mb-4 text-red-400" />
+              <p className="text-red-400 text-sm">Error occurred</p>
+              {pipelineState.error && (
+                <p className="text-zinc-500 text-xs mt-2">{pipelineState.error}</p>
+              )}
+            </div>
+          ) : output ? (
             <>
               {/* Reasoning Summary */}
               {output.reasoning_summary && (
