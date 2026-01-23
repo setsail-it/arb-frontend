@@ -32,6 +32,7 @@ import {
   Copy,
   Wand2,
   Wrench,
+  RotateCcw,
 } from "lucide-react"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
@@ -238,11 +239,11 @@ export function StrategyEditorView({ client, readOnly = false }: Props) {
     }, 5000) // Poll every 5 seconds
   }
 
-  const handleCreateVersion = async (triggerPipeline = false) => {
+  const handleCreateVersion = async (triggerPipeline = false, fromScratch = false) => {
     setIsCreating(true)
     try {
       const isFirstVersion = versions.length === 0
-      const copyFrom = versions.length > 0 ? versions[0].version_number : undefined
+      const copyFrom = fromScratch ? undefined : (versions.length > 0 ? versions[0].version_number : undefined)
       const result = await api.createStrategyVersion(client.id, copyFrom)
       await loadVersions()
       setSelectedVersion(result.version_number)
@@ -465,14 +466,26 @@ export function StrategyEditorView({ client, readOnly = false }: Props) {
             <div className="flex items-center justify-between mb-2">
               <h3 className="font-semibold text-zinc-200 text-sm tracking-wide">Versions</h3>
               {!readOnly && (
-                <Button
-                  onClick={() => handleCreateVersion()}
-                  disabled={isCreating}
-                  size="sm"
-                  className="h-7 px-2 bg-emerald-600 hover:bg-emerald-500 text-white"
-                >
-                  {isCreating ? <Spinner className="h-3 w-3" /> : <Plus className="h-3 w-3" />}
-                </Button>
+                <div className="flex items-center gap-1">
+                  <Button
+                    onClick={() => handleCreateVersion(false, true)}
+                    disabled={isCreating}
+                    size="sm"
+                    className="h-7 px-2 bg-zinc-700 hover:bg-zinc-600 text-white"
+                    title="Create new version from scratch"
+                  >
+                    {isCreating ? <Spinner className="h-3 w-3" /> : <RotateCcw className="h-3 w-3" />}
+                  </Button>
+                  <Button
+                    onClick={() => handleCreateVersion()}
+                    disabled={isCreating}
+                    size="sm"
+                    className="h-7 px-2 bg-emerald-600 hover:bg-emerald-500 text-white"
+                    title="Create new version (copy from latest)"
+                  >
+                    {isCreating ? <Spinner className="h-3 w-3" /> : <Plus className="h-3 w-3" />}
+                  </Button>
+                </div>
               )}
             </div>
             <p className="text-xs text-zinc-500">
@@ -1091,7 +1104,8 @@ function AgentOutputModal({
           </div>
           <button
             onClick={onClose}
-            className="p-2 rounded-lg hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 transition-colors"
+            className="p-2 rounded-lg hover:bg-zinc-800 text-zinc-200 hover:text-white transition-colors border border-zinc-700 hover:border-zinc-600"
+            title="Close"
           >
             <X className="h-5 w-5" />
           </button>
