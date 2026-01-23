@@ -1009,6 +1009,15 @@ export const api = {
       { method: "POST" }
     ),
 
+  updateVersionName: (clientId: number, versionNumber: number, name: string | null) =>
+    fetchJson<{ status: string; name: string | null; message: string }>(
+      `/clients/${clientId}/strategy/${versionNumber}/name`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({ name }),
+      }
+    ),
+
   // =============================================================================
   // Strategy Chat Message Persistence
   // =============================================================================

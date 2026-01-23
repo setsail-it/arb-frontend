@@ -33,6 +33,7 @@ import {
   Wand2,
   Wrench,
   RotateCcw,
+  Pencil,
 } from "lucide-react"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
@@ -86,6 +87,8 @@ export function StrategyEditorView({ client, readOnly = false }: Props) {
   const [activeAgentPopup, setActiveAgentPopup] = useState<AgentPopup>(null)
   const [justRefreshed, setJustRefreshed] = useState(false)
   const [justCopied, setJustCopied] = useState(false)
+  const [editingVersion, setEditingVersion] = useState<number | null>(null)
+  const [editingName, setEditingName] = useState<string>("")
   
   // Agent Pipeline State (4-agent pipeline: Waiter → Plater → Wizard → Fixer)
   const [pipelineState, setPipelineState] = useState<PipelineState>({
@@ -325,6 +328,28 @@ export function StrategyEditorView({ client, readOnly = false }: Props) {
     }
   }
 
+  const handleStartEditName = (versionNumber: number, currentName: string | null) => {
+    setEditingVersion(versionNumber)
+    setEditingName(currentName || "")
+  }
+
+  const handleSaveName = async (versionNumber: number) => {
+    try {
+      await api.updateVersionName(client.id, versionNumber, editingName.trim() || null)
+      setEditingVersion(null)
+      setEditingName("")
+      await loadVersions()
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : "Failed to update version name"
+      alert(message)
+    }
+  }
+
+  const handleCancelEdit = () => {
+    setEditingVersion(null)
+    setEditingName("")
+  }
+
   const handleStartPipeline = async () => {
     if (selectedVersion === null) return
     
@@ -516,7 +541,7 @@ export function StrategyEditorView({ client, readOnly = false }: Props) {
                   <button
                     key={v.version_number}
                     onClick={() => setSelectedVersion(v.version_number)}
-                    className={`w-full text-left px-3 py-2.5 rounded-lg transition-all ${
+                    className={`group w-full text-left px-3 py-2.5 rounded-lg transition-all ${
                       selectedVersion === v.version_number
                         ? "bg-blue-600/20 border border-blue-500/40"
                         : "hover:bg-zinc-800 border border-transparent"
@@ -530,11 +555,55 @@ export function StrategyEditorView({ client, readOnly = false }: Props) {
                       ) : (
                         <FileText className="h-4 w-4 text-blue-600" />
                       )}
-                      <span className={`font-medium text-sm ${
-                        selectedVersion === v.version_number ? "text-blue-300" : "text-blue-400"
-                      }`}>
-                        v{v.version_number}
-                      </span>
+                      {editingVersion === v.version_number ? (
+                        <div className="flex-1 flex items-center gap-1">
+                          <input
+                            type="text"
+                            value={editingName}
+                            onChange={(e) => setEditingName(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                handleSaveName(v.version_number)
+                              } else if (e.key === "Escape") {
+                                handleCancelEdit()
+                              }
+                            }}
+                            onBlur={() => handleSaveName(v.version_number)}
+                            autoFocus
+                            className="flex-1 px-2 py-0.5 text-sm bg-zinc-800 border border-zinc-700 rounded text-zinc-200 focus:outline-none focus:border-blue-500"
+                            placeholder={`v${v.version_number}`}
+                          />
+                        </div>
+                      ) : (
+                        <>
+                          <span 
+                            className={`font-medium text-sm flex-1 ${
+                              selectedVersion === v.version_number ? "text-blue-300" : "text-blue-400"
+                            }`}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              if (!readOnly) {
+                                handleStartEditName(v.version_number, v.name)
+                              }
+                            }}
+                            title={readOnly ? undefined : "Click to rename"}
+                          >
+                            {v.name || `v${v.version_number}`}
+                          </span>
+                          {!readOnly && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleStartEditName(v.version_number, v.name)
+                              }}
+                              className="opacity-0 group-hover:opacity-100 p-1 hover:bg-zinc-700 rounded transition-opacity"
+                              title="Rename version"
+                            >
+                              <Pencil className="h-3 w-3 text-zinc-500" />
+                            </button>
+                          )}
+                        </>
+                      )}
                       {v.is_locked && (
                         <span className="text-[10px] px-1.5 py-0.5 bg-amber-500/20 text-amber-400 rounded ml-auto">
                           LOCKED

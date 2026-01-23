@@ -459,6 +459,7 @@ export interface VersionedStrategy {
 
 export interface StrategyVersion {
   version_number: number
+  name: string | null
   created_at: string | null
   updated_at: string | null
   is_locked?: boolean
