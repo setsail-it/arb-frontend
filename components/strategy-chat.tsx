@@ -28,8 +28,8 @@ export function StrategyChat({ clientId, versionNumber, onStrategyUpdated, isLoc
     setIsLoadingHistory(true)
     try {
       const history = await api.getStrategyChatMessages(clientId, versionNumber)
-      const loadedMessages: ChatMessage[] = history.map((msg, idx) => ({
-        id: `db-${msg.id}-${idx}`,
+      const loadedMessages: ChatMessage[] = history.map((msg) => ({
+        id: `db-${msg.id}`, // Use DB ID prefix to identify persisted messages
         role: msg.role as "user" | "assistant",
         content: msg.content,
         reasoning: msg.reasoning || undefined,
@@ -39,9 +39,13 @@ export function StrategyChat({ clientId, versionNumber, onStrategyUpdated, isLoc
           arguments: tc.arguments || {},
         })),
       }))
+      
+      // Replace all messages with DB messages
+      // Since we save immediately, all messages should be in DB
       setMessages(loadedMessages)
     } catch (e) {
       console.error("Failed to load chat history:", e)
+      // On error, keep existing messages (don't clear them)
     } finally {
       setIsLoadingHistory(false)
     }
@@ -74,6 +78,20 @@ export function StrategyChat({ clientId, versionNumber, onStrategyUpdated, isLoc
     setMessages((prev) => [...prev, userMessage])
     setInputValue("")
     setIsLoading(true)
+
+    // Save user message to database IMMEDIATELY (before streaming starts)
+    // This ensures it's persisted even if the page refreshes during streaming
+    let userMessageSaved = false
+    try {
+      await api.saveStrategyChatMessage(clientId, versionNumber, {
+        role: "user",
+        content: userMessage.content,
+      })
+      userMessageSaved = true
+    } catch (saveError) {
+      console.error("Failed to save user message:", saveError)
+      // Continue anyway - we'll try to save it again later
+    }
 
     const assistantMessageId = `assistant-${Date.now()}`
     
@@ -157,13 +175,16 @@ export function StrategyChat({ clientId, versionNumber, onStrategyUpdated, isLoc
             onStrategyUpdated?.()
           }
           
-          // Save both messages to the database
+          // Save assistant message to the database
+          // User message was already saved above, but retry if it failed
           try {
-            // Save user message
-            await api.saveStrategyChatMessage(clientId, versionNumber, {
-              role: "user",
-              content: userMessage.content,
-            })
+            if (!userMessageSaved) {
+              // Retry saving user message if it failed earlier
+              await api.saveStrategyChatMessage(clientId, versionNumber, {
+                role: "user",
+                content: userMessage.content,
+              })
+            }
             // Save assistant message
             await api.saveStrategyChatMessage(clientId, versionNumber, {
               role: "assistant",
@@ -182,6 +203,23 @@ export function StrategyChat({ clientId, versionNumber, onStrategyUpdated, isLoc
                 : msg
             )
           )
+          // Try to save error message to database
+          try {
+            if (!userMessageSaved) {
+              await api.saveStrategyChatMessage(clientId, versionNumber, {
+                role: "user",
+                content: userMessage.content,
+              })
+            }
+            await api.saveStrategyChatMessage(clientId, versionNumber, {
+              role: "assistant",
+              content: `Error: ${event.message}`,
+              reasoning: null,
+              tool_calls: null,
+            })
+          } catch (saveError) {
+            console.error("Failed to save error message:", saveError)
+          }
         }
       }
     } catch (error: unknown) {
@@ -193,6 +231,23 @@ export function StrategyChat({ clientId, versionNumber, onStrategyUpdated, isLoc
             : msg
         )
       )
+      // Try to save error to database
+      try {
+        if (!userMessageSaved) {
+          await api.saveStrategyChatMessage(clientId, versionNumber, {
+            role: "user",
+            content: userMessage.content,
+          })
+        }
+        await api.saveStrategyChatMessage(clientId, versionNumber, {
+          role: "assistant",
+          content: `Error: ${errorMsg}`,
+          reasoning: null,
+          tool_calls: null,
+        })
+      } catch (saveError) {
+        console.error("Failed to save error message:", saveError)
+      }
     } finally {
       setIsLoading(false)
     }
