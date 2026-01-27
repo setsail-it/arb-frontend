@@ -946,14 +946,14 @@ export const api = {
     }>(`/clients/${clientId}/files`),
 
   uploadClientFile: async (clientId: number, file: File, description?: string) => {
-    const baseUrl = BACKEND_BASE_URL.replace(/\/$/, "")
     const formData = new FormData()
     formData.append("file", file)
     if (description) {
       formData.append("description", description)
     }
     
-    const res = await fetch(`${baseUrl}/clients/${clientId}/files`, {
+    // Use the proxy route instead of direct backend call
+    const res = await fetch(`/api/proxy/clients/${clientId}/files`, {
       method: "POST",
       body: formData,
       // Note: Don't set Content-Type header - browser will set it with boundary

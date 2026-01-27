@@ -28,9 +28,21 @@ async function handleRequest(request: NextRequest, params: { path: string[] }) {
 
     // Attach body for non-GET/HEAD requests
     if (request.method !== "GET" && request.method !== "HEAD") {
-      const body = await request.text()
-      if (body) {
-        options.body = body
+      const contentType = request.headers.get("content-type") || ""
+      
+      // Handle multipart/form-data (file uploads)
+      if (contentType.includes("multipart/form-data")) {
+        // For multipart, parse and reconstruct FormData
+        const formData = await request.formData()
+        options.body = formData
+        // Don't set Content-Type header - fetch will set it with the correct boundary
+        headers.delete("content-type")
+      } else {
+        // For other content types (JSON, text, etc.), read as text
+        const body = await request.text()
+        if (body) {
+          options.body = body
+        }
       }
     }
 
