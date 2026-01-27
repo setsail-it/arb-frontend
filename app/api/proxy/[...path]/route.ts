@@ -35,8 +35,10 @@ async function handleRequest(request: NextRequest, params: { path: string[] }) {
         // For multipart, parse and reconstruct FormData
         const formData = await request.formData()
         options.body = formData
-        // Don't set Content-Type header - fetch will set it with the correct boundary
+        // Remove content-type and content-length - fetch will recalculate them
+        // with the correct boundary and length for the reconstructed FormData
         headers.delete("content-type")
+        headers.delete("content-length")
       } else {
         // For other content types (JSON, text, etc.), read as text
         const body = await request.text()
