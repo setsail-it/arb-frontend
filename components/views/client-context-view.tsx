@@ -25,6 +25,10 @@ import {
   FileText,
   Trash2,
   Download,
+  File,
+  Image as ImageIcon,
+  FileSpreadsheet,
+  FileCode,
 } from "lucide-react"
 
 interface Props {
@@ -627,6 +631,27 @@ export function ClientContextView({ client, readOnly = false }: Props) {
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
   }
 
+  const getFileIcon = (filename: string, contentType: string) => {
+    const ext = filename.split('.').pop()?.toLowerCase() || ''
+    const imageExts = ['jpg', 'jpeg', 'png', 'gif', 'webp']
+    const docExts = ['doc', 'docx']
+    const sheetExts = ['xls', 'xlsx', 'csv']
+    const codeExts = ['json', 'md', 'txt']
+    
+    if (imageExts.includes(ext) || contentType.startsWith('image/')) {
+      return <ImageIcon className="h-5 w-5 text-blue-400" />
+    } else if (docExts.includes(ext) || contentType.includes('word')) {
+      return <FileText className="h-5 w-5 text-blue-500" />
+    } else if (sheetExts.includes(ext) || contentType.includes('sheet') || contentType.includes('excel')) {
+      return <FileSpreadsheet className="h-5 w-5 text-green-500" />
+    } else if (codeExts.includes(ext) || contentType.includes('json') || contentType.includes('text')) {
+      return <FileCode className="h-5 w-5 text-purple-400" />
+    } else if (ext === 'pdf' || contentType === 'application/pdf') {
+      return <FileText className="h-5 w-5 text-red-500" />
+    }
+    return <File className="h-5 w-5 text-slate-400" />
+  }
+
   // Detail views
   if (activeView !== "admin") {
     return (
@@ -645,10 +670,11 @@ export function ClientContextView({ client, readOnly = false }: Props) {
         {activeView === "general" && <GeneralContextForm client={client} readOnly={readOnly} />}
         {activeView === "files" && (
           <div className="space-y-6">
+            {/* Header */}
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-2xl font-bold text-white">Additional Context</h2>
-                <p className="text-slate-400 mt-1">Upload documents, images, and other reference files</p>
+                <h2 className="text-3xl font-bold text-white mb-2">Additional Context</h2>
+                <p className="text-slate-400">Upload documents, images, and other reference files to enhance context</p>
               </div>
               <div>
                 <input
@@ -661,7 +687,8 @@ export function ClientContextView({ client, readOnly = false }: Props) {
                 <Button
                   onClick={() => fileInputRef.current?.click()}
                   disabled={uploadingFile}
-                  className="gap-2 bg-violet-600 hover:bg-violet-500"
+                  size="lg"
+                  className="gap-2 bg-violet-600 hover:bg-violet-500 text-white shadow-lg shadow-violet-600/20 hover:shadow-violet-600/30 transition-all"
                 >
                   {uploadingFile ? <Spinner className="h-4 w-4" /> : <Upload className="h-4 w-4" />}
                   Upload File
@@ -670,58 +697,85 @@ export function ClientContextView({ client, readOnly = false }: Props) {
             </div>
 
             {filesLoading ? (
-              <div className="flex items-center justify-center py-12">
-                <Spinner className="h-8 w-8 text-violet-500" />
+              <div className="flex items-center justify-center py-20">
+                <div className="text-center">
+                  <Spinner className="h-10 w-10 text-violet-500 mx-auto mb-4" />
+                  <p className="text-slate-400">Loading files...</p>
+                </div>
               </div>
             ) : files.length === 0 ? (
-              <Card className="border-dashed border-2 border-slate-700 bg-slate-800/30">
-                <CardContent className="py-12 text-center">
-                  <Paperclip className="h-12 w-12 mx-auto text-slate-600 mb-4" />
-                  <p className="text-slate-400">No files uploaded yet</p>
-                  <p className="text-sm text-slate-500 mt-1">
-                    Upload PDFs, documents, images, or other reference materials
+              <Card className="border-dashed border-2 border-slate-700/50 bg-slate-800/20 hover:border-slate-600/50 hover:bg-slate-800/30 transition-all">
+                <CardContent className="py-16 text-center">
+                  <div className="inline-flex p-4 rounded-2xl bg-slate-800/50 mb-6">
+                    <Paperclip className="h-10 w-10 text-slate-500" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-white mb-2">No files uploaded yet</h3>
+                  <p className="text-sm text-slate-400 max-w-md mx-auto">
+                    Upload PDFs, documents, images, or other reference materials to provide additional context for your client
                   </p>
                 </CardContent>
               </Card>
             ) : (
-              <div className="space-y-2">
+              <div className="space-y-3">
                 {files.map((file) => (
-                  <Card key={file.id} className="bg-slate-800/50 border-slate-700">
-                    <CardContent className="py-3 px-4">
+                  <Card 
+                    key={file.id} 
+                    className="bg-slate-800/40 border-slate-700/50 hover:bg-slate-800/60 hover:border-slate-600 transition-all group"
+                  >
+                    <CardContent className="py-4 px-5">
                       <div className="flex items-center gap-4">
-                        <div className="p-2 bg-slate-700 rounded-lg">
-                          <FileText className="h-5 w-5 text-slate-300" />
+                        <div className="p-3 bg-slate-700/50 rounded-xl group-hover:bg-slate-700/70 transition-colors flex-shrink-0">
+                          {getFileIcon(file.filename, file.content_type)}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="font-medium text-white truncate">{file.filename}</p>
-                          <p className="text-xs text-slate-400">
-                            {formatFileSize(file.file_size)} • {new Date(file.uploaded_at).toLocaleDateString()}
-                          </p>
+                          <p className="font-semibold text-white truncate mb-1">{file.filename}</p>
+                          <div className="flex items-center gap-3 text-xs text-slate-400">
+                            <span className="flex items-center gap-1">
+                              <FileText className="h-3 w-3" />
+                              {formatFileSize(file.file_size)}
+                            </span>
+                            <span className="text-slate-500">•</span>
+                            <span className="flex items-center gap-1">
+                              <Clock className="h-3 w-3" />
+                              {new Date(file.uploaded_at).toLocaleDateString('en-US', { 
+                                month: 'short', 
+                                day: 'numeric', 
+                                year: 'numeric' 
+                              })}
+                            </span>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1">
                           <a
                             href={api.downloadClientFile(client.id, file.id)}
                             download={file.filename}
-                            className="p-2 hover:bg-slate-700 rounded-lg transition-colors"
+                            className="p-2.5 hover:bg-slate-700/50 rounded-lg transition-colors text-slate-400 hover:text-white"
                             title="Download"
                           >
-                            <Download className="h-4 w-4 text-slate-400 hover:text-white" />
+                            <Download className="h-4 w-4" />
                           </a>
                           <button
                             onClick={() => handleDeleteFile(file.id, file.filename)}
-                            className="p-2 hover:bg-red-900/50 rounded-lg transition-colors"
+                            className="p-2.5 hover:bg-red-900/30 rounded-lg transition-colors text-slate-400 hover:text-red-400"
                             title="Delete"
                           >
-                            <Trash2 className="h-4 w-4 text-slate-400 hover:text-red-400" />
+                            <Trash2 className="h-4 w-4" />
                           </button>
                         </div>
                       </div>
                     </CardContent>
                   </Card>
                 ))}
-                <p className="text-xs text-slate-500 text-right mt-2">
-                  Total: {formatFileSize(files.reduce((sum, f) => sum + f.file_size, 0))} / 50 MB
-                </p>
+                <div className="flex items-center justify-between pt-4 border-t border-slate-700/50">
+                  <p className="text-sm text-slate-400">
+                    {files.length} file{files.length !== 1 ? 's' : ''} uploaded
+                  </p>
+                  <p className="text-sm font-medium text-slate-300">
+                    <span className="text-slate-400">Total: </span>
+                    {formatFileSize(files.reduce((sum, f) => sum + f.file_size, 0))}
+                    <span className="text-slate-500"> / 50 MB</span>
+                  </p>
+                </div>
               </div>
             )}
           </div>
