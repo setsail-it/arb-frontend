@@ -878,11 +878,11 @@ export function BlogFactoryView({ client, readOnly = false }: Props) {
             </Card>
 
             {/* Column 1: Keyword Ideas */}
-            <Card className="flex flex-col flex-1 min-h-0">
-              <CardHeader className="pb-1 pt-2 px-2 space-y-1">
+            <Card className="flex flex-col flex-1 min-h-0 border-2">
+              <CardHeader className="pb-3 pt-3 px-3 space-y-3 border-b">
                 <div className="flex flex-row items-center justify-between">
-                  <CardTitle className="text-sm">Ideas ({keywordIdeas.length})</CardTitle>
-                  <div className="flex gap-1">
+                  <CardTitle className="text-sm font-semibold">Ideas ({keywordIdeas.length})</CardTitle>
+                  <div className="flex gap-1.5">
                     {keywordIdeas.length > 0 && (
                       <Button 
                         size="sm" 
@@ -894,46 +894,79 @@ export function BlogFactoryView({ client, readOnly = false }: Props) {
                             setSelectedKeywordIds(new Set(keywordIdeas.map((i) => i.id)))
                           }
                         }}
-                        className="h-6 px-1.5 text-xs"
+                        className="h-7 px-2.5 text-xs border-2"
                       >
                         {selectedKeywordIds.size === keywordIdeas.length ? "Deselect All" : "Select All"}
                       </Button>
                     )}
                     {selectedKeywordIds.size > 0 && !readOnly && (
-                      <Button size="sm" variant="destructive" onClick={handleDeleteSelectedKeywordIdeas} disabled={deletingIdeas} className="h-6 px-1.5">
+                      <Button 
+                        size="sm" 
+                        variant="destructive" 
+                        onClick={handleDeleteSelectedKeywordIdeas} 
+                        disabled={deletingIdeas} 
+                        className="h-7 px-2.5"
+                        title={`Delete ${selectedKeywordIds.size} selected keyword(s)`}
+                      >
                         <Trash2 className="h-3.5 w-3.5" />
                       </Button>
                     )}
-                    <Button size="sm" onClick={handleGenerateKeywordIdeas} disabled={generatingIdeas || loadingKeywordIdeas || readOnly} className="h-6 text-xs px-2">
-                      {(generatingIdeas || loadingKeywordIdeas) && <Spinner className="mr-1 h-3 w-3" />}
+                    <Button 
+                      size="sm" 
+                      onClick={handleGenerateKeywordIdeas} 
+                      disabled={generatingIdeas || loadingKeywordIdeas || readOnly} 
+                      className="h-7 text-xs px-3 bg-primary hover:bg-primary/90 font-medium"
+                    >
+                      {(generatingIdeas || loadingKeywordIdeas) && <Spinner className="mr-1.5 h-3 w-3" />}
                       Generate
                     </Button>
                   </div>
                 </div>
-                <div className="flex gap-1">
-                  <Input placeholder="Add keyword..." value={newKeyword} onChange={(e) => setNewKeyword(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !addingKeyword && newKeyword.trim()) handleAddKeyword() }} className="flex-1 h-6 text-xs" disabled={addingKeyword} />
-                  <Button size="sm" onClick={handleAddKeyword} disabled={addingKeyword || !newKeyword.trim()} variant="outline" className="h-6 text-xs px-2">
-                    {addingKeyword ? <Spinner className="h-3 w-3" /> : "Add"}
-                  </Button>
-                </div>
-                <div className="flex flex-col gap-1 mt-1">
-                  <Textarea
-                    placeholder="Paste multiple keywords here (one per line, or separated by commas/tabs)..."
-                    value={bulkKeywords}
-                    onChange={(e) => setBulkKeywords(e.target.value)}
-                    className="h-20 text-xs resize-none"
-                    disabled={addingBulkKeywords}
-                  />
-                  <Button
-                    size="sm"
-                    onClick={handleAddBulkKeywords}
-                    disabled={addingBulkKeywords || !bulkKeywords.trim()}
-                    variant="outline"
-                    className="h-6 text-xs px-2"
-                  >
-                    {addingBulkKeywords ? <Spinner className="h-3 w-3 mr-1" /> : null}
-                    {addingBulkKeywords ? "Adding..." : "Add All Keywords"}
-                  </Button>
+                <div className="space-y-2">
+                  <div className="flex gap-1.5">
+                    <Input 
+                      placeholder="Add keyword..." 
+                      value={newKeyword} 
+                      onChange={(e) => setNewKeyword(e.target.value)} 
+                      onKeyDown={(e) => { if (e.key === "Enter" && !addingKeyword && newKeyword.trim()) handleAddKeyword() }} 
+                      className="flex-1 h-8 text-xs border-2 focus:border-primary/50" 
+                      disabled={addingKeyword} 
+                    />
+                    <Button 
+                      size="sm" 
+                      onClick={handleAddKeyword} 
+                      disabled={addingKeyword || !newKeyword.trim()} 
+                      variant="outline" 
+                      className="h-8 text-xs px-3 border-2"
+                    >
+                      {addingKeyword ? <Spinner className="h-3 w-3" /> : "Add"}
+                    </Button>
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <Textarea
+                      placeholder="Paste multiple keywords here (one per line, or separated by commas/tabs)..."
+                      value={bulkKeywords}
+                      onChange={(e) => setBulkKeywords(e.target.value)}
+                      className="h-24 text-xs resize-none border-2 focus:border-primary/50"
+                      disabled={addingBulkKeywords}
+                    />
+                    <Button
+                      size="sm"
+                      onClick={handleAddBulkKeywords}
+                      disabled={addingBulkKeywords || !bulkKeywords.trim()}
+                      variant="outline"
+                      className="h-8 text-xs px-3 border-2 w-full"
+                    >
+                      {addingBulkKeywords ? (
+                        <>
+                          <Spinner className="h-3 w-3 mr-1.5" />
+                          Adding...
+                        </>
+                      ) : (
+                        "Add All Keywords"
+                      )}
+                    </Button>
+                  </div>
                 </div>
               </CardHeader>
               <CardContent className="flex-1 overflow-auto p-0">
