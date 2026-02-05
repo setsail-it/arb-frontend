@@ -89,6 +89,7 @@ export function BlogFactoryView({ client, readOnly = false }: Props) {
   const [deletingIdeas, setDeletingIdeas] = useState(false)
   const [deletingAlternates, setDeletingAlternates] = useState(false)
   const [deletingSets, setDeletingSets] = useState(false)
+  const [deletingBlogIdeas, setDeletingBlogIdeas] = useState(false)
 
   // Keyword loading state
   const [loadingKeywordIdeas, setLoadingKeywordIdeas] = useState(false)
@@ -477,6 +478,25 @@ export function BlogFactoryView({ client, readOnly = false }: Props) {
     } catch (e) {
       console.error("Failed to delete blog idea", e)
       await refreshBlogIdeas()
+    }
+  }
+
+  const handleDeleteSelectedBlogIdeas = async () => {
+    if (selectedBlogIdeaIds.size === 0) return
+    if (!confirm(`Delete ${selectedBlogIdeaIds.size} blog idea(s)?`)) return
+
+    setDeletingBlogIdeas(true)
+    try {
+      const ideaIds = Array.from(selectedBlogIdeaIds)
+      // Delete all selected blog ideas in parallel
+      await Promise.all(ideaIds.map((id) => api.deleteBlogIdea(client.id, id)))
+      setSelectedBlogIdeaIds(new Set())
+      await refreshBlogIdeas()
+    } catch (error) {
+      console.error("Failed to delete blog ideas:", error)
+      await refreshBlogIdeas()
+    } finally {
+      setDeletingBlogIdeas(false)
     }
   }
 
@@ -932,7 +952,14 @@ export function BlogFactoryView({ client, readOnly = false }: Props) {
                   </Button>
                 )}
                 {selectedBestAlternateIds.size > 0 && !readOnly && (
-                  <Button size="sm" variant="destructive" onClick={handleDeleteSelectedAlternates} disabled={deletingAlternates} className="h-6 px-1.5">
+                  <Button 
+                    size="sm" 
+                    variant="destructive" 
+                    onClick={handleDeleteSelectedAlternates} 
+                    disabled={deletingAlternates} 
+                    className="h-6 px-1.5"
+                    title={`Delete ${selectedBestAlternateIds.size} selected best alternate(s)`}
+                  >
                     <Trash2 className="h-3.5 w-3.5" />
                   </Button>
                 )}
@@ -985,7 +1012,14 @@ export function BlogFactoryView({ client, readOnly = false }: Props) {
                   </Button>
                 )}
                 {selectedSetIds.size > 0 && !readOnly && (
-                  <Button size="sm" variant="destructive" onClick={handleDeleteSelectedSets} disabled={deletingSets} className="h-6 px-1.5">
+                  <Button 
+                    size="sm" 
+                    variant="destructive" 
+                    onClick={handleDeleteSelectedSets} 
+                    disabled={deletingSets} 
+                    className="h-6 px-1.5"
+                    title={`Delete ${selectedSetIds.size} selected keyword set(s)`}
+                  >
                     <Trash2 className="h-3.5 w-3.5" />
                   </Button>
                 )}
@@ -1036,11 +1070,23 @@ export function BlogFactoryView({ client, readOnly = false }: Props) {
                     {selectedBlogIdeaIds.size === unqueued.length ? "Deselect All" : "Select All"}
                   </Button>
                 )}
+                {selectedBlogIdeaIds.size > 0 && !readOnly && (
+                  <Button 
+                    size="sm" 
+                    variant="destructive" 
+                    onClick={handleDeleteSelectedBlogIdeas} 
+                    disabled={deletingBlogIdeas} 
+                    className="h-6 px-1.5"
+                    title={`Delete ${selectedBlogIdeaIds.size} selected blog idea(s)`}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                )}
               </div>
             </CardHeader>
             <CardContent className="flex-1 overflow-auto p-1 space-y-1">
               {unqueued.map((idea) => (
-                <BlogIdeaCard key={idea.id} idea={idea} isSelected={selectedBlogIdeaIds.has(idea.id)} onToggleSelect={() => handleToggleBlogIdeaSelection(idea.id)} onView={() => setSelectedIdea(idea)} onUpdateTopic={(topic) => handleTopicUpdate(idea.id, topic)} onDelete={() => handleDeleteBlogIdea(idea.id)} isEditable={!readOnly} showCheckbox />
+                <BlogIdeaCard key={idea.id} idea={idea} isSelected={selectedBlogIdeaIds.has(idea.id)} onToggleSelect={() => handleToggleBlogIdeaSelection(idea.id)} onView={() => setSelectedIdea(idea)} onUpdateTopic={(topic) => handleTopicUpdate(idea.id, topic)} isEditable={!readOnly} showCheckbox />
               ))}
             </CardContent>
           </Card>
@@ -1222,15 +1268,22 @@ function BlogIdeaCard({
           <div className="flex gap-1 items-start">
             <input type="checkbox" checked={isSelected} onChange={onToggleSelect} className="mt-0.5 cursor-pointer shrink-0" />
             <div className="font-medium leading-tight flex-1 break-words">{idea.topic}</div>
-            {isEditable && (
+            {isEditable && !showCheckbox && (
               <>
                 <button onClick={() => setIsEditing(true)} className="p-0.5 hover:bg-muted rounded text-muted-foreground hover:text-foreground transition-colors shrink-0" title="Edit title">
                   <Pencil className="h-2.5 w-2.5" />
                 </button>
-                <button onClick={() => setShowDeleteDialog(true)} className="p-0.5 hover:bg-destructive/10 rounded text-destructive transition-colors shrink-0" title="Delete blog idea">
-                  <Trash2 className="h-2.5 w-2.5" />
-                </button>
+                {onDelete && (
+                  <button onClick={() => setShowDeleteDialog(true)} className="p-0.5 hover:bg-destructive/10 rounded text-destructive transition-colors shrink-0" title="Delete blog idea">
+                    <Trash2 className="h-2.5 w-2.5" />
+                  </button>
+                )}
               </>
+            )}
+            {isEditable && showCheckbox && (
+              <button onClick={() => setIsEditing(true)} className="p-0.5 hover:bg-muted rounded text-muted-foreground hover:text-foreground transition-colors shrink-0" title="Edit title">
+                <Pencil className="h-2.5 w-2.5" />
+              </button>
             )}
           </div>
         )
