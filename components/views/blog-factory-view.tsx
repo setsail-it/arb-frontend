@@ -1019,22 +1019,24 @@ export function BlogFactoryView({ client, readOnly = false }: Props) {
           <Card className="flex flex-col shrink-0 min-h-0" style={{ width: "220px" }}>
             <CardHeader className="pb-1 pt-2 px-2 flex flex-row items-center justify-between space-y-0">
               <CardTitle className="text-xs">Blog Ideas ({unqueued.length})</CardTitle>
-              {unqueued.length > 0 && (
-                <Button 
-                  size="sm" 
-                  variant="outline" 
-                  onClick={() => {
-                    if (selectedBlogIdeaIds.size === unqueued.length) {
-                      setSelectedBlogIdeaIds(new Set())
-                    } else {
-                      setSelectedBlogIdeaIds(new Set(unqueued.map((i) => i.id)))
-                    }
-                  }}
-                  className="h-5 text-[10px] px-1"
-                >
-                  {selectedBlogIdeaIds.size === unqueued.length ? "Deselect All" : "Select All"}
-                </Button>
-              )}
+              <div className="flex gap-1">
+                {unqueued.length > 0 && (
+                  <Button 
+                    size="sm" 
+                    variant="outline" 
+                    onClick={() => {
+                      if (selectedBlogIdeaIds.size === unqueued.length) {
+                        setSelectedBlogIdeaIds(new Set())
+                      } else {
+                        setSelectedBlogIdeaIds(new Set(unqueued.map((i) => i.id)))
+                      }
+                    }}
+                    className="h-6 px-1.5 text-xs"
+                  >
+                    {selectedBlogIdeaIds.size === unqueued.length ? "Deselect All" : "Select All"}
+                  </Button>
+                )}
+              </div>
             </CardHeader>
             <CardContent className="flex-1 overflow-auto p-1 space-y-1">
               {unqueued.map((idea) => (
