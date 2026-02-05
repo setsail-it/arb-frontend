@@ -979,14 +979,14 @@ export function BlogFactoryView({ client, readOnly = false }: Props) {
                         setSelectedSetIds(new Set(sets.map((s) => s.id)))
                       }
                     }}
-                    className="h-5 text-[10px] px-1"
+                    className="h-6 px-1.5 text-xs"
                   >
                     {selectedSetIds.size === sets.length ? "Deselect All" : "Select All"}
                   </Button>
                 )}
                 {selectedSetIds.size > 0 && !readOnly && (
-                  <Button size="sm" variant="destructive" onClick={handleDeleteSelectedSets} disabled={deletingSets} className="h-5 text-[10px] px-1">
-                    <Trash2 className="h-3 w-3" />
+                  <Button size="sm" variant="destructive" onClick={handleDeleteSelectedSets} disabled={deletingSets} className="h-6 px-1.5">
+                    <Trash2 className="h-3.5 w-3.5" />
                   </Button>
                 )}
               </div>
