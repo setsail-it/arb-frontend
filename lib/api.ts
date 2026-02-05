@@ -59,6 +59,11 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ name, domain, owner_id: ownerId }),
     }),
+  duplicateClient: (sourceClientId: number, ownerId?: number) =>
+    fetchJson<Client>("/clients/duplicate", {
+      method: "POST",
+      body: JSON.stringify({ source_client_id: sourceClientId, owner_id: ownerId }),
+    }),
   deleteClient: (clientId: number) =>
     fetchJson(`/clients/${clientId}`, {
       method: "DELETE",

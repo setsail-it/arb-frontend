@@ -52,6 +52,7 @@ export function ClientSelector({ selectedClient, onSelectClient, onClientDeleted
   const [error, setError] = useState<string | null>(null)
   const [newClientName, setNewClientName] = useState("")
   const [newClientDomain, setNewClientDomain] = useState("")
+  const [duplicateFromClientId, setDuplicateFromClientId] = useState<number | null>(null)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [clientToDelete, setClientToDelete] = useState<Client | null>(null)
@@ -89,19 +90,32 @@ export function ClientSelector({ selectedClient, onSelectClient, onClientDeleted
   }, [])
 
   const handleAddClient = async () => {
-    if (!newClientName.trim()) return
     setIsLoading(true)
     setError(null)
     try {
-      // Auto-assign to current user
-      const newClient = await api.createClient(newClientName, newClientDomain.trim() || undefined, currentUser?.id)
+      let newClient: Client
+      
+      if (duplicateFromClientId) {
+        // Duplicate from existing client
+        newClient = await api.duplicateClient(duplicateFromClientId, currentUser?.id)
+      } else {
+        // Create new client
+        if (!newClientName.trim()) {
+          setError("Client name is required")
+          setIsLoading(false)
+          return
+        }
+        newClient = await api.createClient(newClientName, newClientDomain.trim() || undefined, currentUser?.id)
+      }
+      
       setClients([...clients, newClient])
       onSelectClient(newClient)
       setNewClientName("")
       setNewClientDomain("")
+      setDuplicateFromClientId(null)
       setIsAddDialogOpen(false)
     } catch (e) {
-      console.error("Failed to create client", e)
+      console.error("Failed to create/duplicate client", e)
       setError("Failed to create client. Check backend connection.")
     } finally {
       setIsLoading(false)
@@ -415,6 +429,7 @@ export function ClientSelector({ selectedClient, onSelectClient, onClientDeleted
         if (!open) {
           setNewClientName("")
           setNewClientDomain("")
+          setDuplicateFromClientId(null)
         }
       }}>
         <DialogContent>
@@ -423,35 +438,72 @@ export function ClientSelector({ selectedClient, onSelectClient, onClientDeleted
           </DialogHeader>
           <div className="space-y-4 mt-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium">Client Name *</label>
-              <Input 
-                placeholder="e.g. Acme Corp" 
-                value={newClientName} 
-                onChange={(e) => setNewClientName(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && newClientName.trim()) {
-                    handleAddClient()
+              <label className="text-sm font-medium">Duplicate from existing client (optional)</label>
+              <select
+                value={duplicateFromClientId || ""}
+                onChange={(e) => {
+                  const value = e.target.value === "" ? null : parseInt(e.target.value)
+                  setDuplicateFromClientId(value)
+                  if (value) {
+                    // Auto-fill name from selected client
+                    const selectedClient = clients.find(c => c.id === value)
+                    if (selectedClient) {
+                      setNewClientName(`${selectedClient.name} Copy`)
+                    }
                   }
                 }}
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Domain (optional)</label>
-              <Input 
-                placeholder="e.g. acme.com" 
-                value={newClientDomain} 
-                onChange={(e) => setNewClientDomain(e.target.value)} 
-              />
+                className="w-full border rounded px-3 py-2 bg-background"
+              >
+                <option value="">Create new client</option>
+                {clients.map((client) => (
+                  <option key={client.id} value={client.id}>
+                    {client.name}
+                  </option>
+                ))}
+              </select>
               <p className="text-xs text-muted-foreground">
-                This will be saved to the Discovery Document
+                Select a client to duplicate all strategies, contexts, and files
               </p>
             </div>
+            
+            {!duplicateFromClientId && (
+              <>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Client Name *</label>
+                  <Input 
+                    placeholder="e.g. Acme Corp" 
+                    value={newClientName} 
+                    onChange={(e) => setNewClientName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && newClientName.trim()) {
+                        handleAddClient()
+                      }
+                    }}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Domain (optional)</label>
+                  <Input 
+                    placeholder="e.g. acme.com" 
+                    value={newClientDomain} 
+                    onChange={(e) => setNewClientDomain(e.target.value)} 
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    This will be saved to the Discovery Document
+                  </p>
+                </div>
+              </>
+            )}
+            
             <p className="text-xs text-muted-foreground">
               This client will be assigned to you ({currentUser?.username})
             </p>
             <div className="flex justify-end">
-              <Button onClick={handleAddClient} disabled={isLoading || !newClientName.trim()}>
-                {isLoading ? "Adding..." : "Add Client"}
+              <Button 
+                onClick={handleAddClient} 
+                disabled={isLoading || (!duplicateFromClientId && !newClientName.trim())}
+              >
+                {isLoading ? (duplicateFromClientId ? "Duplicating..." : "Adding...") : (duplicateFromClientId ? "Duplicate Client" : "Add Client")}
               </Button>
             </div>
           </div>
