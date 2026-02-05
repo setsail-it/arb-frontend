@@ -771,74 +771,111 @@ export function BlogFactoryView({ client, readOnly = false }: Props) {
       <div className="flex-1 overflow-x-auto overflow-y-auto min-h-0">
         <div className="flex h-full gap-1" style={{ minWidth: "1900px" }}>
           {/* ==================== KEYWORD COLUMNS SECTION ==================== */}
-          <div className="flex flex-col gap-1 shrink-0" style={{ width: "280px" }}>
+          <div className="flex flex-col gap-2 shrink-0" style={{ width: "280px" }}>
             {/* Strategy Association */}
-            <div className="bg-background border rounded p-2 shadow-sm">
-              <div className="flex items-center gap-2 mb-2">
-                <Link2 className="h-4 w-4 text-muted-foreground" />
-                <label className="text-xs font-medium">Associate strategy?</label>
-              </div>
-              {loadingStrategy ? (
-                <div className="text-xs text-muted-foreground">Loading...</div>
-              ) : (
+            <Card className="border-2">
+              <CardHeader className="pb-2 pt-3 px-3">
                 <div className="flex items-center gap-2">
-                  <select
-                    value={associatedStrategyVersion ?? ""}
-                    onChange={(e) => {
-                      const value = e.target.value === "" ? null : parseInt(e.target.value)
-                      handleSetStrategy(value)
-                    }}
-                    disabled={savingStrategy || readOnly}
-                    className="flex-1 text-xs border rounded px-2 py-1 bg-background"
-                  >
-                    <option value="">None</option>
-                    {strategyVersions?.versions.map((v) => (
-                      <option key={v.version_number} value={v.version_number}>
-                        {v.name ? `${v.name} (v${v.version_number})` : `Version ${v.version_number}`}
-                      </option>
-                    ))}
-                  </select>
-                  {associatedStrategyVersion && !readOnly && (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => handleSetStrategy(null)}
-                      disabled={savingStrategy}
-                      className="h-6 w-6 p-0"
-                    >
-                      <X className="h-3 w-3" />
-                    </Button>
-                  )}
+                  <Link2 className="h-4 w-4 text-primary" />
+                  <CardTitle className="text-sm font-semibold">Associate strategy?</CardTitle>
                 </div>
-              )}
-              {associatedStrategyVersion && (
-                <div className="mt-1 text-xs text-muted-foreground">
-                  Strategy will guide keyword ideation
-                </div>
-              )}
-            </div>
+              </CardHeader>
+              <CardContent className="px-3 pb-3 pt-0">
+                {loadingStrategy ? (
+                  <div className="text-xs text-muted-foreground flex items-center gap-2">
+                    <Spinner className="h-3 w-3" />
+                    Loading strategies...
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <select
+                        value={associatedStrategyVersion ?? ""}
+                        onChange={(e) => {
+                          const value = e.target.value === "" ? null : parseInt(e.target.value)
+                          handleSetStrategy(value)
+                        }}
+                        disabled={savingStrategy || readOnly}
+                        className="flex-1 text-xs border rounded-md px-3 py-2 bg-background hover:bg-muted/50 transition-colors focus:outline-none focus:ring-2 focus:ring-primary/20"
+                      >
+                        <option value="">Select a strategy...</option>
+                        {strategyVersions?.versions.map((v) => (
+                          <option key={v.version_number} value={v.version_number}>
+                            {v.name ? `${v.name} (v${v.version_number})` : `Version ${v.version_number}`}
+                          </option>
+                        ))}
+                      </select>
+                      {associatedStrategyVersion && !readOnly && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleSetStrategy(null)}
+                          disabled={savingStrategy}
+                          className="h-8 w-8 p-0 hover:bg-destructive/10 hover:text-destructive"
+                          title="Clear strategy"
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                    {associatedStrategyVersion && (
+                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground bg-muted/30 rounded-md px-2 py-1.5">
+                        <Link2 className="h-3 w-3 shrink-0" />
+                        <span>Strategy will guide keyword ideation</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
 
             {/* Config bar */}
-            <div className="bg-background border rounded p-2 shadow-sm">
-              <div className="grid grid-cols-2 gap-1.5">
-                <div className="flex flex-col">
-                  <label className="text-xs text-muted-foreground">Max KWs/Seed</label>
-                  <Input type="number" value={config.max_num_kws_per_seed} onChange={(e) => setConfig({ ...config, max_num_kws_per_seed: +e.target.value })} className="h-7 text-sm" />
+            <Card className="border-2">
+              <CardHeader className="pb-2 pt-3 px-3">
+                <CardTitle className="text-sm font-semibold">Generation Settings</CardTitle>
+              </CardHeader>
+              <CardContent className="px-3 pb-3 pt-0">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-medium text-foreground">Max KWs/Seed</label>
+                    <Input 
+                      type="number" 
+                      value={config.max_num_kws_per_seed} 
+                      onChange={(e) => setConfig({ ...config, max_num_kws_per_seed: +e.target.value })} 
+                      className="h-8 text-sm border-2 focus:border-primary/50" 
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-medium text-foreground">Min Volume</label>
+                    <Input 
+                      type="number" 
+                      value={config.sv_min} 
+                      onChange={(e) => setConfig({ ...config, sv_min: +e.target.value })} 
+                      className="h-8 text-sm border-2 focus:border-primary/50" 
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-medium text-foreground">Max KD</label>
+                    <Input 
+                      type="number" 
+                      value={config.kd_max} 
+                      onChange={(e) => setConfig({ ...config, kd_max: +e.target.value })} 
+                      className="h-8 text-sm border-2 focus:border-primary/50" 
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-medium text-foreground">Similarity</label>
+                    <Input 
+                      type="number" 
+                      step="0.01" 
+                      value={config.sim_threshold} 
+                      onChange={(e) => setConfig({ ...config, sim_threshold: +e.target.value })} 
+                      className="h-8 text-sm border-2 focus:border-primary/50" 
+                    />
+                  </div>
                 </div>
-                <div className="flex flex-col">
-                  <label className="text-xs text-muted-foreground">Min Volume</label>
-                  <Input type="number" value={config.sv_min} onChange={(e) => setConfig({ ...config, sv_min: +e.target.value })} className="h-7 text-sm" />
-                </div>
-                <div className="flex flex-col">
-                  <label className="text-xs text-muted-foreground">Max KD</label>
-                  <Input type="number" value={config.kd_max} onChange={(e) => setConfig({ ...config, kd_max: +e.target.value })} className="h-7 text-sm" />
-                </div>
-                <div className="flex flex-col">
-                  <label className="text-xs text-muted-foreground">Similarity</label>
-                  <Input type="number" step="0.01" value={config.sim_threshold} onChange={(e) => setConfig({ ...config, sim_threshold: +e.target.value })} className="h-7 text-sm" />
-                </div>
-              </div>
-            </div>
+              </CardContent>
+            </Card>
 
             {/* Column 1: Keyword Ideas */}
             <Card className="flex flex-col flex-1 min-h-0">
