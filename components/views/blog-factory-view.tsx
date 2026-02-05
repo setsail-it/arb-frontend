@@ -101,7 +101,6 @@ export function BlogFactoryView({ client, readOnly = false }: Props) {
   const [generatingIdeas, setGeneratingIdeas] = useState(false)
   const [generationProgress, setGenerationProgress] = useState({ message: "", step: 0 })
   const [bruteMinimized, setBruteMinimized] = useState(false)
-  const [bruteMinimized, setBruteMinimized] = useState(false)
 
   // Manual keyword addition state
   const [newKeyword, setNewKeyword] = useState("")
