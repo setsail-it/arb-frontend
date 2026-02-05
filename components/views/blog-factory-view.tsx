@@ -102,6 +102,8 @@ export function BlogFactoryView({ client, readOnly = false }: Props) {
   // Manual keyword addition state
   const [newKeyword, setNewKeyword] = useState("")
   const [addingKeyword, setAddingKeyword] = useState(false)
+  const [bulkKeywords, setBulkKeywords] = useState("")
+  const [addingBulkKeywords, setAddingBulkKeywords] = useState(false)
 
   // ==================== BLOGGER AUTOMATION STATE ====================
   const [blogIdeas, setBlogIdeas] = useState<BlogIdea[]>([])
@@ -173,6 +175,59 @@ export function BlogFactoryView({ client, readOnly = false }: Props) {
       alert(error.message || "Failed to add keyword. It may already exist.")
     } finally {
       setAddingKeyword(false)
+    }
+  }
+
+  const handleAddBulkKeywords = async () => {
+    if (!bulkKeywords.trim()) return
+
+    setAddingBulkKeywords(true)
+    try {
+      // Parse keywords: split by newlines, commas, or tabs, then trim and filter empty
+      const keywords = bulkKeywords
+        .split(/[\n,\t]+/)
+        .map((kw) => kw.trim())
+        .filter((kw) => kw.length > 0)
+
+      if (keywords.length === 0) {
+        alert("No valid keywords found. Please enter keywords separated by newlines, commas, or tabs.")
+        return
+      }
+
+      // Add keywords one by one (API only supports single keyword addition)
+      let successCount = 0
+      let failCount = 0
+      const errors: string[] = []
+
+      for (const keyword of keywords) {
+        try {
+          await api.addKeywordIdea(client.id, keyword)
+          successCount++
+        } catch (error: any) {
+          failCount++
+          // Don't show alert for each failure, just track it
+          if (error.message && !errors.includes(error.message)) {
+            errors.push(error.message)
+          }
+        }
+      }
+
+      setBulkKeywords("")
+      await refreshKeywordIdeas()
+
+      // Show summary
+      if (failCount > 0) {
+        alert(
+          `Added ${successCount} keyword(s) successfully. ${failCount} keyword(s) failed to add (they may already exist or be invalid).`
+        )
+      } else {
+        alert(`Successfully added ${successCount} keyword(s)!`)
+      }
+    } catch (error: any) {
+      console.error("Failed to add bulk keywords:", error)
+      alert(error.message || "Failed to add keywords.")
+    } finally {
+      setAddingBulkKeywords(false)
     }
   }
 
@@ -779,6 +834,25 @@ export function BlogFactoryView({ client, readOnly = false }: Props) {
                   <Input placeholder="Add keyword..." value={newKeyword} onChange={(e) => setNewKeyword(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !addingKeyword && newKeyword.trim()) handleAddKeyword() }} className="flex-1 h-6 text-xs" disabled={addingKeyword} />
                   <Button size="sm" onClick={handleAddKeyword} disabled={addingKeyword || !newKeyword.trim()} variant="outline" className="h-6 text-xs px-2">
                     {addingKeyword ? <Spinner className="h-3 w-3" /> : "Add"}
+                  </Button>
+                </div>
+                <div className="flex flex-col gap-1 mt-1">
+                  <Textarea
+                    placeholder="Paste multiple keywords here (one per line, or separated by commas/tabs)..."
+                    value={bulkKeywords}
+                    onChange={(e) => setBulkKeywords(e.target.value)}
+                    className="h-20 text-xs resize-none"
+                    disabled={addingBulkKeywords}
+                  />
+                  <Button
+                    size="sm"
+                    onClick={handleAddBulkKeywords}
+                    disabled={addingBulkKeywords || !bulkKeywords.trim()}
+                    variant="outline"
+                    className="h-6 text-xs px-2"
+                  >
+                    {addingBulkKeywords ? <Spinner className="h-3 w-3 mr-1" /> : null}
+                    {addingBulkKeywords ? "Adding..." : "Add All Keywords"}
                   </Button>
                 </div>
               </CardHeader>
