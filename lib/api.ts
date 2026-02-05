@@ -1058,4 +1058,22 @@ export const api = {
     const baseUrl = BACKEND_BASE_URL.replace(/\/$/, "")
     return `${baseUrl}/clients/${clientId}/strategy/${versionNumber}/export/pdf`
   },
+
+  // =============================================================================
+  // Blog Factory Strategy Association
+  // =============================================================================
+
+  getBlogFactoryStrategy: (clientId: number) =>
+    fetchJson<{ version_number: number | null; strategy_name?: string }>(
+      `/clients/${clientId}/blog-factory-strategy`
+    ),
+
+  setBlogFactoryStrategy: (clientId: number, versionNumber: number | null) =>
+    fetchJson<{ status: string; version_number: number | null; strategy_name?: string }>(
+      `/clients/${clientId}/blog-factory-strategy`,
+      {
+        method: "POST",
+        body: JSON.stringify({ version_number: versionNumber }),
+      }
+    ),
 }

@@ -3,7 +3,7 @@
 import type React from "react"
 import { useState, useEffect } from "react"
 import { flushSync } from "react-dom"
-import type { Client, BlogIdea, KeywordIdea, KeywordCluster, KeywordSet, BestAlternateResult } from "@/types"
+import type { Client, BlogIdea, KeywordIdea, KeywordCluster, KeywordSet, BestAlternateResult, StrategyVersionList } from "@/types"
 import { api } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { DebugPanel } from "@/components/debug-panel"
 import { KeywordGenerationProgress } from "@/components/keyword-generation-progress"
-import { Trash2, Pencil, Check, ChevronRight, ChevronLeft } from "lucide-react"
+import { Trash2, Pencil, Check, ChevronRight, ChevronLeft, Link2, X } from "lucide-react"
 
 interface Props {
   client: Client
@@ -122,6 +122,12 @@ export function BlogFactoryView({ client, readOnly = false }: Props) {
   // HTML viewer state
   const [htmlViewerIdea, setHtmlViewerIdea] = useState<BlogIdea | null>(null)
   const [htmlContent, setHtmlContent] = useState<string>("")
+
+  // Strategy association state
+  const [associatedStrategyVersion, setAssociatedStrategyVersion] = useState<number | null>(null)
+  const [strategyVersions, setStrategyVersions] = useState<StrategyVersionList | null>(null)
+  const [loadingStrategy, setLoadingStrategy] = useState(false)
+  const [savingStrategy, setSavingStrategy] = useState(false)
   const [loadingHtml, setLoadingHtml] = useState(false)
 
   // ==================== KEYWORD EXPLORER FUNCTIONS ====================
@@ -612,6 +618,36 @@ export function BlogFactoryView({ client, readOnly = false }: Props) {
     }
   }
 
+  // ==================== STRATEGY ASSOCIATION ====================
+  const loadStrategyAssociation = async () => {
+    try {
+      setLoadingStrategy(true)
+      const [association, versions] = await Promise.all([
+        api.getBlogFactoryStrategy(client.id),
+        api.getStrategyVersions(client.id),
+      ])
+      setAssociatedStrategyVersion(association.version_number)
+      setStrategyVersions(versions)
+    } catch (e) {
+      console.error("Failed to load strategy association", e)
+    } finally {
+      setLoadingStrategy(false)
+    }
+  }
+
+  const handleSetStrategy = async (versionNumber: number | null) => {
+    try {
+      setSavingStrategy(true)
+      await api.setBlogFactoryStrategy(client.id, versionNumber)
+      setAssociatedStrategyVersion(versionNumber)
+    } catch (e) {
+      console.error("Failed to set strategy association", e)
+      alert("Failed to associate strategy")
+    } finally {
+      setSavingStrategy(false)
+    }
+  }
+
   // ==================== INITIAL LOAD ====================
   useEffect(() => {
     // Clear state when client changes
@@ -626,6 +662,7 @@ export function BlogFactoryView({ client, readOnly = false }: Props) {
     refreshSets()
     refreshBestAlternates()
     refreshBlogIdeas()
+    loadStrategyAssociation()
 
     // Poll blog ideas every 10 seconds
     const interval = setInterval(() => {
@@ -653,6 +690,52 @@ export function BlogFactoryView({ client, readOnly = false }: Props) {
         <div className="flex h-full gap-1" style={{ minWidth: "1900px" }}>
           {/* ==================== KEYWORD COLUMNS SECTION ==================== */}
           <div className="flex flex-col gap-1 shrink-0" style={{ width: "280px" }}>
+            {/* Strategy Association */}
+            <div className="bg-background border rounded p-2 shadow-sm">
+              <div className="flex items-center gap-2 mb-2">
+                <Link2 className="h-4 w-4 text-muted-foreground" />
+                <label className="text-xs font-medium">Associate strategy?</label>
+              </div>
+              {loadingStrategy ? (
+                <div className="text-xs text-muted-foreground">Loading...</div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <select
+                    value={associatedStrategyVersion ?? ""}
+                    onChange={(e) => {
+                      const value = e.target.value === "" ? null : parseInt(e.target.value)
+                      handleSetStrategy(value)
+                    }}
+                    disabled={savingStrategy || readOnly}
+                    className="flex-1 text-xs border rounded px-2 py-1 bg-background"
+                  >
+                    <option value="">None</option>
+                    {strategyVersions?.versions.map((v) => (
+                      <option key={v.version_number} value={v.version_number}>
+                        {v.name ? `${v.name} (v${v.version_number})` : `Version ${v.version_number}`}
+                      </option>
+                    ))}
+                  </select>
+                  {associatedStrategyVersion && !readOnly && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => handleSetStrategy(null)}
+                      disabled={savingStrategy}
+                      className="h-6 w-6 p-0"
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  )}
+                </div>
+              )}
+              {associatedStrategyVersion && (
+                <div className="mt-1 text-xs text-muted-foreground">
+                  Strategy will guide keyword ideation
+                </div>
+              )}
+            </div>
+
             {/* Config bar */}
             <div className="bg-background border rounded p-2 shadow-sm">
               <div className="grid grid-cols-2 gap-1.5">
