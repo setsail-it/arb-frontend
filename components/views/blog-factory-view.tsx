@@ -735,15 +735,19 @@ export function BlogFactoryView({ client, readOnly = false }: Props) {
   const done = blogIdeas.filter((i) => i.state === "complete" || i.state === "failed")
 
   return (
-    <div className="h-full flex flex-col gap-4">
+    <div className="h-full flex flex-col gap-4 overflow-hidden">
       {generatingIdeas && (
-        <div className="mb-2">
-          <KeywordGenerationProgress message={generationProgress.message} />
+        <div className={`mb-2 transition-all duration-300 ${bruteMinimized ? "flex-shrink" : "flex-shrink-0"}`}>
+          <KeywordGenerationProgress 
+            message={generationProgress.message} 
+            minimized={bruteMinimized}
+            onToggleMinimize={() => setBruteMinimized(!bruteMinimized)}
+          />
         </div>
       )}
 
       {/* Horizontal scrollable container for all columns */}
-      <div className="flex-1 overflow-x-auto min-h-0">
+      <div className="flex-1 overflow-x-auto overflow-y-auto min-h-0">
         <div className="flex h-full gap-1" style={{ minWidth: "1900px" }}>
           {/* ==================== KEYWORD COLUMNS SECTION ==================== */}
           <div className="flex flex-col gap-1 shrink-0" style={{ width: "280px" }}>
@@ -894,11 +898,29 @@ export function BlogFactoryView({ client, readOnly = false }: Props) {
           <Card className="flex flex-col shrink-0 min-h-0" style={{ width: "240px" }}>
             <CardHeader className="pb-1 pt-2 px-2 flex flex-row items-center justify-between space-y-0">
               <CardTitle className="text-sm">Best Alternate</CardTitle>
-              {selectedBestAlternateIds.size > 0 && !readOnly && (
-                <Button size="sm" variant="destructive" onClick={handleDeleteSelectedAlternates} disabled={deletingAlternates} className="h-6 px-1.5">
-                  <Trash2 className="h-3.5 w-3.5" />
-                </Button>
-              )}
+              <div className="flex gap-1">
+                {bestAlternates.size > 0 && (
+                  <Button 
+                    size="sm" 
+                    variant="outline" 
+                    onClick={() => {
+                      if (selectedBestAlternateIds.size === bestAlternates.size) {
+                        setSelectedBestAlternateIds(new Set())
+                      } else {
+                        setSelectedBestAlternateIds(new Set(Array.from(bestAlternates.keys())))
+                      }
+                    }}
+                    className="h-6 px-1.5 text-xs"
+                  >
+                    {selectedBestAlternateIds.size === bestAlternates.size ? "Deselect All" : "Select All"}
+                  </Button>
+                )}
+                {selectedBestAlternateIds.size > 0 && !readOnly && (
+                  <Button size="sm" variant="destructive" onClick={handleDeleteSelectedAlternates} disabled={deletingAlternates} className="h-6 px-1.5">
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                )}
+              </div>
             </CardHeader>
             <CardContent className="flex-1 overflow-auto p-1.5 space-y-1.5">
               {bestAlternates.size === 0 ? (
