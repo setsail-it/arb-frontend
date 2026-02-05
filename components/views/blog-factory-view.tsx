@@ -826,6 +826,22 @@ export function BlogFactoryView({ client, readOnly = false }: Props) {
                 <div className="flex flex-row items-center justify-between">
                   <CardTitle className="text-sm">Ideas ({keywordIdeas.length})</CardTitle>
                   <div className="flex gap-1">
+                    {keywordIdeas.length > 0 && (
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        onClick={() => {
+                          if (selectedKeywordIds.size === keywordIdeas.length) {
+                            setSelectedKeywordIds(new Set())
+                          } else {
+                            setSelectedKeywordIds(new Set(keywordIdeas.map((i) => i.id)))
+                          }
+                        }}
+                        className="h-6 px-1.5 text-xs"
+                      >
+                        {selectedKeywordIds.size === keywordIdeas.length ? "Deselect All" : "Select All"}
+                      </Button>
+                    )}
                     {selectedKeywordIds.size > 0 && !readOnly && (
                       <Button size="sm" variant="destructive" onClick={handleDeleteSelectedKeywordIdeas} disabled={deletingIdeas} className="h-6 px-1.5">
                         <Trash2 className="h-3.5 w-3.5" />
@@ -869,7 +885,6 @@ export function BlogFactoryView({ client, readOnly = false }: Props) {
                     <thead className="text-xs text-muted-foreground bg-muted/50 sticky top-0">
                       <tr>
                         <th className="px-1.5 py-1 w-6">
-                          <input type="checkbox" checked={selectedKeywordIds.size === keywordIdeas.length && keywordIdeas.length > 0} onChange={(e) => { if (e.target.checked) { setSelectedKeywordIds(new Set(keywordIdeas.map((i) => i.id))) } else { setSelectedKeywordIds(new Set()) } }} className="cursor-pointer" />
                         </th>
                         <th className="px-1.5 py-1">Keyword</th>
                         <th className="px-1.5 py-1 text-right w-14">Vol</th>
@@ -952,19 +967,31 @@ export function BlogFactoryView({ client, readOnly = false }: Props) {
           <Card className="flex flex-col shrink-0 min-h-0" style={{ width: "220px" }}>
             <CardHeader className="pb-1 pt-2 px-2 flex flex-row items-center justify-between space-y-0">
               <CardTitle className="text-xs">Sets ({sets.length})</CardTitle>
-              {selectedSetIds.size > 0 && !readOnly && (
-                <Button size="sm" variant="destructive" onClick={handleDeleteSelectedSets} disabled={deletingSets} className="h-5 text-[10px] px-1">
-                  <Trash2 className="h-3 w-3" />
-                </Button>
-              )}
+              <div className="flex gap-1">
+                {sets.length > 0 && (
+                  <Button 
+                    size="sm" 
+                    variant="outline" 
+                    onClick={() => {
+                      if (selectedSetIds.size === sets.length) {
+                        setSelectedSetIds(new Set())
+                      } else {
+                        setSelectedSetIds(new Set(sets.map((s) => s.id)))
+                      }
+                    }}
+                    className="h-5 text-[10px] px-1"
+                  >
+                    {selectedSetIds.size === sets.length ? "Deselect All" : "Select All"}
+                  </Button>
+                )}
+                {selectedSetIds.size > 0 && !readOnly && (
+                  <Button size="sm" variant="destructive" onClick={handleDeleteSelectedSets} disabled={deletingSets} className="h-5 text-[10px] px-1">
+                    <Trash2 className="h-3 w-3" />
+                  </Button>
+                )}
+              </div>
             </CardHeader>
             <CardContent className="flex-1 overflow-auto p-1 space-y-1">
-              {sets.length > 0 && (
-                <div className="flex items-center gap-1 text-[9px] text-muted-foreground pb-1 border-b">
-                  <input type="checkbox" checked={selectedSetIds.size === sets.length && sets.length > 0} onChange={(e) => { if (e.target.checked) { setSelectedSetIds(new Set(sets.map((s) => s.id))) } else { setSelectedSetIds(new Set()) } }} className="cursor-pointer" />
-                  <span>Select all</span>
-                </div>
-              )}
               {sets.map((set) => {
                 const isSelected = selectedSetIds.has(set.id)
                 return (
@@ -992,14 +1019,24 @@ export function BlogFactoryView({ client, readOnly = false }: Props) {
           <Card className="flex flex-col shrink-0 min-h-0" style={{ width: "220px" }}>
             <CardHeader className="pb-1 pt-2 px-2 flex flex-row items-center justify-between space-y-0">
               <CardTitle className="text-xs">Blog Ideas ({unqueued.length})</CardTitle>
+              {unqueued.length > 0 && (
+                <Button 
+                  size="sm" 
+                  variant="outline" 
+                  onClick={() => {
+                    if (selectedBlogIdeaIds.size === unqueued.length) {
+                      setSelectedBlogIdeaIds(new Set())
+                    } else {
+                      setSelectedBlogIdeaIds(new Set(unqueued.map((i) => i.id)))
+                    }
+                  }}
+                  className="h-5 text-[10px] px-1"
+                >
+                  {selectedBlogIdeaIds.size === unqueued.length ? "Deselect All" : "Select All"}
+                </Button>
+              )}
             </CardHeader>
             <CardContent className="flex-1 overflow-auto p-1 space-y-1">
-              {unqueued.length > 0 && (
-                <div className="flex items-center gap-1 text-[9px] text-muted-foreground pb-1 border-b">
-                  <input type="checkbox" checked={selectedBlogIdeaIds.size === unqueued.length && unqueued.length > 0} onChange={(e) => { if (e.target.checked) { setSelectedBlogIdeaIds(new Set(unqueued.map((i) => i.id))) } else { setSelectedBlogIdeaIds(new Set()) } }} className="cursor-pointer" />
-                  <span>Select all</span>
-                </div>
-              )}
               {unqueued.map((idea) => (
                 <BlogIdeaCard key={idea.id} idea={idea} isSelected={selectedBlogIdeaIds.has(idea.id)} onToggleSelect={() => handleToggleBlogIdeaSelection(idea.id)} onView={() => setSelectedIdea(idea)} onUpdateTopic={(topic) => handleTopicUpdate(idea.id, topic)} onDelete={() => handleDeleteBlogIdea(idea.id)} isEditable={!readOnly} showCheckbox />
               ))}
