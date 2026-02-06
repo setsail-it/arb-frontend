@@ -38,12 +38,14 @@ function ArrowButton({
   loading,
   count,
   label,
+  estTime,
 }: {
   onClick: () => void
   disabled: boolean
   loading: boolean
   count: number
   label: string
+  estTime?: string
 }) {
   return (
     <div className="flex flex-col items-center justify-center px-0.5 shrink-0">
@@ -56,6 +58,9 @@ function ArrowButton({
         {loading ? <Spinner className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
         <span>{label}({count})</span>
       </Button>
+      {estTime && (
+        <span className="text-[9px] text-muted-foreground mt-0.5 text-center">{estTime}</span>
+      )}
     </div>
   )
 }
@@ -910,15 +915,18 @@ export function BlogFactoryView({ client, readOnly = false }: Props) {
                         <Trash2 className="h-3.5 w-3.5" />
                       </Button>
                     )}
-                    <Button 
-                      size="sm" 
-                      onClick={handleGenerateKeywordIdeas} 
-                      disabled={generatingIdeas || loadingKeywordIdeas || readOnly} 
-                      className="h-7 text-xs px-3 bg-primary hover:bg-primary/90 font-medium"
-                    >
-                      {(generatingIdeas || loadingKeywordIdeas) && <Spinner className="mr-1.5 h-3 w-3" />}
-                      Generate
-                    </Button>
+                    <div className="flex flex-col items-end">
+                      <Button 
+                        size="sm" 
+                        onClick={handleGenerateKeywordIdeas} 
+                        disabled={generatingIdeas || loadingKeywordIdeas || readOnly} 
+                        className="h-7 text-xs px-3 bg-primary hover:bg-primary/90 font-medium"
+                      >
+                        {(generatingIdeas || loadingKeywordIdeas) && <Spinner className="mr-1.5 h-3 w-3" />}
+                        Generate
+                      </Button>
+                      <span className="text-[9px] text-muted-foreground mt-0.5">(est. time: 10 min)</span>
+                    </div>
                   </div>
                 </div>
                 <div className="space-y-2">
@@ -1116,7 +1124,7 @@ export function BlogFactoryView({ client, readOnly = false }: Props) {
           </Card>
 
           {/* Arrow: Sets -> Blog Ideas */}
-          <ArrowButton onClick={handleGenerateBlogIdeas} disabled={generatingBlogIdeas || readOnly} loading={generatingBlogIdeas} count={selectedSetIds.size} label="Generate" />
+          <ArrowButton onClick={handleGenerateBlogIdeas} disabled={generatingBlogIdeas || readOnly} loading={generatingBlogIdeas} count={selectedSetIds.size} label="Generate" estTime="(est. time: 11s per set)" />
 
           {/* Column 4: Blog Ideas (Unqueued) */}
           <Card className="flex flex-col shrink-0 min-h-0" style={{ width: "220px" }}>
