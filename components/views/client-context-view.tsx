@@ -178,7 +178,10 @@ export function ClientContextView({ client, readOnly = false }: Props) {
         
         if (status.progress_steps) setDcProgressSteps(status.progress_steps)
         
-        if (status.status === "complete") {
+        // Map backend status to frontend status
+        if (status.status === "running" || status.status === "pending") {
+          setFlowState(prev => ({ ...prev, discoveryCall: "processing" }))
+        } else if (status.status === "complete") {
           clearInterval(dcPollingRef.current!)
           dcPollingRef.current = null
           setFlowState(prev => ({ ...prev, discoveryCall: "complete" }))
