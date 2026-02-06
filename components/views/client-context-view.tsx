@@ -1038,7 +1038,9 @@ const DC_PROGRESS_STEPS = [
   { key: "agent_factoids_complete", label: "Factoids" },
   { key: "agent_rv_complete", label: "Analysis" },
   { key: "agent_vamp_complete", label: "JSON" },
+  { key: "qa_extraction_complete", label: "Q&A" },
   { key: "parsing_complete", label: "Parse" },
+  { key: "saved", label: "Saved" },
 ]
 
 const DD_PROGRESS_STEPS = [
