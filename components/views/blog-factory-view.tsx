@@ -90,6 +90,13 @@ export function BlogFactoryView({ client, readOnly = false }: Props) {
   // Blog idea selection state
   const [selectedBlogIdeaIds, setSelectedBlogIdeaIds] = useState<Set<number>>(new Set())
 
+  // Manual blog idea creation state
+  const [showCreateDialog, setShowCreateDialog] = useState(false)
+  const [newBlogTitle, setNewBlogTitle] = useState("")
+  const [newPrimaryKeyword, setNewPrimaryKeyword] = useState("")
+  const [newSecondaryKeywords, setNewSecondaryKeywords] = useState("")
+  const [creatingBlogIdea, setCreatingBlogIdea] = useState(false)
+
   // Keyword deleting state
   const [deletingIdeas, setDeletingIdeas] = useState(false)
   const [deletingAlternates, setDeletingAlternates] = useState(false)
