@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { DebugPanel } from "@/components/debug-panel"
 import { KeywordGenerationProgress } from "@/components/keyword-generation-progress"
-import { Trash2, Pencil, Check, ChevronRight, ChevronLeft, Link2, X } from "lucide-react"
+import { Trash2, Pencil, Check, ChevronRight, ChevronLeft, Link2, X, Plus } from "lucide-react"
 
 interface Props {
   client: Client
@@ -1131,6 +1131,17 @@ export function BlogFactoryView({ client, readOnly = false }: Props) {
             <CardHeader className="pb-1 pt-2 px-2 flex flex-row items-center justify-between space-y-0">
               <CardTitle className="text-xs">Blog Ideas ({unqueued.length})</CardTitle>
               <div className="flex gap-1">
+                {!readOnly && (
+                  <Button 
+                    size="sm" 
+                    variant="outline" 
+                    onClick={() => setShowCreateDialog(true)}
+                    className="h-6 px-1.5 text-xs"
+                    title="Add new blog idea"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                  </Button>
+                )}
                 {unqueued.length > 0 && (
                   <Button 
                     size="sm" 
@@ -1249,6 +1260,69 @@ export function BlogFactoryView({ client, readOnly = false }: Props) {
             ) : (
               <iframe srcDoc={htmlContent} className="w-full h-full min-h-[600px] border-0" title="Blog Post HTML" />
             )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create Blog Idea Dialog */}
+      <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Create New Blog Idea</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Blog Title</label>
+              <Input
+                placeholder="Enter blog post title"
+                value={newBlogTitle}
+                onChange={(e) => setNewBlogTitle(e.target.value)}
+                disabled={creatingBlogIdea}
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Primary Keyword</label>
+              <Input
+                placeholder="Enter primary keyword"
+                value={newPrimaryKeyword}
+                onChange={(e) => setNewPrimaryKeyword(e.target.value)}
+                disabled={creatingBlogIdea}
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Secondary Keywords</label>
+              <Textarea
+                placeholder="Enter secondary keywords (comma or newline separated)"
+                value={newSecondaryKeywords}
+                onChange={(e) => setNewSecondaryKeywords(e.target.value)}
+                disabled={creatingBlogIdea}
+                rows={4}
+                className="resize-none"
+              />
+              <p className="text-xs text-muted-foreground">
+                Separate multiple keywords with commas or new lines
+              </p>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowCreateDialog(false)
+                setNewBlogTitle("")
+                setNewPrimaryKeyword("")
+                setNewSecondaryKeywords("")
+              }}
+              disabled={creatingBlogIdea}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleCreateBlogIdea}
+              disabled={creatingBlogIdea || !newBlogTitle.trim() || !newPrimaryKeyword.trim()}
+            >
+              {creatingBlogIdea ? "Creating..." : "Create"}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
