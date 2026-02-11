@@ -472,6 +472,41 @@ export function BlogFactoryView({ client, readOnly = false }: Props) {
     }
   }
 
+  const handleCreateBlogIdea = async () => {
+    if (!newBlogTitle.trim() || !newPrimaryKeyword.trim()) {
+      return
+    }
+
+    setCreatingBlogIdea(true)
+    try {
+      // Parse secondary keywords (comma or newline separated)
+      const secondaryKeywords = newSecondaryKeywords
+        .split(/[,\n]/)
+        .map((kw) => kw.trim())
+        .filter((kw) => kw.length > 0)
+
+      const newIdea = await api.createBlogIdea(
+        String(client.id),
+        newBlogTitle.trim(),
+        newPrimaryKeyword.trim(),
+        secondaryKeywords
+      )
+
+      // Add to blog ideas list
+      setBlogIdeas((prev) => [newIdea, ...prev])
+
+      // Reset form
+      setNewBlogTitle("")
+      setNewPrimaryKeyword("")
+      setNewSecondaryKeywords("")
+      setShowCreateDialog(false)
+    } catch (e) {
+      console.error("Failed to create blog idea", e)
+    } finally {
+      setCreatingBlogIdea(false)
+    }
+  }
+
   const handleTopicUpdate = async (ideaId: number, newTopic: string) => {
     try {
       await api.updateBlogIdeaTopic(client.id, String(ideaId), newTopic)
