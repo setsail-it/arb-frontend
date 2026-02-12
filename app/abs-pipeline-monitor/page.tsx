@@ -18,12 +18,14 @@ interface PipelineState {
     version: number | null
     w_calls: number
     sq_calls: number
+    link_checker_calls: number
     sq_vampire_calls: number
   }
   outputs: {
     W: string | null
     E: string | null
     SQ: string | null
+    Link_Checker: string | null
     SQ_vampire: string | null
     Im: string | null
     Im_fuser: string | null
@@ -129,7 +131,7 @@ function AbsPipelineMonitorContent() {
 
         {/* Metrics Bar */}
         <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-6 mb-8 shadow-xl">
-          <div className="grid grid-cols-2 md:grid-cols-6 gap-4 text-center">
+          <div className="grid grid-cols-2 md:grid-cols-7 gap-4 text-center">
             <div>
               <div className="text-sm opacity-80 mb-2">Iteration</div>
               <div className="text-3xl font-bold">{state?.metrics.iteration || 0}</div>
@@ -145,6 +147,10 @@ function AbsPipelineMonitorContent() {
             <div>
               <div className="text-sm opacity-80 mb-2">SQ Calls</div>
               <div className="text-3xl font-bold">{state?.metrics.sq_calls || 0}</div>
+            </div>
+            <div>
+              <div className="text-sm opacity-80 mb-2">Link Checker Calls</div>
+              <div className="text-3xl font-bold">{state?.metrics.link_checker_calls || 0}</div>
             </div>
             <div>
               <div className="text-sm opacity-80 mb-2">SQ Vampire Calls</div>
@@ -169,7 +175,7 @@ function AbsPipelineMonitorContent() {
 
         {/* Agent Orbs */}
         <div className="flex justify-center items-center gap-16 flex-wrap my-12">
-          {["W", "E", "SQ", "SQ_vampire", "Im", "Im_fuser"].map((agent) => (
+          {["W", "E", "SQ", "Link_Checker", "SQ_vampire", "Im", "Im_fuser"].map((agent) => (
             <div key={agent} className="text-center">
               <button
                 onClick={() => {
@@ -187,6 +193,10 @@ function AbsPipelineMonitorContent() {
                   <>
                     SQ<sub className="text-2xl">V</sub>
                   </>
+                ) : agent === "Link_Checker" ? (
+                  <>
+                    LC
+                  </>
                 ) : agent === "Im_fuser" ? (
                   <>
                     Im<sub className="text-2xl">F</sub>
@@ -202,6 +212,8 @@ function AbsPipelineMonitorContent() {
                   ? "Editor"
                   : agent === "SQ" 
                   ? "SEO Critique" 
+                  : agent === "Link_Checker"
+                  ? "Link Checker"
                   : agent === "SQ_vampire"
                   ? "SEO Critique Extraction"
                   : agent === "Im"
