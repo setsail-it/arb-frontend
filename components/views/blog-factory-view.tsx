@@ -814,10 +814,10 @@ export function BlogFactoryView({ client, readOnly = false }: Props) {
       )}
 
       {/* Horizontal scrollable container for all columns */}
-      <div className="flex-1 overflow-x-auto overflow-y-auto min-h-0">
-        <div className="flex h-full gap-1" style={{ minWidth: "1900px" }}>
+      <div className="flex-1 overflow-x-auto overflow-y-hidden min-h-0">
+        <div className="flex h-full gap-1" style={{ minWidth: "1900px", height: "100%" }}>
           {/* ==================== KEYWORD COLUMNS SECTION ==================== */}
-          <div className="flex flex-col gap-2 shrink-0" style={{ width: "280px" }}>
+          <div className="flex flex-col gap-2 shrink-0 h-full" style={{ width: "280px" }}>
             {/* Strategy Association */}
             <Card className="border-2">
               <CardHeader className="pb-2 pt-3 px-3">
@@ -924,8 +924,8 @@ export function BlogFactoryView({ client, readOnly = false }: Props) {
             </Card>
 
             {/* Column 1: Keyword Ideas */}
-            <Card className="flex flex-col flex-1 min-h-0 border-2">
-              <CardHeader className="pb-3 pt-3 px-3 space-y-3 border-b">
+            <Card className="flex flex-col flex-1 min-h-0 max-h-full border-2 overflow-hidden">
+              <CardHeader className="pb-3 pt-3 px-3 space-y-3 border-b shrink-0">
                 <div className="flex flex-row items-center justify-between">
                   <CardTitle className="text-sm font-semibold">Ideas ({keywordIdeas.length})</CardTitle>
                   <div className="flex gap-1.5">
@@ -1018,7 +1018,7 @@ export function BlogFactoryView({ client, readOnly = false }: Props) {
                   </div>
                 </div>
               </CardHeader>
-              <CardContent className="flex-1 overflow-auto p-0">
+              <CardContent className="flex-1 overflow-y-auto overflow-x-hidden p-0">
                 <div className="border-t">
                   <table className="w-full text-xs text-left table-fixed">
                     <thead className="text-xs text-muted-foreground bg-muted/50 sticky top-0">
@@ -1050,8 +1050,8 @@ export function BlogFactoryView({ client, readOnly = false }: Props) {
           <ArrowButton onClick={handleFindBestAlternates} disabled={loadingBestAlternates || readOnly} loading={loadingBestAlternates} count={selectedKeywordIds.size} label="Find" />
 
           {/* Column 2: Best Alternate */}
-          <Card className="flex flex-col shrink-0 min-h-0" style={{ width: "240px" }}>
-            <CardHeader className="pb-1 pt-2 px-2 flex flex-row items-center justify-between space-y-0">
+          <Card className="flex flex-col shrink-0 min-h-0 max-h-full overflow-hidden" style={{ width: "240px" }}>
+            <CardHeader className="pb-1 pt-2 px-2 flex flex-row items-center justify-between space-y-0 shrink-0">
               <CardTitle className="text-sm">Best Alternate</CardTitle>
               <div className="flex gap-1">
                 {bestAlternates.size > 0 && (
@@ -1084,7 +1084,7 @@ export function BlogFactoryView({ client, readOnly = false }: Props) {
                 )}
               </div>
             </CardHeader>
-            <CardContent className="flex-1 overflow-auto p-1.5 space-y-1.5">
+            <CardContent className="flex-1 overflow-y-auto overflow-x-hidden p-1.5 space-y-1.5">
               {bestAlternates.size === 0 ? (
                 <div className="text-xs text-muted-foreground text-center py-4">Select keywords and click Find →</div>
               ) : (
@@ -1110,8 +1110,8 @@ export function BlogFactoryView({ client, readOnly = false }: Props) {
           <ArrowButton onClick={handleDevelopSets} disabled={loadingSets || readOnly} loading={loadingSets} count={selectedBestAlternateIds.size} label="Develop" />
 
           {/* Column 3: Sets */}
-          <Card className="flex flex-col shrink-0 min-h-0" style={{ width: "220px" }}>
-            <CardHeader className="pb-1 pt-2 px-2 flex flex-row items-center justify-between space-y-0">
+          <Card className="flex flex-col shrink-0 min-h-0 max-h-full overflow-hidden" style={{ width: "220px" }}>
+            <CardHeader className="pb-1 pt-2 px-2 flex flex-row items-center justify-between space-y-0 shrink-0">
               <CardTitle className="text-xs">Sets ({sets.length})</CardTitle>
               <div className="flex gap-1">
                 {sets.length > 0 && (
@@ -1144,7 +1144,7 @@ export function BlogFactoryView({ client, readOnly = false }: Props) {
                 )}
               </div>
             </CardHeader>
-            <CardContent className="flex-1 overflow-auto p-1 space-y-1">
+            <CardContent className="flex-1 overflow-y-auto overflow-x-hidden p-1 space-y-1">
               {sets.map((set) => {
                 const isSelected = selectedSetIds.has(set.id)
                 return (
@@ -1169,8 +1169,8 @@ export function BlogFactoryView({ client, readOnly = false }: Props) {
           <ArrowButton onClick={handleGenerateBlogIdeas} disabled={generatingBlogIdeas || readOnly} loading={generatingBlogIdeas} count={selectedSetIds.size} label="Generate" estTime="(est. time: 11s per set)" />
 
           {/* Column 4: Blog Ideas (Unqueued) */}
-          <Card className="flex flex-col shrink-0 min-h-0" style={{ width: "220px" }}>
-            <CardHeader className="pb-1 pt-2 px-2 flex flex-row items-center justify-between space-y-0">
+          <Card className="flex flex-col shrink-0 min-h-0 max-h-full overflow-hidden" style={{ width: "220px" }}>
+            <CardHeader className="pb-1 pt-2 px-2 flex flex-row items-center justify-between space-y-0 shrink-0">
               <CardTitle className="text-xs">Blog Ideas ({unqueued.length})</CardTitle>
               <div className="flex gap-1">
                 {!readOnly && (
@@ -1214,7 +1214,7 @@ export function BlogFactoryView({ client, readOnly = false }: Props) {
                 )}
               </div>
             </CardHeader>
-            <CardContent className="flex-1 overflow-auto p-1 space-y-1">
+            <CardContent className="flex-1 overflow-y-auto overflow-x-hidden p-1 space-y-1">
               {unqueued.map((idea) => (
                 <BlogIdeaCard key={idea.id} idea={idea} isSelected={selectedBlogIdeaIds.has(idea.id)} onToggleSelect={() => handleToggleBlogIdeaSelection(idea.id)} onView={() => setSelectedIdea(idea)} onUpdateTopic={(topic) => handleTopicUpdate(idea.id, topic)} isEditable={!readOnly} showCheckbox />
               ))}
@@ -1225,11 +1225,11 @@ export function BlogFactoryView({ client, readOnly = false }: Props) {
           <ArrowButton onClick={handleQueueSelectedIdeas} disabled={queuingIdeas || readOnly} loading={queuingIdeas} count={selectedBlogIdeaIds.size} label="Queue" />
 
           {/* Column 5: Queued */}
-          <Card className="flex flex-col shrink-0 min-h-0" style={{ width: "220px" }}>
-            <CardHeader className="pb-1 pt-2 px-2 flex flex-row items-center justify-between space-y-0">
+          <Card className="flex flex-col shrink-0 min-h-0 max-h-full overflow-hidden" style={{ width: "220px" }}>
+            <CardHeader className="pb-1 pt-2 px-2 flex flex-row items-center justify-between space-y-0 shrink-0">
               <CardTitle className="text-xs">Queued ({queued.length})</CardTitle>
             </CardHeader>
-            <CardContent className="flex-1 overflow-auto p-1 space-y-1">
+            <CardContent className="flex-1 overflow-y-auto overflow-x-hidden p-1 space-y-1">
               {queued.map((idea) => (
                 <BlogIdeaCard key={idea.id} idea={idea} onView={() => setSelectedIdea(idea)} onDequeue={() => handleDequeueIdea(idea.id)} />
               ))}
@@ -1240,11 +1240,11 @@ export function BlogFactoryView({ client, readOnly = false }: Props) {
           <ArrowButton onClick={handleProcessQueued} disabled={processing || queued.length === 0 || readOnly} loading={processing} count={queued.length} label="Process" />
 
           {/* Column 6: In Progress */}
-          <Card className="flex flex-col shrink-0 min-h-0" style={{ width: "220px" }}>
-            <CardHeader className="pb-1 pt-2 px-2">
+          <Card className="flex flex-col shrink-0 min-h-0 max-h-full overflow-hidden" style={{ width: "220px" }}>
+            <CardHeader className="pb-1 pt-2 px-2 shrink-0">
               <CardTitle className="text-xs">In Progress ({inProgress.length})</CardTitle>
             </CardHeader>
-            <CardContent className="flex-1 overflow-auto p-1 space-y-1">
+            <CardContent className="flex-1 overflow-y-auto overflow-x-hidden p-1 space-y-1">
               {inProgress.map((idea) => (
                 <BlogIdeaCard key={idea.id} idea={idea} onView={() => setSelectedIdea(idea)} onViewProcess={() => handleViewProcess(idea)} onViewMonitor={() => handleViewMonitor(idea)} onAbort={() => handleAbortPipeline(idea)} isInProgress />
               ))}
@@ -1252,11 +1252,11 @@ export function BlogFactoryView({ client, readOnly = false }: Props) {
           </Card>
 
           {/* Column 7: Done */}
-          <Card className="flex flex-col shrink-0 min-h-0 ml-2" style={{ width: "240px" }}>
-            <CardHeader className="pb-1 pt-2 px-2">
+          <Card className="flex flex-col shrink-0 min-h-0 max-h-full overflow-hidden ml-2" style={{ width: "240px" }}>
+            <CardHeader className="pb-1 pt-2 px-2 shrink-0">
               <CardTitle className="text-xs">Done ({done.length})</CardTitle>
             </CardHeader>
-            <CardContent className="flex-1 overflow-auto p-1 space-y-1">
+            <CardContent className="flex-1 overflow-y-auto overflow-x-hidden p-1 space-y-1">
               {done.map((idea) => (
                 <BlogIdeaCard key={idea.id} idea={idea} onView={() => setSelectedIdea(idea)} onViewPost={() => handleViewPost(idea)} onDownload={() => handleDownloadHtml(idea)} onReset={() => handleResetBlogIdea(idea)} />
               ))}
