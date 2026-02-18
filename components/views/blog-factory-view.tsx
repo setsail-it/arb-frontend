@@ -817,7 +817,7 @@ export function BlogFactoryView({ client, readOnly = false }: Props) {
       <div className="flex-1 overflow-x-auto overflow-y-hidden min-h-0">
         <div className="flex h-full gap-1" style={{ minWidth: "1900px", height: "100%" }}>
           {/* ==================== KEYWORD COLUMNS SECTION ==================== */}
-          <div className="flex flex-col gap-2 shrink-0 h-full" style={{ width: "280px" }}>
+          <div className="flex flex-col gap-2 shrink-0 h-full overflow-y-auto overflow-x-hidden" style={{ width: "280px" }}>
             {/* Strategy Association */}
             <Card className="border-2">
               <CardHeader className="pb-2 pt-3 px-3">
@@ -924,8 +924,8 @@ export function BlogFactoryView({ client, readOnly = false }: Props) {
             </Card>
 
             {/* Column 1: Keyword Ideas */}
-            <Card className="flex flex-col flex-1 min-h-0 max-h-full border-2 overflow-hidden">
-              <CardHeader className="pb-3 pt-3 px-3 space-y-3 border-b shrink-0">
+            <Card className="flex flex-col border-2">
+              <CardHeader className="pb-3 pt-3 px-3 space-y-3 border-b">
                 <div className="flex flex-row items-center justify-between">
                   <CardTitle className="text-sm font-semibold">Ideas ({keywordIdeas.length})</CardTitle>
                   <div className="flex gap-1.5">
@@ -1018,7 +1018,7 @@ export function BlogFactoryView({ client, readOnly = false }: Props) {
                   </div>
                 </div>
               </CardHeader>
-              <CardContent className="flex-1 overflow-y-auto overflow-x-hidden p-0">
+              <CardContent className="p-0">
                 <div className="border-t">
                   <table className="w-full text-xs text-left table-fixed">
                     <thead className="text-xs text-muted-foreground bg-muted/50 sticky top-0">
