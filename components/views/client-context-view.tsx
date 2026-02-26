@@ -90,6 +90,9 @@ export function ClientContextView({ client, readOnly = false }: Props) {
   const gcPollingRef = useRef<NodeJS.Timeout | null>(null)
   const sitemapPollingRef = useRef<NodeJS.Timeout | null>(null)
   const oppsPollingRef = useRef<NodeJS.Timeout | null>(null)
+  const discoveryPollingRef = useRef<NodeJS.Timeout | null>(null)
+  const flowStateRef = useRef(flowState)
+  flowStateRef.current = flowState
 
   // Files state (Additional Context)
   const [files, setFiles] = useState<ClientFile[]>([])
@@ -358,6 +361,7 @@ export function ClientContextView({ client, readOnly = false }: Props) {
     if (gcPollingRef.current) { clearInterval(gcPollingRef.current); gcPollingRef.current = null }
     if (sitemapPollingRef.current) { clearInterval(sitemapPollingRef.current); sitemapPollingRef.current = null }
     if (oppsPollingRef.current) { clearInterval(oppsPollingRef.current); oppsPollingRef.current = null }
+    if (discoveryPollingRef.current) { clearInterval(discoveryPollingRef.current); discoveryPollingRef.current = null }
 
     const loadData = async () => {
       try {
@@ -571,6 +575,51 @@ export function ClientContextView({ client, readOnly = false }: Props) {
     
     loadData()
   }, [client.id])
+
+  // Discovery poll: when sitemap or KES is idle, poll every 12s so we pick up jobs started elsewhere (e.g. fetch-stream)
+  useEffect(() => {
+    if (!client?.id) return
+    discoveryPollingRef.current = setInterval(async () => {
+      const state = flowStateRef.current
+      if (state.sitemap !== "idle" && state.keywordEnhancedSitemap !== "idle") return
+      try {
+        const [smRes, kesRes] = await Promise.all([
+          api.getSitemapFetchStatus(client.id),
+          api.getKeywordEnhancedSitemapStatus(client.id),
+        ])
+        const next = { ...state }
+        let startSitemapPoll = false
+        let startKesPoll = false
+        if (state.sitemap === "idle" && (smRes.status === "running" || smRes.status === "pending")) {
+          next.sitemap = "processing"
+          startSitemapPoll = true
+        } else if (state.sitemap === "idle" && smRes.status === "complete") {
+          next.sitemap = "complete"
+        } else if (state.sitemap === "idle" && smRes.status === "error") {
+          next.sitemap = "error"
+        }
+        if (state.keywordEnhancedSitemap === "idle" && (kesRes.status === "running" || kesRes.status === "pending")) {
+          next.keywordEnhancedSitemap = "processing"
+          startKesPoll = true
+        } else if (state.keywordEnhancedSitemap === "idle" && (kesRes.status === "complete" || kesRes.status === "completed")) {
+          next.keywordEnhancedSitemap = "complete"
+        } else if (state.keywordEnhancedSitemap === "idle" && kesRes.status === "error") {
+          next.keywordEnhancedSitemap = "error"
+        }
+        if (next.sitemap !== state.sitemap || next.keywordEnhancedSitemap !== state.keywordEnhancedSitemap) {
+          setFlowState(prev => ({ ...prev, sitemap: next.sitemap, keywordEnhancedSitemap: next.keywordEnhancedSitemap }))
+          if (startSitemapPoll) pollSitemapStatus()
+          if (startKesPoll) pollKeywordEnhancedSitemapStatus()
+        }
+      } catch (_) {}
+    }, 12000)
+    return () => {
+      if (discoveryPollingRef.current) {
+        clearInterval(discoveryPollingRef.current)
+        discoveryPollingRef.current = null
+      }
+    }
+  }, [client?.id])
 
   // Only domain is required - URLs are optional
   const canActivate = !!domainInput.trim()
