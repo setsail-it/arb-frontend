@@ -368,11 +368,13 @@ export function ClientContextView({ client, readOnly = false }: Props) {
         } catch {}
         domainLoadedRef.current = true
         
-        // Load discovery call URL and deep dive URL from context
+        // Load discovery call URL, deep dive URL, and domain from context (domain used if discovery doc had none)
         try {
           const ctx = await api.getContext(client.id)
           if (ctx?.discovery_call_url) setDiscoveryCallUrl(ctx.discovery_call_url)
           if (ctx?.deep_dive_url) setDeepDiveUrl(ctx.deep_dive_url)
+          if (ctx?.domain)
+            setDomainInput(prev => (prev && prev.trim() ? prev : (ctx!.domain ?? "")))
         } catch {}
         
         // Check job statuses
