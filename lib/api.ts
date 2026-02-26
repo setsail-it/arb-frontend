@@ -125,10 +125,14 @@ export const api = {
     fetchJson<{ job_id: string; status: string; message: string }>(`/clients/${String(clientId)}/context/sitemap-fetch`, {
       method: "POST",
     }),
-  getKeywordOpportunitiesStatus: (clientId: string | number) =>
-    fetchJson<{ job_id: string; status: string; error_message: string | null; started_at: string | null }>(`/clients/${String(clientId)}/context/keyword-opportunities/status`, {
+  getKeywordEnhancedSitemapStatus: (clientId: string | number) =>
+    fetchJson<{ job_id: string; status: string; error_message: string | null; started_at: string | null }>(`/clients/${String(clientId)}/context/keyword-enhanced-sitemap/status`, {
       cache: 'no-store',
       headers: { 'Cache-Control': 'no-cache' }
+    }),
+  retryKeywordEnhancedSitemap: (clientId: string | number) =>
+    fetchJson<{ job_id: string }>(`/clients/${String(clientId)}/context/keyword-enhanced-sitemap/retry`, {
+      method: "POST",
     }),
   fetchContextFromSiteStream: async (
     clientId: string,

@@ -40,14 +40,14 @@ interface Props {
 }
 
 type ComponentStatus = "idle" | "processing" | "complete" | "error"
-type ActiveView = "admin" | "discovery-call" | "deep-dive" | "general" | "files" | "sitemap" | "keyword-opportunities"
+type ActiveView = "admin" | "discovery-call" | "deep-dive" | "general" | "files" | "sitemap" | "keyword-enhanced-sitemap"
 
 interface FlowState {
   discoveryCall: ComponentStatus
   deepDive: ComponentStatus
   generalContext: ComponentStatus
   sitemap: ComponentStatus
-  keywordOpportunities: ComponentStatus
+  keywordEnhancedSitemap: ComponentStatus
 }
 
 function formatTime(seconds: number): string {
@@ -70,7 +70,7 @@ export function ClientContextView({ client, readOnly = false }: Props) {
     deepDive: "idle",
     generalContext: "idle",
     sitemap: "idle",
-    keywordOpportunities: "idle",
+    keywordEnhancedSitemap: "idle",
   })
   const [locationCode, setLocationCode] = useState<number>(2124) // 2124 Canada, 2840 US
   
@@ -102,7 +102,7 @@ export function ClientContextView({ client, readOnly = false }: Props) {
                             flowState.deepDive === "processing" || 
                             flowState.generalContext === "processing" ||
                             flowState.sitemap === "processing" ||
-                            flowState.keywordOpportunities === "processing"
+                            flowState.keywordEnhancedSitemap === "processing"
 
   // Start/stop timer based on pipeline status
   useEffect(() => {
@@ -315,24 +315,24 @@ export function ClientContextView({ client, readOnly = false }: Props) {
     }, 4000)
   }
 
-  const pollKeywordOpportunitiesStatus = () => {
+  const pollKeywordEnhancedSitemapStatus = () => {
     if (oppsPollingRef.current) clearInterval(oppsPollingRef.current)
     oppsPollingRef.current = setInterval(async () => {
       try {
-        const status = await api.getKeywordOpportunitiesStatus(client.id)
-        if (status.status === "complete") {
+        const status = await api.getKeywordEnhancedSitemapStatus(client.id)
+        if (status.status === "complete" || status.status === "completed") {
           clearInterval(oppsPollingRef.current!)
           oppsPollingRef.current = null
-          setFlowState(prev => ({ ...prev, keywordOpportunities: "complete" }))
+          setFlowState(prev => ({ ...prev, keywordEnhancedSitemap: "complete" }))
           try { await api.getContext(client.id) } catch {}
         } else if (status.status === "error" || status.status === "cancelled") {
           clearInterval(oppsPollingRef.current!)
           oppsPollingRef.current = null
-          setFlowState(prev => ({ ...prev, keywordOpportunities: status.status === "error" ? "error" : "idle" }))
+          setFlowState(prev => ({ ...prev, keywordEnhancedSitemap: status.status === "error" ? "error" : "idle" }))
         }
       } catch (e: unknown) {
         if (e && typeof e === "object" && "status" in e && (e as { status: number }).status === 404) return
-        console.error("Keyword opportunities poll error:", e)
+        console.error("Keyword Enhanced Sitemap poll error:", e)
       }
     }, 5000)
   }
@@ -349,7 +349,7 @@ export function ClientContextView({ client, readOnly = false }: Props) {
     setPipelineTimer(null)
     setPipelineStartTime(null)
     setActiveView("admin")
-    setFlowState({ discoveryCall: "idle", deepDive: "idle", generalContext: "idle", sitemap: "idle", keywordOpportunities: "idle" })
+    setFlowState({ discoveryCall: "idle", deepDive: "idle", generalContext: "idle", sitemap: "idle", keywordEnhancedSitemap: "idle" })
     
     // Clear polling
     if (timerIntervalRef.current) { clearInterval(timerIntervalRef.current); timerIntervalRef.current = null }
@@ -404,12 +404,12 @@ export function ClientContextView({ client, readOnly = false }: Props) {
                   // Set up DD -> GC continuation
                   pipelineContinuationRef.current.afterDD = async () => {
                     console.log("[Resume] DD complete, starting General Context...")
-                    setFlowState(prev => ({ ...prev, generalContext: "processing", sitemap: "processing", keywordOpportunities: "processing" }))
+                    setFlowState(prev => ({ ...prev, generalContext: "processing", sitemap: "processing", keywordEnhancedSitemap: "processing" }))
                     if (domain) {
                       await api.fetchContextFromSiteAsync(client.id, domain, locationCode)
                       pollGCStatus()
                       pollSitemapStatus()
-                      pollKeywordOpportunitiesStatus()
+                      pollKeywordEnhancedSitemapStatus()
                     }
                   }
                   await api.processDeepDive(client.id, ddUrl)
@@ -417,11 +417,11 @@ export function ClientContextView({ client, readOnly = false }: Props) {
                 } else if (domain) {
                   // No DD URL, go straight to GC
                   console.log("[Resume] No DD URL, starting General Context...")
-                  setFlowState(prev => ({ ...prev, generalContext: "processing", sitemap: "processing", keywordOpportunities: "processing" }))
+                  setFlowState(prev => ({ ...prev, generalContext: "processing", sitemap: "processing", keywordEnhancedSitemap: "processing" }))
                   await api.fetchContextFromSiteAsync(client.id, domain, locationCode)
                   pollGCStatus()
                   pollSitemapStatus()
-                  pollKeywordOpportunitiesStatus()
+                  pollKeywordEnhancedSitemapStatus()
                 }
               } catch (e) {
                 console.error("[Resume] Continuation error:", e)
@@ -450,7 +450,7 @@ export function ClientContextView({ client, readOnly = false }: Props) {
             // Set up continuation to run GC after DD completes
             pipelineContinuationRef.current.afterDD = async () => {
               console.log("[Resume] DD complete, starting General Context...")
-              setFlowState(prev => ({ ...prev, generalContext: "processing", sitemap: "processing", keywordOpportunities: "processing" }))
+              setFlowState(prev => ({ ...prev, generalContext: "processing", sitemap: "processing", keywordEnhancedSitemap: "processing" }))
               try {
                 const ctx = await api.getContext(client.id)
                 const domain = ctx?.domain || domainInput.trim()
@@ -458,7 +458,7 @@ export function ClientContextView({ client, readOnly = false }: Props) {
                   await api.fetchContextFromSiteAsync(client.id, domain, locationCode)
                   pollGCStatus()
                   pollSitemapStatus()
-                  pollKeywordOpportunitiesStatus()
+                  pollKeywordEnhancedSitemapStatus()
                 }
               } catch (e) {
                 console.error("[Resume] Failed to start GC:", e)
@@ -525,35 +525,34 @@ export function ClientContextView({ client, readOnly = false }: Props) {
           // 404 or other: no sitemap job, leave idle
         }
         
-        // Keyword opportunities status
-        let oppsState: ComponentStatus = "idle"
+        // Keyword Enhanced Sitemap status
+        let kesState: ComponentStatus = "idle"
         try {
-          const oppsStatus = await api.getKeywordOpportunitiesStatus(client.id)
-          if (oppsStatus.status === "running" || oppsStatus.status === "pending") {
-            oppsState = "processing"
-            pollKeywordOpportunitiesStatus()
-            if (oppsStatus.started_at && (!earliestStart || new Date(oppsStatus.started_at) < earliestStart)) {
-              earliestStart = new Date(oppsStatus.started_at)
+          const kesStatus = await api.getKeywordEnhancedSitemapStatus(client.id)
+          if (kesStatus.status === "running" || kesStatus.status === "pending") {
+            kesState = "processing"
+            pollKeywordEnhancedSitemapStatus()
+            if (kesStatus.started_at && (!earliestStart || new Date(kesStatus.started_at) < earliestStart)) {
+              earliestStart = new Date(kesStatus.started_at)
             }
-          } else if (oppsStatus.status === "complete") {
-            oppsState = "complete"
-          } else if (oppsStatus.status === "error") {
-            oppsState = "error"
+          } else if (kesStatus.status === "complete" || kesStatus.status === "completed") {
+            kesState = "complete"
+          } else if (kesStatus.status === "error") {
+            kesState = "error"
           } else {
             try {
               const ctx = await api.getContext(client.id)
-              if (ctx?.keyword_opportunities_json) oppsState = "complete"
-              if (ctx?.keyword_opportunities_location_code) setLocationCode(ctx.keyword_opportunities_location_code)
+              if (ctx?.keyword_enhanced_sitemap_json) kesState = "complete"
             } catch {}
           }
         } catch {
           try {
             const ctx = await api.getContext(client.id)
-            if (ctx?.keyword_opportunities_location_code) setLocationCode(ctx.keyword_opportunities_location_code)
+            if (ctx?.keyword_enhanced_sitemap_json) kesState = "complete"
           } catch {}
         }
         
-        setFlowState({ discoveryCall: dcState, deepDive: ddState, generalContext: gcState, sitemap: sitemapState, keywordOpportunities: oppsState })
+        setFlowState({ discoveryCall: dcState, deepDive: ddState, generalContext: gcState, sitemap: sitemapState, keywordEnhancedSitemap: kesState })
         
         // Load files
         try {
@@ -627,12 +626,12 @@ export function ClientContextView({ client, readOnly = false }: Props) {
         return
       }
       console.log("[Pipeline] Starting General Context...")
-      setFlowState(prev => ({ ...prev, generalContext: "processing", sitemap: "processing", keywordOpportunities: "processing" }))
+      setFlowState(prev => ({ ...prev, generalContext: "processing", sitemap: "processing", keywordEnhancedSitemap: "processing" }))
       try {
         await api.fetchContextFromSiteAsync(client.id, capturedDomain, capturedLocationCode)
         pollGCStatus()
         pollSitemapStatus()
-        pollKeywordOpportunitiesStatus()
+        pollKeywordEnhancedSitemapStatus()
       } catch (e) {
         console.error("[Pipeline] Failed to start GC:", e)
         setFlowState(prev => ({ ...prev, generalContext: "error" }))
@@ -696,7 +695,7 @@ export function ClientContextView({ client, readOnly = false }: Props) {
 
   const handleAbortPipeline = async () => {
     try {
-      await api.cancelJobs(client.id, ["discovery_call", "deep_dive", "general_context", "sitemap", "keyword_opportunities"])
+      await api.cancelJobs(client.id, ["discovery_call", "deep_dive", "general_context", "sitemap", "keyword_enhanced_sitemap"])
     } catch (e) {
       console.error("Failed to cancel jobs:", e)
     }
@@ -717,7 +716,7 @@ export function ClientContextView({ client, readOnly = false }: Props) {
       deepDive: prev.deepDive === "processing" ? "idle" : prev.deepDive,
       generalContext: prev.generalContext === "processing" ? "idle" : prev.generalContext,
       sitemap: prev.sitemap === "processing" ? "idle" : prev.sitemap,
-      keywordOpportunities: prev.keywordOpportunities === "processing" ? "idle" : prev.keywordOpportunities,
+      keywordEnhancedSitemap: prev.keywordEnhancedSitemap === "processing" ? "idle" : prev.keywordEnhancedSitemap,
     }))
     
     setIsActivating(false)
@@ -816,10 +815,19 @@ export function ClientContextView({ client, readOnly = false }: Props) {
             }}
           />
         )}
-        {activeView === "keyword-opportunities" && (
-          <KeywordOpportunitiesDetailView
+        {activeView === "keyword-enhanced-sitemap" && (
+          <KeywordEnhancedSitemapDetailView
             clientId={String(client.id)}
-            flowStatus={flowState.keywordOpportunities}
+            flowStatus={flowState.keywordEnhancedSitemap}
+            onRetry={async () => {
+              try {
+                await api.retryKeywordEnhancedSitemap(client.id)
+                setFlowState(prev => ({ ...prev, keywordEnhancedSitemap: "processing" }))
+                pollKeywordEnhancedSitemapStatus()
+              } catch (e) {
+                console.error("Retry Keyword Enhanced Sitemap failed:", e)
+              }
+            }}
           />
         )}
         {activeView === "files" && (
@@ -1077,7 +1085,7 @@ export function ClientContextView({ client, readOnly = false }: Props) {
         </div>
 
         {/* Connection Line */}
-        <ConnectionLine active={flowState.discoveryCall !== "idle" || flowState.deepDive !== "idle" || flowState.generalContext !== "idle" || flowState.sitemap !== "idle" || flowState.keywordOpportunities !== "idle"} />
+        <ConnectionLine active={flowState.discoveryCall !== "idle" || flowState.deepDive !== "idle" || flowState.generalContext !== "idle" || flowState.sitemap !== "idle" || flowState.keywordEnhancedSitemap !== "idle"} />
 
         {/* Results Section */}
         <div className="relative rounded-xl border-2 border-dashed border-slate-700 p-6 pt-10">
@@ -1119,10 +1127,10 @@ export function ClientContextView({ client, readOnly = false }: Props) {
                 onClick={() => setActiveView("sitemap")}
               />
               <ResultCard
-                title="Keyword Opportunities"
+                title="Keyword Enhanced Sitemap"
                 icon={<TrendingUp className="h-5 w-5" />}
-                status={flowState.keywordOpportunities}
-                onClick={() => setActiveView("keyword-opportunities")}
+                status={flowState.keywordEnhancedSitemap}
+                onClick={() => setActiveView("keyword-enhanced-sitemap")}
               />
               <ResultCard
                 title="Additional Context"
@@ -1255,12 +1263,14 @@ function SitemapDetailView({
   )
 }
 
-function KeywordOpportunitiesDetailView({
+function KeywordEnhancedSitemapDetailView({
   clientId,
   flowStatus,
+  onRetry,
 }: {
   clientId: string
   flowStatus: ComponentStatus
+  onRetry?: () => void
 }) {
   const [context, setContext] = useState<ClientContext | null>(null)
   const [loading, setLoading] = useState(true)
@@ -1276,73 +1286,66 @@ function KeywordOpportunitiesDetailView({
     })
     return () => { cancelled = true }
   }, [clientId, flowStatus])
-  let opportunities: { keyword: string; search_volume: number; cpc: number; competition: number; competitor_count: number; example_competitors: string; score: number }[] = []
-  if (context?.keyword_opportunities_json) {
-    try {
-      const data = JSON.parse(context.keyword_opportunities_json)
-      opportunities = data?.opportunities ?? []
-    } catch {}
+  const rows: Array<{ url: string; page_type?: string; primary_keyword?: { kw: string; vol?: number; kd?: number }; secondary_keywords?: Array<{ kw: string; vol?: number; kd?: number }>; notes?: string }> = []
+  if (context?.keyword_enhanced_sitemap_json) {
+    const lines = context.keyword_enhanced_sitemap_json.trim().split("\n").filter(Boolean)
+    for (const line of lines) {
+      try {
+        const obj = JSON.parse(line) as { url?: string; page_type?: string; primary_keyword?: { kw: string; vol?: number; kd?: number }; secondary_keywords?: Array<{ kw: string; vol?: number; kd?: number }>; notes?: string }
+        if (obj?.url) rows.push({ ...obj, url: obj.url })
+      } catch {}
+    }
   }
-  const locationLabel = context?.keyword_opportunities_location_code === 2840 ? "United States" : context?.keyword_opportunities_location_code === 2124 ? "Canada" : context?.keyword_opportunities_location_code ? `Location ${context.keyword_opportunities_location_code}` : null
   return (
     <div className="space-y-6">
-      <h2 className="text-3xl font-bold text-white mb-2">Keyword Opportunities</h2>
+      <h2 className="text-3xl font-bold text-white mb-2">Keyword Enhanced Sitemap</h2>
       {flowStatus === "processing" && (
         <Card className="border-violet-500/50 bg-violet-950/20">
           <CardContent className="py-8 flex items-center gap-3">
             <Spinner className="h-6 w-6 text-violet-400" />
-            <p className="text-slate-300">Keyword opportunities: fetching…</p>
+            <p className="text-slate-300">Keyword Enhanced Sitemap: running…</p>
           </CardContent>
         </Card>
       )}
-      {flowStatus === "complete" && opportunities.length > 0 && (
-        <>
-          {locationLabel && <p className="text-sm text-slate-400">Location: {locationLabel}</p>}
-          <div className="overflow-auto max-h-[70vh] rounded-xl border border-slate-700">
-            <table className="w-full text-sm text-left">
-              <thead className="bg-slate-800/80 text-slate-300 sticky top-0">
-                <tr>
-                  <th className="px-4 py-2">Keyword</th>
-                  <th className="px-4 py-2">Volume</th>
-                  <th className="px-4 py-2">CPC</th>
-                  <th className="px-4 py-2">Competition</th>
-                  <th className="px-4 py-2">Competitors</th>
-                  <th className="px-4 py-2">Score</th>
-                </tr>
-              </thead>
-              <tbody className="text-slate-400">
-                {opportunities.map((row, i) => (
-                  <tr key={i} className="border-t border-slate-700/50 hover:bg-slate-800/40">
-                    <td className="px-4 py-2 text-white">{row.keyword}</td>
-                    <td className="px-4 py-2">{row.search_volume}</td>
-                    <td className="px-4 py-2">{row.cpc}</td>
-                    <td className="px-4 py-2">{row.competition}</td>
-                    <td className="px-4 py-2" title={row.example_competitors}>{row.competitor_count}</td>
-                    <td className="px-4 py-2">{row.score}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </>
+      {flowStatus === "complete" && rows.length > 0 && (
+        <div className="overflow-auto max-h-[70vh] rounded-xl border border-slate-700">
+          <pre className="p-4 text-sm text-slate-300 whitespace-pre-wrap font-mono">{context?.keyword_enhanced_sitemap_json}</pre>
+        </div>
       )}
-      {flowStatus === "complete" && !loading && opportunities.length === 0 && (
-        <p className="text-slate-400">No keyword opportunities yet or none found.</p>
+      {flowStatus === "complete" && !loading && rows.length === 0 && (
+        <p className="text-slate-400">No Keyword Enhanced Sitemap yet or empty.</p>
       )}
       {flowStatus === "error" && (
         <Card className="border-red-500/50 bg-red-950/20">
           <CardContent className="py-4">
-            <p className="text-red-300">Keyword opportunities fetch failed.</p>
+            <p className="text-red-300">Keyword Enhanced Sitemap run failed.</p>
           </CardContent>
         </Card>
       )}
       {flowStatus === "idle" && !loading && (
-        <p className="text-slate-400">Keyword opportunities: not fetched.</p>
+        <p className="text-slate-400">Keyword Enhanced Sitemap: not generated. Run Sitemap to trigger it.</p>
       )}
       {loading && flowStatus !== "processing" && (
         <div className="flex items-center gap-2 text-slate-400">
           <Spinner className="h-4 w-4" />
           Loading…
+        </div>
+      )}
+      {onRetry && (
+        <div className="pt-2">
+          <Button
+            size="sm"
+            onClick={onRetry}
+            disabled={flowStatus === "processing"}
+            className="w-fit gap-2 border-slate-600 text-slate-300 hover:bg-slate-800 hover:text-white"
+          >
+            {flowStatus === "processing" ? (
+              <Spinner className="h-4 w-4" />
+            ) : (
+              <RefreshCw className="h-4 w-4" />
+            )}
+            Retry
+          </Button>
         </div>
       )}
     </div>

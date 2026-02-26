@@ -65,6 +65,8 @@ export interface ClientContext {
   keyword_opportunities_json?: string | null
   keyword_opportunities_location_code?: number | null
   keyword_opportunities_generated_at?: string | null
+  keyword_enhanced_sitemap_json?: string | null
+  keyword_enhanced_sitemap_generated_at?: string | null
 }
 
 // Alias for clarity
