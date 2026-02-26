@@ -47,11 +47,7 @@ export function PageUpdaterView(props: PageUpdaterViewProps) {
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch("/api/webflow/sites")
-      const data = await res.json()
-      if (!res.ok) {
-        throw new Error(data.error ?? "Failed to load sites")
-      }
+      const data = await api.getWebflowSites()
       const list = data.sites ?? []
       setSites(list)
       setSelectedSiteId((prev) => (list.some((s: WebflowSite) => s.id === prev) ? prev : list[0]?.id ?? ""))
@@ -115,9 +111,7 @@ export function PageUpdaterView(props: PageUpdaterViewProps) {
     setPages([])
     setPagesError(null)
     try {
-      const res = await fetch(`/api/webflow/sites/${effectiveSiteId}/pages`)
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error ?? "Failed to fetch pages")
+      const data = await api.getWebflowPages(effectiveSiteId)
       const list = data.pages ?? []
       setPages(list)
       await api.saveWebflowPages(effectiveSiteId, list.map((p: WebflowPageItem) => ({
@@ -190,14 +184,6 @@ export function PageUpdaterView(props: PageUpdaterViewProps) {
               onClick={handleGetAllPages}
             >
               {pagesLoading ? "Loading…" : "Get all pages"}
-            </Button>
-            <Button
-              disabled={!selectedSite}
-              onClick={() => {
-                // TODO: wire to KW-sitemap update action
-              }}
-            >
-              Update pages automatically with KW-sitemap
             </Button>
           </div>
           {siteConfirmed && (

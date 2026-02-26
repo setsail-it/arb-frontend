@@ -83,6 +83,10 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify({ site_id: siteId }),
     }),
+  getWebflowSites: () =>
+    fetchJson<{ sites: { name: string; id: string; shortName: string; webflowUrl: string; customDomains: string[] }[] }>("/webflow/sites"),
+  getWebflowPages: (siteId: string) =>
+    fetchJson<{ pages: { id: string; title?: string | null; slug?: string | null; publishedPath?: string | null; collectionId?: string | null; type?: string }[] }>(`/webflow/sites/${siteId}/pages`),
   saveWebflowPages: (siteId: string, pages: { id: string; title?: string | null; slug?: string | null; publishedPath?: string | null; collectionId?: string | null; type?: string | null }[]) =>
     fetchJson<{ site_id: string; count: number }>("/webflow-pages", {
       method: "PUT",
