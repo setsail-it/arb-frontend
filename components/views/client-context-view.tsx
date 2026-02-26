@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef, useCallback } from "react"
-import type { Client, ClientFile } from "@/types"
+import type { Client, ClientFile, ClientContext } from "@/types"
 import { api } from "@/lib/api"
 import { GeneralContextForm } from "@/components/views/general-context-form"
 import { DiscoveryCallView } from "@/components/views/discovery-call-view"
@@ -29,6 +29,9 @@ import {
   Image as ImageIcon,
   FileSpreadsheet,
   FileCode,
+  Map,
+  RefreshCw,
+  TrendingUp,
 } from "lucide-react"
 
 interface Props {
@@ -37,12 +40,14 @@ interface Props {
 }
 
 type ComponentStatus = "idle" | "processing" | "complete" | "error"
-type ActiveView = "admin" | "discovery-call" | "deep-dive" | "general" | "files"
+type ActiveView = "admin" | "discovery-call" | "deep-dive" | "general" | "files" | "sitemap" | "keyword-opportunities"
 
 interface FlowState {
   discoveryCall: ComponentStatus
   deepDive: ComponentStatus
   generalContext: ComponentStatus
+  sitemap: ComponentStatus
+  keywordOpportunities: ComponentStatus
 }
 
 function formatTime(seconds: number): string {
@@ -64,7 +69,10 @@ export function ClientContextView({ client, readOnly = false }: Props) {
     discoveryCall: "idle",
     deepDive: "idle",
     generalContext: "idle",
+    sitemap: "idle",
+    keywordOpportunities: "idle",
   })
+  const [locationCode, setLocationCode] = useState<number>(2124) // 2124 Canada, 2840 US
   
   // Progress tracking for Discovery Call and Deep Dive
   const [dcProgressSteps, setDcProgressSteps] = useState<string[]>([])
@@ -80,6 +88,8 @@ export function ClientContextView({ client, readOnly = false }: Props) {
   const dcPollingRef = useRef<NodeJS.Timeout | null>(null)
   const ddPollingRef = useRef<NodeJS.Timeout | null>(null)
   const gcPollingRef = useRef<NodeJS.Timeout | null>(null)
+  const sitemapPollingRef = useRef<NodeJS.Timeout | null>(null)
+  const oppsPollingRef = useRef<NodeJS.Timeout | null>(null)
 
   // Files state (Additional Context)
   const [files, setFiles] = useState<ClientFile[]>([])
@@ -90,7 +100,9 @@ export function ClientContextView({ client, readOnly = false }: Props) {
   // Pipeline is still running if any job is processing
   const isPipelineRunning = flowState.discoveryCall === "processing" || 
                             flowState.deepDive === "processing" || 
-                            flowState.generalContext === "processing"
+                            flowState.generalContext === "processing" ||
+                            flowState.sitemap === "processing" ||
+                            flowState.keywordOpportunities === "processing"
 
   // Start/stop timer based on pipeline status
   useEffect(() => {
@@ -132,6 +144,8 @@ export function ClientContextView({ client, readOnly = false }: Props) {
       if (dcPollingRef.current) clearInterval(dcPollingRef.current)
       if (ddPollingRef.current) clearInterval(ddPollingRef.current)
       if (gcPollingRef.current) clearInterval(gcPollingRef.current)
+      if (sitemapPollingRef.current) clearInterval(sitemapPollingRef.current)
+      if (oppsPollingRef.current) clearInterval(oppsPollingRef.current)
     }
   }, [])
   
@@ -271,6 +285,58 @@ export function ClientContextView({ client, readOnly = false }: Props) {
     }, 3000)
   }
 
+  const pollSitemapStatus = () => {
+    if (sitemapPollingRef.current) clearInterval(sitemapPollingRef.current)
+    sitemapPollingRef.current = setInterval(async () => {
+      try {
+        const status = await api.getSitemapFetchStatus(client.id)
+        console.log("[Sitemap Poll] Status:", status.status)
+        
+        if (status.status === "complete") {
+          clearInterval(sitemapPollingRef.current!)
+          sitemapPollingRef.current = null
+          setFlowState(prev => ({ ...prev, sitemap: "complete" }))
+          // Refetch context so sitemap_xml is available
+          try {
+            await api.getContext(client.id)
+          } catch {}
+        } else if (status.status === "error" || status.status === "cancelled") {
+          clearInterval(sitemapPollingRef.current!)
+          sitemapPollingRef.current = null
+          setFlowState(prev => ({ ...prev, sitemap: status.status === "error" ? "error" : "idle" }))
+        }
+      } catch (e: unknown) {
+        if (e && typeof e === "object" && "status" in e && (e as { status: number }).status === 404) {
+          // No sitemap job yet
+          return
+        }
+        console.error("Sitemap poll error:", e)
+      }
+    }, 4000)
+  }
+
+  const pollKeywordOpportunitiesStatus = () => {
+    if (oppsPollingRef.current) clearInterval(oppsPollingRef.current)
+    oppsPollingRef.current = setInterval(async () => {
+      try {
+        const status = await api.getKeywordOpportunitiesStatus(client.id)
+        if (status.status === "complete") {
+          clearInterval(oppsPollingRef.current!)
+          oppsPollingRef.current = null
+          setFlowState(prev => ({ ...prev, keywordOpportunities: "complete" }))
+          try { await api.getContext(client.id) } catch {}
+        } else if (status.status === "error" || status.status === "cancelled") {
+          clearInterval(oppsPollingRef.current!)
+          oppsPollingRef.current = null
+          setFlowState(prev => ({ ...prev, keywordOpportunities: status.status === "error" ? "error" : "idle" }))
+        }
+      } catch (e: unknown) {
+        if (e && typeof e === "object" && "status" in e && (e as { status: number }).status === 404) return
+        console.error("Keyword opportunities poll error:", e)
+      }
+    }, 5000)
+  }
+
   // Load existing data on mount
   useEffect(() => {
     domainLoadedRef.current = false
@@ -283,13 +349,15 @@ export function ClientContextView({ client, readOnly = false }: Props) {
     setPipelineTimer(null)
     setPipelineStartTime(null)
     setActiveView("admin")
-    setFlowState({ discoveryCall: "idle", deepDive: "idle", generalContext: "idle" })
+    setFlowState({ discoveryCall: "idle", deepDive: "idle", generalContext: "idle", sitemap: "idle", keywordOpportunities: "idle" })
     
     // Clear polling
     if (timerIntervalRef.current) { clearInterval(timerIntervalRef.current); timerIntervalRef.current = null }
     if (dcPollingRef.current) { clearInterval(dcPollingRef.current); dcPollingRef.current = null }
     if (ddPollingRef.current) { clearInterval(ddPollingRef.current); ddPollingRef.current = null }
     if (gcPollingRef.current) { clearInterval(gcPollingRef.current); gcPollingRef.current = null }
+    if (sitemapPollingRef.current) { clearInterval(sitemapPollingRef.current); sitemapPollingRef.current = null }
+    if (oppsPollingRef.current) { clearInterval(oppsPollingRef.current); oppsPollingRef.current = null }
 
     const loadData = async () => {
       try {
@@ -311,6 +379,7 @@ export function ClientContextView({ client, readOnly = false }: Props) {
         let dcState: ComponentStatus = "idle"
         let ddState: ComponentStatus = "idle"
         let gcState: ComponentStatus = "idle"
+        let sitemapState: ComponentStatus = "idle"
         let earliestStart: Date | null = null
         
         // DC status
@@ -333,10 +402,12 @@ export function ClientContextView({ client, readOnly = false }: Props) {
                   // Set up DD -> GC continuation
                   pipelineContinuationRef.current.afterDD = async () => {
                     console.log("[Resume] DD complete, starting General Context...")
-                    setFlowState(prev => ({ ...prev, generalContext: "processing" }))
+                    setFlowState(prev => ({ ...prev, generalContext: "processing", sitemap: "processing", keywordOpportunities: "processing" }))
                     if (domain) {
-                      await api.fetchContextFromSiteAsync(client.id, domain)
+                      await api.fetchContextFromSiteAsync(client.id, domain, locationCode)
                       pollGCStatus()
+                      pollSitemapStatus()
+                      pollKeywordOpportunitiesStatus()
                     }
                   }
                   await api.processDeepDive(client.id, ddUrl)
@@ -344,9 +415,11 @@ export function ClientContextView({ client, readOnly = false }: Props) {
                 } else if (domain) {
                   // No DD URL, go straight to GC
                   console.log("[Resume] No DD URL, starting General Context...")
-                  setFlowState(prev => ({ ...prev, generalContext: "processing" }))
-                  await api.fetchContextFromSiteAsync(client.id, domain)
+                  setFlowState(prev => ({ ...prev, generalContext: "processing", sitemap: "processing", keywordOpportunities: "processing" }))
+                  await api.fetchContextFromSiteAsync(client.id, domain, locationCode)
                   pollGCStatus()
+                  pollSitemapStatus()
+                  pollKeywordOpportunitiesStatus()
                 }
               } catch (e) {
                 console.error("[Resume] Continuation error:", e)
@@ -375,13 +448,15 @@ export function ClientContextView({ client, readOnly = false }: Props) {
             // Set up continuation to run GC after DD completes
             pipelineContinuationRef.current.afterDD = async () => {
               console.log("[Resume] DD complete, starting General Context...")
-              setFlowState(prev => ({ ...prev, generalContext: "processing" }))
+              setFlowState(prev => ({ ...prev, generalContext: "processing", sitemap: "processing", keywordOpportunities: "processing" }))
               try {
                 const ctx = await api.getContext(client.id)
                 const domain = ctx?.domain || domainInput.trim()
                 if (domain) {
-                  await api.fetchContextFromSiteAsync(client.id, domain)
+                  await api.fetchContextFromSiteAsync(client.id, domain, locationCode)
                   pollGCStatus()
+                  pollSitemapStatus()
+                  pollKeywordOpportunitiesStatus()
                 }
               } catch (e) {
                 console.error("[Resume] Failed to start GC:", e)
@@ -425,7 +500,58 @@ export function ClientContextView({ client, readOnly = false }: Props) {
           }
         } catch {}
         
-        setFlowState({ discoveryCall: dcState, deepDive: ddState, generalContext: gcState })
+        // Sitemap status
+        try {
+          const smStatus = await api.getSitemapFetchStatus(client.id)
+          if (smStatus.status === "running" || smStatus.status === "pending") {
+            sitemapState = "processing"
+            pollSitemapStatus()
+            if (smStatus.started_at && (!earliestStart || new Date(smStatus.started_at) < earliestStart)) {
+              earliestStart = new Date(smStatus.started_at)
+            }
+          } else if (smStatus.status === "complete") {
+            sitemapState = "complete"
+          } else if (smStatus.status === "error") {
+            sitemapState = "error"
+          } else {
+            try {
+              const ctx = await api.getContext(client.id)
+              if (ctx?.sitemap_xml) sitemapState = "complete"
+            } catch {}
+          }
+        } catch {
+          // 404 or other: no sitemap job, leave idle
+        }
+        
+        // Keyword opportunities status
+        let oppsState: ComponentStatus = "idle"
+        try {
+          const oppsStatus = await api.getKeywordOpportunitiesStatus(client.id)
+          if (oppsStatus.status === "running" || oppsStatus.status === "pending") {
+            oppsState = "processing"
+            pollKeywordOpportunitiesStatus()
+            if (oppsStatus.started_at && (!earliestStart || new Date(oppsStatus.started_at) < earliestStart)) {
+              earliestStart = new Date(oppsStatus.started_at)
+            }
+          } else if (oppsStatus.status === "complete") {
+            oppsState = "complete"
+          } else if (oppsStatus.status === "error") {
+            oppsState = "error"
+          } else {
+            try {
+              const ctx = await api.getContext(client.id)
+              if (ctx?.keyword_opportunities_json) oppsState = "complete"
+              if (ctx?.keyword_opportunities_location_code) setLocationCode(ctx.keyword_opportunities_location_code)
+            } catch {}
+          }
+        } catch {
+          try {
+            const ctx = await api.getContext(client.id)
+            if (ctx?.keyword_opportunities_location_code) setLocationCode(ctx.keyword_opportunities_location_code)
+          } catch {}
+        }
+        
+        setFlowState({ discoveryCall: dcState, deepDive: ddState, generalContext: gcState, sitemap: sitemapState, keywordOpportunities: oppsState })
         
         // Load files
         try {
@@ -460,6 +586,7 @@ export function ClientContextView({ client, readOnly = false }: Props) {
     const capturedDomain = domainInput.trim()
     const capturedDcUrl = discoveryCallUrl.trim()
     const capturedDdUrl = deepDiveUrl.trim()
+    const capturedLocationCode = locationCode
     
     // Check what's already complete - we can skip these
     const dcAlreadyComplete = flowState.discoveryCall === "complete"
@@ -498,10 +625,12 @@ export function ClientContextView({ client, readOnly = false }: Props) {
         return
       }
       console.log("[Pipeline] Starting General Context...")
-      setFlowState(prev => ({ ...prev, generalContext: "processing" }))
+      setFlowState(prev => ({ ...prev, generalContext: "processing", sitemap: "processing", keywordOpportunities: "processing" }))
       try {
-        await api.fetchContextFromSiteAsync(client.id, capturedDomain)
+        await api.fetchContextFromSiteAsync(client.id, capturedDomain, capturedLocationCode)
         pollGCStatus()
+        pollSitemapStatus()
+        pollKeywordOpportunitiesStatus()
       } catch (e) {
         console.error("[Pipeline] Failed to start GC:", e)
         setFlowState(prev => ({ ...prev, generalContext: "error" }))
@@ -565,7 +694,7 @@ export function ClientContextView({ client, readOnly = false }: Props) {
 
   const handleAbortPipeline = async () => {
     try {
-      await api.cancelJobs(client.id, ["discovery_call", "deep_dive", "general_context"])
+      await api.cancelJobs(client.id, ["discovery_call", "deep_dive", "general_context", "sitemap", "keyword_opportunities"])
     } catch (e) {
       console.error("Failed to cancel jobs:", e)
     }
@@ -574,6 +703,8 @@ export function ClientContextView({ client, readOnly = false }: Props) {
     if (dcPollingRef.current) { clearInterval(dcPollingRef.current); dcPollingRef.current = null }
     if (ddPollingRef.current) { clearInterval(ddPollingRef.current); ddPollingRef.current = null }
     if (gcPollingRef.current) { clearInterval(gcPollingRef.current); gcPollingRef.current = null }
+    if (sitemapPollingRef.current) { clearInterval(sitemapPollingRef.current); sitemapPollingRef.current = null }
+    if (oppsPollingRef.current) { clearInterval(oppsPollingRef.current); oppsPollingRef.current = null }
     if (timerIntervalRef.current) { clearInterval(timerIntervalRef.current); timerIntervalRef.current = null }
     
     setPipelineTimer(null)
@@ -583,6 +714,8 @@ export function ClientContextView({ client, readOnly = false }: Props) {
       discoveryCall: prev.discoveryCall === "processing" ? "idle" : prev.discoveryCall,
       deepDive: prev.deepDive === "processing" ? "idle" : prev.deepDive,
       generalContext: prev.generalContext === "processing" ? "idle" : prev.generalContext,
+      sitemap: prev.sitemap === "processing" ? "idle" : prev.sitemap,
+      keywordOpportunities: prev.keywordOpportunities === "processing" ? "idle" : prev.keywordOpportunities,
     }))
     
     setIsActivating(false)
@@ -671,6 +804,22 @@ export function ClientContextView({ client, readOnly = false }: Props) {
         {activeView === "discovery-call" && <DiscoveryCallView client={client} />}
         {activeView === "deep-dive" && <DiscoveryCallView client={client} isDeepDive />}
         {activeView === "general" && <GeneralContextForm client={client} readOnly={readOnly} />}
+        {activeView === "sitemap" && (
+          <SitemapDetailView
+            clientId={String(client.id)}
+            flowStatus={flowState.sitemap}
+            onRegenerate={() => {
+              setFlowState(prev => ({ ...prev, sitemap: "processing" }))
+              pollSitemapStatus()
+            }}
+          />
+        )}
+        {activeView === "keyword-opportunities" && (
+          <KeywordOpportunitiesDetailView
+            clientId={String(client.id)}
+            flowStatus={flowState.keywordOpportunities}
+          />
+        )}
         {activeView === "files" && (
           <div className="space-y-6">
             {/* Header */}
@@ -859,6 +1008,22 @@ export function ClientContextView({ client, readOnly = false }: Props) {
                     disabled={isPipelineRunning}
                   />
                 </InputCard>
+                <InputCard
+                  title="Keyword opportunities location"
+                  icon={<Globe className="h-5 w-5" />}
+                  filled={true}
+                  optional
+                >
+                  <select
+                    value={locationCode}
+                    onChange={(e) => setLocationCode(Number(e.target.value))}
+                    disabled={isPipelineRunning}
+                    className="bg-slate-800/50 border border-slate-700 text-white rounded-md px-3 py-2 text-sm"
+                  >
+                    <option value={2124}>Canada</option>
+                    <option value={2840}>United States</option>
+                  </select>
+                </InputCard>
               </div>
             </div>
             
@@ -910,7 +1075,7 @@ export function ClientContextView({ client, readOnly = false }: Props) {
         </div>
 
         {/* Connection Line */}
-        <ConnectionLine active={flowState.discoveryCall !== "idle" || flowState.deepDive !== "idle" || flowState.generalContext !== "idle"} />
+        <ConnectionLine active={flowState.discoveryCall !== "idle" || flowState.deepDive !== "idle" || flowState.generalContext !== "idle" || flowState.sitemap !== "idle" || flowState.keywordOpportunities !== "idle"} />
 
         {/* Results Section */}
         <div className="relative rounded-xl border-2 border-dashed border-slate-700 p-6 pt-10">
@@ -946,6 +1111,18 @@ export function ClientContextView({ client, readOnly = false }: Props) {
                 onClick={() => setActiveView("general")}
               />
               <ResultCard
+                title="Sitemap"
+                icon={<Map className="h-5 w-5" />}
+                status={flowState.sitemap}
+                onClick={() => setActiveView("sitemap")}
+              />
+              <ResultCard
+                title="Keyword Opportunities"
+                icon={<TrendingUp className="h-5 w-5" />}
+                status={flowState.keywordOpportunities}
+                onClick={() => setActiveView("keyword-opportunities")}
+              />
+              <ResultCard
                 title="Additional Context"
                 icon={<Paperclip className="h-5 w-5" />}
                 status={files.length > 0 ? "complete" : "idle"}
@@ -961,6 +1138,214 @@ export function ClientContextView({ client, readOnly = false }: Props) {
 }
 
 // Components
+
+function SitemapDetailView({
+  clientId,
+  flowStatus,
+  onRegenerate,
+}: {
+  clientId: string
+  flowStatus: ComponentStatus
+  onRegenerate?: () => void
+}) {
+  const [context, setContext] = useState<ClientContext | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [regenerating, setRegenerating] = useState(false)
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    api.getContext(clientId).then((ctx) => {
+      if (!cancelled) setContext(ctx as ClientContext)
+    }).catch(() => {
+      if (!cancelled) setContext(null)
+    }).finally(() => {
+      if (!cancelled) setLoading(false)
+    })
+    return () => { cancelled = true }
+  }, [clientId, flowStatus])
+  const sitemapXml = context?.sitemap_xml ?? null
+  const lastMappedAt = context?.sitemap_generated_at
+    ? new Date(context.sitemap_generated_at)
+    : null
+  const handleRegenerate = async () => {
+    setRegenerating(true)
+    try {
+      await api.startSitemapFetch(clientId)
+      onRegenerate?.()
+    } catch (e) {
+      console.error("Failed to start sitemap fetch:", e)
+    } finally {
+      setRegenerating(false)
+    }
+  }
+  return (
+    <div className="space-y-6">
+      <h2 className="text-3xl font-bold text-white mb-2">Sitemap</h2>
+      {flowStatus === "processing" && (
+        <Card className="border-violet-500/50 bg-violet-950/20">
+          <CardContent className="py-8 flex items-center gap-3">
+            <Spinner className="h-6 w-6 text-violet-400" />
+            <p className="text-slate-300">Sitemap: fetching…</p>
+          </CardContent>
+        </Card>
+      )}
+      {flowStatus === "complete" && sitemapXml && (
+        <>
+          <div className="flex items-center justify-between gap-4">
+            <p className="text-slate-400">Sitemap XML from site crawl</p>
+            <a
+              href={`data:application/xml;charset=utf-8,${encodeURIComponent(sitemapXml)}`}
+              download="sitemap.xml"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-sm"
+            >
+              <Download className="h-4 w-4" />
+              Download sitemap.xml
+            </a>
+          </div>
+          <pre className="p-4 rounded-xl bg-slate-900 border border-slate-700 text-slate-300 text-xs overflow-auto max-h-[70vh] whitespace-pre-wrap break-all">
+            {sitemapXml}
+          </pre>
+        </>
+      )}
+      {flowStatus === "complete" && !loading && !sitemapXml && (
+        <p className="text-slate-400">Sitemap: not fetched or empty.</p>
+      )}
+      {flowStatus === "error" && (
+        <Card className="border-red-500/50 bg-red-950/20">
+          <CardContent className="py-4">
+            <p className="text-red-300">Sitemap fetch failed. Check pipeline or try again.</p>
+          </CardContent>
+        </Card>
+      )}
+      {flowStatus === "idle" && !loading && (
+        <p className="text-slate-400">Sitemap: not fetched.</p>
+      )}
+      {loading && flowStatus !== "processing" && (
+        <div className="flex items-center gap-2 text-slate-400">
+          <Spinner className="h-4 w-4" />
+          Loading…
+        </div>
+      )}
+
+      {/* Last mapped + Regenerate — show when we have context (and optionally when sitemap exists or after any fetch) */}
+      <div className="flex flex-col gap-2 pt-2 border-t border-slate-700/50">
+        <p className="text-sm text-slate-400">
+          {lastMappedAt
+            ? `Last mapped: ${lastMappedAt.toLocaleDateString(undefined, { dateStyle: "medium" })} at ${lastMappedAt.toLocaleTimeString(undefined, { timeStyle: "short" })}`
+            : "Last mapped: —"}
+        </p>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleRegenerate}
+          disabled={flowStatus === "processing" || regenerating}
+          className="w-fit gap-2 border-slate-600 text-slate-300 hover:bg-slate-800 hover:text-white"
+        >
+          {regenerating || flowStatus === "processing" ? (
+            <Spinner className="h-4 w-4" />
+          ) : (
+            <RefreshCw className="h-4 w-4" />
+          )}
+          Regenerate
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+function KeywordOpportunitiesDetailView({
+  clientId,
+  flowStatus,
+}: {
+  clientId: string
+  flowStatus: ComponentStatus
+}) {
+  const [context, setContext] = useState<ClientContext | null>(null)
+  const [loading, setLoading] = useState(true)
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    api.getContext(clientId).then((ctx) => {
+      if (!cancelled) setContext(ctx as ClientContext)
+    }).catch(() => {
+      if (!cancelled) setContext(null)
+    }).finally(() => {
+      if (!cancelled) setLoading(false)
+    })
+    return () => { cancelled = true }
+  }, [clientId, flowStatus])
+  let opportunities: { keyword: string; search_volume: number; cpc: number; competition: number; competitor_count: number; example_competitors: string; score: number }[] = []
+  if (context?.keyword_opportunities_json) {
+    try {
+      const data = JSON.parse(context.keyword_opportunities_json)
+      opportunities = data?.opportunities ?? []
+    } catch {}
+  }
+  const locationLabel = context?.keyword_opportunities_location_code === 2840 ? "United States" : context?.keyword_opportunities_location_code === 2124 ? "Canada" : context?.keyword_opportunities_location_code ? `Location ${context.keyword_opportunities_location_code}` : null
+  return (
+    <div className="space-y-6">
+      <h2 className="text-3xl font-bold text-white mb-2">Keyword Opportunities</h2>
+      {flowStatus === "processing" && (
+        <Card className="border-violet-500/50 bg-violet-950/20">
+          <CardContent className="py-8 flex items-center gap-3">
+            <Spinner className="h-6 w-6 text-violet-400" />
+            <p className="text-slate-300">Keyword opportunities: fetching…</p>
+          </CardContent>
+        </Card>
+      )}
+      {flowStatus === "complete" && opportunities.length > 0 && (
+        <>
+          {locationLabel && <p className="text-sm text-slate-400">Location: {locationLabel}</p>}
+          <div className="overflow-auto max-h-[70vh] rounded-xl border border-slate-700">
+            <table className="w-full text-sm text-left">
+              <thead className="bg-slate-800/80 text-slate-300 sticky top-0">
+                <tr>
+                  <th className="px-4 py-2">Keyword</th>
+                  <th className="px-4 py-2">Volume</th>
+                  <th className="px-4 py-2">CPC</th>
+                  <th className="px-4 py-2">Competition</th>
+                  <th className="px-4 py-2">Competitors</th>
+                  <th className="px-4 py-2">Score</th>
+                </tr>
+              </thead>
+              <tbody className="text-slate-400">
+                {opportunities.map((row, i) => (
+                  <tr key={i} className="border-t border-slate-700/50 hover:bg-slate-800/40">
+                    <td className="px-4 py-2 text-white">{row.keyword}</td>
+                    <td className="px-4 py-2">{row.search_volume}</td>
+                    <td className="px-4 py-2">{row.cpc}</td>
+                    <td className="px-4 py-2">{row.competition}</td>
+                    <td className="px-4 py-2" title={row.example_competitors}>{row.competitor_count}</td>
+                    <td className="px-4 py-2">{row.score}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+      {flowStatus === "complete" && !loading && opportunities.length === 0 && (
+        <p className="text-slate-400">No keyword opportunities yet or none found.</p>
+      )}
+      {flowStatus === "error" && (
+        <Card className="border-red-500/50 bg-red-950/20">
+          <CardContent className="py-4">
+            <p className="text-red-300">Keyword opportunities fetch failed.</p>
+          </CardContent>
+        </Card>
+      )}
+      {flowStatus === "idle" && !loading && (
+        <p className="text-slate-400">Keyword opportunities: not fetched.</p>
+      )}
+      {loading && flowStatus !== "processing" && (
+        <div className="flex items-center gap-2 text-slate-400">
+          <Spinner className="h-4 w-4" />
+          Loading…
+        </div>
+      )}
+    </div>
+  )
+}
 
 function StageLabel({ number, label }: { number: number; label: string }) {
   return (

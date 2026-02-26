@@ -60,6 +60,11 @@ export interface ClientContext {
   ready?: boolean
   discovery_call_url?: string | null
   deep_dive_url?: string | null
+  sitemap_xml?: string | null
+  sitemap_generated_at?: string | null
+  keyword_opportunities_json?: string | null
+  keyword_opportunities_location_code?: number | null
+  keyword_opportunities_generated_at?: string | null
 }
 
 // Alias for clarity

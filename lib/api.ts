@@ -85,9 +85,9 @@ export const api = {
     }),
 
   // Context
-  getContext: async (clientId: string) => {
+  getContext: async (clientId: string | number) => {
     try {
-      return await fetchJson<ClientContext>(`/clients/${clientId}/context`)
+      return await fetchJson<ClientContext>(`/clients/${String(clientId)}/context`)
     } catch (e: any) {
       if (e.status === 404) {
         return {}
@@ -95,24 +95,38 @@ export const api = {
       throw e
     }
   },
-  saveContext: (clientId: string, data: ClientContext) =>
-    fetchJson(`/clients/${clientId}/context`, {
+  saveContext: (clientId: string | number, data: ClientContext) =>
+    fetchJson(`/clients/${String(clientId)}/context`, {
       method: "PUT",
       body: JSON.stringify(data),
     }),
-  fetchContextFromSite: (clientId: string, domain: string) =>
-    fetchJson(`/clients/${clientId}/context/fetch`, {
+  fetchContextFromSite: (clientId: string | number, domain: string) =>
+    fetchJson(`/clients/${String(clientId)}/context/fetch`, {
       method: "POST",
       body: JSON.stringify({ domain }),
     }),
   // Async General Context Fetch
-  fetchContextFromSiteAsync: (clientId: string, domain: string) =>
-    fetchJson<{ job_id: string; status: string; message: string }>(`/clients/${clientId}/context/fetch-async`, {
+  fetchContextFromSiteAsync: (clientId: string | number, domain: string, locationCode?: number) =>
+    fetchJson<{ job_id: string; status: string; message: string }>(`/clients/${String(clientId)}/context/fetch-async`, {
       method: "POST",
-      body: JSON.stringify({ domain }),
+      body: JSON.stringify({ domain, location_code: locationCode ?? 2124 }),
     }),
-  getContextFetchStatus: (clientId: string) =>
-    fetchJson<{ job_id: string; status: string; error_message: string | null; started_at: string | null }>(`/clients/${clientId}/context/fetch-async/status`, {
+  getContextFetchStatus: (clientId: string | number) =>
+    fetchJson<{ job_id: string; status: string; error_message: string | null; started_at: string | null }>(`/clients/${String(clientId)}/context/fetch-async/status`, {
+      cache: 'no-store',
+      headers: { 'Cache-Control': 'no-cache' }
+    }),
+  getSitemapFetchStatus: (clientId: string | number) =>
+    fetchJson<{ job_id: string; status: string; error_message: string | null; started_at: string | null }>(`/clients/${String(clientId)}/context/sitemap-fetch/status`, {
+      cache: 'no-store',
+      headers: { 'Cache-Control': 'no-cache' }
+    }),
+  startSitemapFetch: (clientId: string | number) =>
+    fetchJson<{ job_id: string; status: string; message: string }>(`/clients/${String(clientId)}/context/sitemap-fetch`, {
+      method: "POST",
+    }),
+  getKeywordOpportunitiesStatus: (clientId: string | number) =>
+    fetchJson<{ job_id: string; status: string; error_message: string | null; started_at: string | null }>(`/clients/${String(clientId)}/context/keyword-opportunities/status`, {
       cache: 'no-store',
       headers: { 'Cache-Control': 'no-cache' }
     }),
@@ -599,9 +613,9 @@ export const api = {
   },
 
   // Discovery Document
-  getDiscoveryDocument: async (clientId: string) => {
+  getDiscoveryDocument: async (clientId: string | number) => {
     try {
-      return await fetchJson<DiscoveryDocument>(`/clients/${clientId}/discovery-document`)
+      return await fetchJson<DiscoveryDocument>(`/clients/${String(clientId)}/discovery-document`)
     } catch (e: any) {
       if (e.status === 404) {
         return {}
@@ -609,8 +623,8 @@ export const api = {
       throw e
     }
   },
-  saveDiscoveryDocument: (clientId: string, data: DiscoveryDocument) =>
-    fetchJson<DiscoveryDocument>(`/clients/${clientId}/discovery-document`, {
+  saveDiscoveryDocument: (clientId: string | number, data: DiscoveryDocument) =>
+    fetchJson<DiscoveryDocument>(`/clients/${String(clientId)}/discovery-document`, {
       method: "PUT",
       body: JSON.stringify(data),
     }),
@@ -714,9 +728,9 @@ export const api = {
     ),
 
   // Discovery Call Processing
-  getDiscoveryCallResult: async (clientId: string) => {
+  getDiscoveryCallResult: async (clientId: string | number) => {
     try {
-      return await fetchJson<DiscoveryCallResult>(`/clients/${clientId}/discovery-call`)
+      return await fetchJson<DiscoveryCallResult>(`/clients/${String(clientId)}/discovery-call`)
     } catch (e: any) {
       if (e.status === 404) {
         return {}
@@ -724,21 +738,21 @@ export const api = {
       throw e
     }
   },
-  processDiscoveryCall: (clientId: string, fathomUrl: string) =>
-    fetchJson<{ job_id: string; status: string; message: string }>(`/clients/${clientId}/discovery-call/process`, {
+  processDiscoveryCall: (clientId: string | number, fathomUrl: string) =>
+    fetchJson<{ job_id: string; status: string; message: string }>(`/clients/${String(clientId)}/discovery-call/process`, {
       method: "POST",
       body: JSON.stringify({ fathom_url: fathomUrl }),
     }),
-  getDiscoveryCallProcessStatus: (clientId: string) =>
-    fetchJson<{ job_id: string; status: string; error_message: string | null; started_at: string | null; progress_steps: string[] | null }>(`/clients/${clientId}/discovery-call/process/status`, {
+  getDiscoveryCallProcessStatus: (clientId: string | number) =>
+    fetchJson<{ job_id: string; status: string; error_message: string | null; started_at: string | null; progress_steps: string[] | null }>(`/clients/${String(clientId)}/discovery-call/process/status`, {
       cache: 'no-store',
       headers: { 'Cache-Control': 'no-cache' }
     }),
 
   // Deep Dive Processing
-  getDeepDiveResult: async (clientId: string) => {
+  getDeepDiveResult: async (clientId: string | number) => {
     try {
-      return await fetchJson<DiscoveryCallResult>(`/clients/${clientId}/deep-dive`)
+      return await fetchJson<DiscoveryCallResult>(`/clients/${String(clientId)}/deep-dive`)
     } catch (e: any) {
       if (e.status === 404) {
         return {}
@@ -746,13 +760,13 @@ export const api = {
       throw e
     }
   },
-  processDeepDive: (clientId: string, fathomUrl: string) =>
-    fetchJson<{ job_id: string; status: string; message: string }>(`/clients/${clientId}/deep-dive/process`, {
+  processDeepDive: (clientId: string | number, fathomUrl: string) =>
+    fetchJson<{ job_id: string; status: string; message: string }>(`/clients/${String(clientId)}/deep-dive/process`, {
       method: "POST",
       body: JSON.stringify({ fathom_url: fathomUrl }),
     }),
-  getDeepDiveProcessStatus: (clientId: string) =>
-    fetchJson<{ job_id: string; status: string; error_message: string | null; started_at: string | null; progress_steps: string[] | null }>(`/clients/${clientId}/deep-dive/process/status`, {
+  getDeepDiveProcessStatus: (clientId: string | number) =>
+    fetchJson<{ job_id: string; status: string; error_message: string | null; started_at: string | null; progress_steps: string[] | null }>(`/clients/${String(clientId)}/deep-dive/process/status`, {
       cache: 'no-store',
       headers: { 'Cache-Control': 'no-cache' }
     }),
