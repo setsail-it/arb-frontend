@@ -879,6 +879,59 @@ export const api = {
     }
   },
 
+  // Webflow SEO-updater chat (streaming; unlocks after Get all pages)
+  streamWebflowChatMessage: async function* (
+    clientId: number,
+    siteId: string,
+    message: string,
+    history: { role: string; content: string }[] = []
+  ): AsyncGenerator<{
+    type: "reasoning" | "text" | "tool_call" | "done" | "error"
+    content?: string
+    name?: string
+    arguments?: Record<string, unknown>
+    tool_calls?: { name: string; arguments?: Record<string, unknown> }[]
+    usage?: { input_tokens: number; output_tokens: number; reasoning_tokens?: number } | null
+    message?: string
+  }> {
+    const baseUrl = BACKEND_BASE_URL.replace(/\/$/, "")
+    const response = await fetch(`${baseUrl}/webflow/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ client_id: clientId, site_id: siteId, message, history }),
+    })
+
+    if (!response.ok) {
+      throw new Error(`Webflow chat failed: ${response.status}`)
+    }
+
+    const reader = response.body?.getReader()
+    if (!reader) throw new Error("No response body")
+
+    const decoder = new TextDecoder()
+    let buffer = ""
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+
+      buffer += decoder.decode(value, { stream: true })
+      const lines = buffer.split("\n")
+      buffer = lines.pop() || ""
+
+      for (const line of lines) {
+        if (line.startsWith("data: ")) {
+          try {
+            const data = JSON.parse(line.slice(6))
+            yield data
+          } catch {
+            // ignore
+          }
+        }
+      }
+    }
+  },
+
   // Strategy Generation Pipeline (Waiter → Cook)
   startStrategyPipeline: (
     clientId: number, 

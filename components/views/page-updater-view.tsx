@@ -1,12 +1,13 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
-import type { Client } from "@/types"
+import { useState, useEffect, useCallback, useRef } from "react"
+import type { Client, ChatMessage } from "@/types"
 import { api } from "@/lib/api"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Textarea } from "@/components/ui/textarea"
 import { Spinner } from "@/components/ui/spinner"
-import { RefreshCw } from "lucide-react"
+import { RefreshCw, Bot, User, Wrench, Send } from "lucide-react"
 
 export type WebflowSite = {
   name: string
@@ -44,6 +45,10 @@ export function PageUpdaterView(props: PageUpdaterViewProps) {
   const [confirmingSite, setConfirmingSite] = useState(false)
   const [publishLoading, setPublishLoading] = useState(false)
   const [publishError, setPublishError] = useState<string | null>(null)
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
+  const [chatInput, setChatInput] = useState("")
+  const [chatLoading, setChatLoading] = useState(false)
+  const messagesEndRef = useRef<HTMLDivElement>(null)
 
   const fetchSites = useCallback(async () => {
     setLoading(true)
@@ -95,6 +100,7 @@ export function PageUpdaterView(props: PageUpdaterViewProps) {
   const selectedSite = sites.find((s) => s.id === selectedSiteId)
   const siteConfirmed = Boolean(client?.site_id)
   const effectiveSiteId = client?.site_id ?? null
+  const chatUnlocked = Boolean(client?.id && effectiveSiteId && pages.length > 0)
 
   const handleConfirmSite = async () => {
     if (!client || !selectedSiteId) return
@@ -128,6 +134,82 @@ export function PageUpdaterView(props: PageUpdaterViewProps) {
       setPagesError(e instanceof Error ? e.message : "Failed to load pages")
     } finally {
       setPagesLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
+  }, [chatMessages])
+
+  const handleChatSend = async () => {
+    if (!chatInput.trim() || chatLoading || !client?.id || !effectiveSiteId) return
+    const userMessage: ChatMessage = {
+      id: `user-${Date.now()}`,
+      role: "user",
+      content: chatInput.trim(),
+      timestamp: new Date().toISOString(),
+    }
+    const history = chatMessages.map((m) => ({ role: m.role, content: m.content }))
+    setChatMessages((prev) => [...prev, userMessage])
+    setChatInput("")
+    setChatLoading(true)
+    const assistantId = `assistant-${Date.now()}`
+    setChatMessages((prev) => [
+      ...prev,
+      { id: assistantId, role: "assistant", content: "", reasoning: "", timestamp: new Date().toISOString(), toolCalls: [] },
+    ])
+    let currentReasoning = ""
+    let currentContent = ""
+    const toolCalls: { name: string; arguments: Record<string, unknown> }[] = []
+    try {
+      for await (const event of api.streamWebflowChatMessage(
+        client.id,
+        effectiveSiteId,
+        userMessage.content,
+        history
+      )) {
+        if (event.type === "reasoning") {
+          currentReasoning += event.content ?? ""
+          setChatMessages((prev) =>
+            prev.map((msg) => (msg.id === assistantId ? { ...msg, reasoning: currentReasoning } : msg))
+          )
+        } else if (event.type === "text") {
+          currentContent += event.content ?? ""
+          setChatMessages((prev) =>
+            prev.map((msg) => (msg.id === assistantId ? { ...msg, content: currentContent } : msg))
+          )
+        } else if (event.type === "tool_call") {
+          toolCalls.push({ name: event.name ?? "", arguments: event.arguments ?? {} })
+          setChatMessages((prev) =>
+            prev.map((msg) => (msg.id === assistantId ? { ...msg, toolCalls: [...toolCalls] } : msg))
+          )
+        } else if (event.type === "done") {
+          const finalToolCalls = (event.tool_calls ?? toolCalls).map((tc) => ({
+            name: tc.name,
+            arguments: tc.arguments ?? {},
+          }))
+          setChatMessages((prev) =>
+            prev.map((msg) =>
+              msg.id === assistantId
+                ? { ...msg, content: currentContent, reasoning: currentReasoning, toolCalls: finalToolCalls }
+                : msg
+            )
+          )
+        } else if (event.type === "error") {
+          setChatMessages((prev) =>
+            prev.map((msg) =>
+              msg.id === assistantId ? { ...msg, content: `Error: ${event.message ?? "Unknown error"}` } : msg
+            )
+          )
+        }
+      }
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : "Request failed"
+      setChatMessages((prev) =>
+        prev.map((m) => (m.id === assistantId ? { ...m, content: `Error: ${errMsg}` } : m))
+      )
+    } finally {
+      setChatLoading(false)
     }
   }
 
@@ -244,21 +326,94 @@ export function PageUpdaterView(props: PageUpdaterViewProps) {
         </CardContent>
       </Card>
 
-      {/* Chatbot stub */}
+      {/* SEO-updater chatbot: unlocked after Get all pages */}
       <Card>
         <CardHeader>
-          <CardTitle>Chatbot</CardTitle>
-          <CardDescription>Coming soon.</CardDescription>
+          <CardTitle>SEO-updater Chat</CardTitle>
+          <CardDescription>
+            {chatUnlocked
+              ? "Update page metadata (SEO title, meta description, OpenGraph) using the keyword sitemap. Ask one page or all pages."
+              : "Confirm the site and click “Get all pages” to unlock the chat."}
+          </CardDescription>
         </CardHeader>
-        <CardContent>
-          <div className="flex gap-2">
-            <input
-              type="text"
-              placeholder="Ask something…"
-              disabled
-              className="flex-1 rounded-md border border-input bg-muted/30 px-3 py-2 text-sm text-muted-foreground"
+        <CardContent className="flex flex-col">
+          <div className="min-h-[280px] max-h-[420px] overflow-y-auto rounded-xl border border-slate-700 bg-slate-900/50 p-3 space-y-3">
+            {chatMessages.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-8 text-slate-500 text-sm">
+                <Bot className="h-8 w-8 mb-2 opacity-60" />
+                <p>No messages yet.</p>
+                <p className="mt-1 text-xs">e.g. “Update all pages with a kw_sitemap entry”</p>
+              </div>
+            ) : (
+              chatMessages.map((msg) => (
+                <div
+                  key={msg.id}
+                  className={`flex gap-2 ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+                >
+                  {msg.role === "assistant" && (
+                    <div className="w-7 h-7 rounded-lg bg-emerald-600/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <Bot className="h-3.5 w-3.5 text-emerald-400" />
+                    </div>
+                  )}
+                  <div
+                    className={`max-w-[85%] rounded-xl px-3 py-2 text-sm ${
+                      msg.role === "user" ? "bg-emerald-600 text-white" : "bg-slate-800 text-slate-200"
+                    }`}
+                  >
+                    {msg.role === "assistant" && msg.toolCalls && msg.toolCalls.length > 0 && (
+                      <div className="mb-2 pb-2 border-b border-slate-600/50 flex items-center gap-1.5 text-xs text-amber-400">
+                        <Wrench className="h-3 w-3" />
+                        {msg.toolCalls.map((tc, i) => (
+                          <span key={i} className="font-mono">
+                            {tc.name}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    {msg.role === "assistant" && msg.reasoning && (
+                      <div className="mb-2 pb-2 border-b border-slate-600/30">
+                        <p className="text-xs text-slate-400 italic whitespace-pre-wrap">{msg.reasoning}</p>
+                      </div>
+                    )}
+                    <p className="whitespace-pre-wrap leading-relaxed">{msg.content || (chatLoading && msg.role === "assistant" ? "…" : "")}</p>
+                    {msg.role === "assistant" && !msg.content && !msg.reasoning && chatLoading && (
+                      <div className="flex items-center gap-2 mt-1">
+                        <Spinner className="h-3.5 w-3.5 text-emerald-400" />
+                        <span className="text-xs text-slate-400">Thinking…</span>
+                      </div>
+                    )}
+                  </div>
+                  {msg.role === "user" && (
+                    <div className="w-7 h-7 rounded-lg bg-slate-700 flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <User className="h-3.5 w-3.5 text-slate-400" />
+                    </div>
+                  )}
+                </div>
+              ))
+            )}
+            <div ref={messagesEndRef} />
+          </div>
+          <div className="flex gap-2 mt-3">
+            <Textarea
+              value={chatInput}
+              onChange={(e) => setChatInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault()
+                  handleChatSend()
+                }
+              }}
+              placeholder={chatUnlocked ? "Ask to update one page or all pages…" : "Unlock chat by loading pages."}
+              disabled={!chatUnlocked || chatLoading}
+              className="flex-1 min-h-[44px] max-h-[100px] resize-none bg-slate-800 border-slate-700 text-slate-200 placeholder:text-slate-500 text-sm rounded-xl"
             />
-            <Button disabled>Send</Button>
+            <Button
+              onClick={handleChatSend}
+              disabled={!chatUnlocked || !chatInput.trim() || chatLoading}
+              className="bg-emerald-600 hover:bg-emerald-500 text-white h-[44px] w-[44px] p-0 rounded-xl"
+            >
+              {chatLoading ? <Spinner className="h-4 w-4" /> : <Send className="h-4 w-4" />}
+            </Button>
           </div>
         </CardContent>
       </Card>
