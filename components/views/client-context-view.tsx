@@ -1319,10 +1319,12 @@ function KeywordEnhancedSitemapDetailView({
 }: {
   clientId: string
   flowStatus: ComponentStatus
-  onRetry?: () => void
+  onRetry?: () => void | Promise<void>
 }) {
   const [context, setContext] = useState<ClientContext | null>(null)
   const [loading, setLoading] = useState(true)
+  const [retrying, setRetrying] = useState(false)
+  const [retryError, setRetryError] = useState<string | null>(null)
   useEffect(() => {
     let cancelled = false
     setLoading(true)
@@ -1381,19 +1383,34 @@ function KeywordEnhancedSitemapDetailView({
         </div>
       )}
       {onRetry && (
-        <div className="pt-2">
+        <div className="pt-2 space-y-2">
+          {retryError && (
+            <p className="text-sm text-red-400">{retryError}</p>
+          )}
           <Button
+            type="button"
             size="sm"
-            onClick={onRetry}
-            disabled={flowStatus === "processing"}
+            disabled={flowStatus === "processing" || retrying}
+            onClick={async () => {
+              setRetryError(null)
+              setRetrying(true)
+              try {
+                await onRetry()
+              } catch (e) {
+                const msg = e instanceof Error ? e.message : String(e)
+                setRetryError(msg || "Retry failed")
+              } finally {
+                setRetrying(false)
+              }
+            }}
             className="w-fit gap-2 border-slate-600 text-slate-300 hover:bg-slate-800 hover:text-white"
           >
-            {flowStatus === "processing" ? (
+            {flowStatus === "processing" || retrying ? (
               <Spinner className="h-4 w-4" />
             ) : (
               <RefreshCw className="h-4 w-4" />
             )}
-            Retry
+            {retrying ? "Starting…" : "Retry"}
           </Button>
         </div>
       )}
