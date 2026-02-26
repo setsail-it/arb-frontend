@@ -49,6 +49,7 @@ export function PageUpdaterView(props: PageUpdaterViewProps) {
   const [chatInput, setChatInput] = useState("")
   const [chatLoading, setChatLoading] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const hasAutoStartedChatRef = useRef(false)
 
   const fetchSites = useCallback(async () => {
     setLoading(true)
@@ -141,17 +142,31 @@ export function PageUpdaterView(props: PageUpdaterViewProps) {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [chatMessages])
 
-  const handleChatSend = async () => {
-    if (!chatInput.trim() || chatLoading || !client?.id || !effectiveSiteId) return
+  // When chat unlocks and is empty, send an initial message so the agent asks the scope question (client_id/site_id are in the backend developer prompt).
+  const prevClientSiteRef = useRef<string>("")
+  useEffect(() => {
+    const key = `${client?.id ?? ""}:${effectiveSiteId ?? ""}`
+    if (prevClientSiteRef.current !== key) {
+      prevClientSiteRef.current = key
+      hasAutoStartedChatRef.current = false
+    }
+    if (!chatUnlocked || chatMessages.length > 0 || chatLoading || hasAutoStartedChatRef.current) return
+    hasAutoStartedChatRef.current = true
+    handleChatSend("Start.")
+  }, [chatUnlocked, chatMessages.length, chatLoading, client?.id, effectiveSiteId])
+
+  const handleChatSend = async (initialMessage?: string) => {
+    const text = (initialMessage ?? chatInput).trim()
+    if (!text || chatLoading || !client?.id || !effectiveSiteId) return
     const userMessage: ChatMessage = {
       id: `user-${Date.now()}`,
       role: "user",
-      content: chatInput.trim(),
+      content: text,
       timestamp: new Date().toISOString(),
     }
     const history = chatMessages.map((m) => ({ role: m.role, content: m.content }))
     setChatMessages((prev) => [...prev, userMessage])
-    setChatInput("")
+    if (!initialMessage) setChatInput("")
     setChatLoading(true)
     const assistantId = `assistant-${Date.now()}`
     setChatMessages((prev) => [
@@ -228,6 +243,32 @@ export function PageUpdaterView(props: PageUpdaterViewProps) {
 
   return (
     <div className="max-w-2xl space-y-6">
+      {/* Keyword Enhanced Sitemap at top */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Keyword Enhanced Sitemap</CardTitle>
+          <CardDescription>
+            Raw KW sitemap for the selected client (same as in Client Context). Select a client in the sidebar to view.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {!client ? (
+            <p className="text-sm text-muted-foreground">Select a client from the sidebar to view their keyword enhanced sitemap.</p>
+          ) : kwSitemapLoading ? (
+            <div className="flex items-center gap-2 py-4">
+              <Spinner className="h-4 w-4" />
+              <span className="text-sm text-muted-foreground">Loading sitemap…</span>
+            </div>
+          ) : !kwSitemapJson || !kwSitemapJson.trim() ? (
+            <p className="text-sm text-muted-foreground">No keyword enhanced sitemap for this client yet. Run Sitemap then Keyword Enhanced Sitemap in Client Context.</p>
+          ) : (
+            <div className="overflow-auto max-h-[70vh] rounded-xl border border-slate-700 bg-slate-900">
+              <pre className="p-4 text-sm text-slate-200 whitespace-pre-wrap font-mono">{kwSitemapJson}</pre>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       <Card>
         <CardHeader>
           <CardTitle>Page Updater</CardTitle>
@@ -307,20 +348,6 @@ export function PageUpdaterView(props: PageUpdaterViewProps) {
                   ))}
                 </ul>
               </div>
-            </div>
-          )}
-          {siteConfirmed && (
-            <div className="mt-4 pt-4 border-t border-border">
-              {publishError && (
-                <p className="text-sm text-destructive mb-2">{publishError}</p>
-              )}
-              <Button
-                variant="destructive"
-                disabled={publishLoading}
-                onClick={handlePublish}
-              >
-                {publishLoading ? "Publishing…" : "Publish changes"}
-              </Button>
             </div>
           )}
         </CardContent>
@@ -418,31 +445,21 @@ export function PageUpdaterView(props: PageUpdaterViewProps) {
         </CardContent>
       </Card>
 
-      {/* Keyword Enhanced Sitemap (same as Client Context, dark code block for visibility) */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Keyword Enhanced Sitemap</CardTitle>
-          <CardDescription>
-            Raw KW sitemap for the selected client (same as in Client Context). Select a client in the sidebar to view.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {!client ? (
-            <p className="text-sm text-muted-foreground">Select a client from the sidebar to view their keyword enhanced sitemap.</p>
-          ) : kwSitemapLoading ? (
-            <div className="flex items-center gap-2 py-4">
-              <Spinner className="h-4 w-4" />
-              <span className="text-sm text-muted-foreground">Loading sitemap…</span>
-            </div>
-          ) : !kwSitemapJson || !kwSitemapJson.trim() ? (
-            <p className="text-sm text-muted-foreground">No keyword enhanced sitemap for this client yet. Run Sitemap then Keyword Enhanced Sitemap in Client Context.</p>
-          ) : (
-            <div className="overflow-auto max-h-[70vh] rounded-xl border border-slate-700 bg-slate-900">
-              <pre className="p-4 text-sm text-slate-200 whitespace-pre-wrap font-mono">{kwSitemapJson}</pre>
-            </div>
+      {/* Publish button at bottom of page */}
+      {siteConfirmed && (
+        <div className="pt-4 border-t border-border">
+          {publishError && (
+            <p className="text-sm text-destructive mb-2">{publishError}</p>
           )}
-        </CardContent>
-      </Card>
+          <Button
+            variant="destructive"
+            disabled={publishLoading}
+            onClick={handlePublish}
+          >
+            {publishLoading ? "Publishing…" : "Publish changes"}
+          </Button>
+        </div>
+      )}
     </div>
   )
 }
