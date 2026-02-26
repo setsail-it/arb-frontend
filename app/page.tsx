@@ -6,6 +6,7 @@ import { ClientSelector } from "@/components/client-selector"
 import { ClientContextView } from "@/components/views/client-context-view"
 import { BlogFactoryView } from "@/components/views/blog-factory-view"
 import { StrategyEditorView } from "@/components/views/strategy-editor-view"
+import { PageUpdaterView } from "@/components/views/page-updater-view"
 import { useAuth } from "@/components/auth-provider"
 import { Button } from "@/components/ui/button"
 import { LogOut, User, Shield } from "lucide-react"
@@ -78,12 +79,21 @@ export default function ABSControlPanel() {
             active={activeTab === "factory"}
             onClick={() => setActiveTab("factory")}
           />
+          <NavButton
+            label="Page Updater"
+            active={activeTab === "page-updater"}
+            onClick={() => setActiveTab("page-updater")}
+          />
         </div>
       </div>
 
       {/* Main Content */}
       <main className="flex-1 overflow-hidden flex flex-col">
-        {!selectedClient ? (
+        {activeTab === "page-updater" ? (
+          <div className="flex-1 p-6 overflow-auto">
+            <PageUpdaterView />
+          </div>
+        ) : !selectedClient ? (
           <div className="flex-1 flex items-center justify-center text-muted-foreground">
             Select a client from the sidebar to get started.
           </div>
