@@ -233,7 +233,10 @@ export function PageUpdaterView(props: PageUpdaterViewProps) {
     setPublishLoading(true)
     setPublishError(null)
     try {
-      await api.publishWebflowSite(effectiveSiteId)
+      await api.publishWebflowSite(effectiveSiteId, {
+        customDomains: selectedSite?.customDomains ?? [],
+        publishToWebflowSubdomain: true,
+      })
     } catch (e) {
       setPublishError(e instanceof Error ? e.message : "Publish failed")
     } finally {
