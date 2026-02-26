@@ -91,7 +91,12 @@ export default function ABSControlPanel() {
       <main className="flex-1 overflow-hidden flex flex-col">
         {activeTab === "page-updater" ? (
           <div className="flex-1 p-6 overflow-auto">
-            <PageUpdaterView />
+            <PageUpdaterView
+              client={selectedClient}
+              onClientUpdate={(updated) =>
+                setSelectedClient((prev) => (prev ? { ...prev, ...updated } : updated))
+              }
+            />
           </div>
         ) : !selectedClient ? (
           <div className="flex-1 flex items-center justify-center text-muted-foreground">

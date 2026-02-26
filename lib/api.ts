@@ -78,6 +78,16 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify({ owner_id: ownerId }),
     }),
+  updateClientSiteId: (clientId: number, siteId: string | null) =>
+    fetchJson<Client>(`/clients/${clientId}/site-id`, {
+      method: "PATCH",
+      body: JSON.stringify({ site_id: siteId }),
+    }),
+  saveWebflowPages: (siteId: string, pages: { id: string; title?: string | null; slug?: string | null; publishedPath?: string | null; collectionId?: string | null; type?: string | null }[]) =>
+    fetchJson<{ site_id: string; count: number }>("/webflow-pages", {
+      method: "PUT",
+      body: JSON.stringify({ site_id: siteId, pages }),
+    }),
   cancelJobs: (clientId: number, jobTypes?: string[]) =>
     fetchJson<{ cancelled_count: number; message: string }>(`/clients/${clientId}/cancel-jobs`, {
       method: "POST",

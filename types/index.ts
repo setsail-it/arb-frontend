@@ -3,6 +3,7 @@ export interface Client {
   name: string
   slug?: string | null
   notes?: string | null
+  site_id?: string | null
   owner_id?: number | null
   owner_username?: string | null
   created_at?: string
