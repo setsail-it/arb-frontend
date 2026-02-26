@@ -42,6 +42,8 @@ export function PageUpdaterView(props: PageUpdaterViewProps) {
   const [pagesLoading, setPagesLoading] = useState(false)
   const [pagesError, setPagesError] = useState<string | null>(null)
   const [confirmingSite, setConfirmingSite] = useState(false)
+  const [publishLoading, setPublishLoading] = useState(false)
+  const [publishError, setPublishError] = useState<string | null>(null)
 
   const fetchSites = useCallback(async () => {
     setLoading(true)
@@ -129,6 +131,19 @@ export function PageUpdaterView(props: PageUpdaterViewProps) {
     }
   }
 
+  const handlePublish = async () => {
+    if (!effectiveSiteId) return
+    setPublishLoading(true)
+    setPublishError(null)
+    try {
+      await api.publishWebflowSite(effectiveSiteId)
+    } catch (e) {
+      setPublishError(e instanceof Error ? e.message : "Publish failed")
+    } finally {
+      setPublishLoading(false)
+    }
+  }
+
   return (
     <div className="max-w-2xl space-y-6">
       <Card>
@@ -210,6 +225,20 @@ export function PageUpdaterView(props: PageUpdaterViewProps) {
                   ))}
                 </ul>
               </div>
+            </div>
+          )}
+          {siteConfirmed && (
+            <div className="mt-4 pt-4 border-t border-border">
+              {publishError && (
+                <p className="text-sm text-destructive mb-2">{publishError}</p>
+              )}
+              <Button
+                variant="destructive"
+                disabled={publishLoading}
+                onClick={handlePublish}
+              >
+                {publishLoading ? "Publishing…" : "Publish changes"}
+              </Button>
             </div>
           )}
         </CardContent>
