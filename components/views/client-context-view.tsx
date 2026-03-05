@@ -77,6 +77,8 @@ export function ClientContextView({ client, readOnly = false }: Props) {
   // Progress tracking for Discovery Call and Deep Dive
   const [dcProgressSteps, setDcProgressSteps] = useState<string[]>([])
   const [ddProgressSteps, setDdProgressSteps] = useState<string[]>([])
+  const [regeneratingDiscoveryOnly, setRegeneratingDiscoveryOnly] = useState(false)
+  const [regeneratingDeepDiveOnly, setRegeneratingDeepDiveOnly] = useState(false)
   
   // Timer state - tracks elapsed seconds since pipeline started
   const [pipelineTimer, setPipelineTimer] = useState<number | null>(null)
@@ -771,6 +773,44 @@ export function ClientContextView({ client, readOnly = false }: Props) {
     setIsActivating(false)
   }
 
+  const handleRegenerateDiscoveryOnly = async () => {
+    const url = discoveryCallUrl.trim()
+    if (!url || readOnly) return
+    setRegeneratingDiscoveryOnly(true)
+    try {
+      // Clear pipeline continuation so standalone regenerate does not cascade into other steps.
+      pipelineContinuationRef.current.afterDC = undefined
+      setDcProgressSteps([])
+      setFlowState(prev => ({ ...prev, discoveryCall: "processing" }))
+      await api.processDiscoveryCall(client.id, url)
+      pollDCStatus()
+    } catch (e) {
+      console.error("[Discovery Only] Failed to start:", e)
+      setFlowState(prev => ({ ...prev, discoveryCall: "error" }))
+    } finally {
+      setRegeneratingDiscoveryOnly(false)
+    }
+  }
+
+  const handleRegenerateDeepDiveOnly = async () => {
+    const url = deepDiveUrl.trim()
+    if (!url || readOnly) return
+    setRegeneratingDeepDiveOnly(true)
+    try {
+      // Clear pipeline continuation so standalone regenerate does not cascade into other steps.
+      pipelineContinuationRef.current.afterDD = undefined
+      setDdProgressSteps([])
+      setFlowState(prev => ({ ...prev, deepDive: "processing" }))
+      await api.processDeepDive(client.id, url)
+      pollDeepDiveStatus()
+    } catch (e) {
+      console.error("[Deep Dive Only] Failed to start:", e)
+      setFlowState(prev => ({ ...prev, deepDive: "error" }))
+    } finally {
+      setRegeneratingDeepDiveOnly(false)
+    }
+  }
+
   // File management functions
   const loadFiles = useCallback(async () => {
     setFilesLoading(true)
@@ -1153,6 +1193,10 @@ export function ClientContextView({ client, readOnly = false }: Props) {
                 skipped={!hasDiscoveryCall}
                 progressSteps={dcProgressSteps}
                 progressStepsConfig={DC_PROGRESS_STEPS}
+                actionLabel="Regenerate"
+                onAction={handleRegenerateDiscoveryOnly}
+                actionDisabled={readOnly || !hasDiscoveryCall || isPipelineRunning || regeneratingDiscoveryOnly || flowState.discoveryCall === "processing"}
+                actionLoading={regeneratingDiscoveryOnly || flowState.discoveryCall === "processing"}
               />
               <ResultCard
                 title="Deep Dive Results"
@@ -1162,6 +1206,10 @@ export function ClientContextView({ client, readOnly = false }: Props) {
                 skipped={!hasDeepDive}
                 progressSteps={ddProgressSteps}
                 progressStepsConfig={DD_PROGRESS_STEPS}
+                actionLabel="Regenerate"
+                onAction={handleRegenerateDeepDiveOnly}
+                actionDisabled={readOnly || !hasDeepDive || isPipelineRunning || regeneratingDeepDiveOnly || flowState.deepDive === "processing"}
+                actionLoading={regeneratingDeepDiveOnly || flowState.deepDive === "processing"}
               />
               <ResultCard
                 title="General Context Results"
@@ -1519,9 +1567,26 @@ interface ResultCardProps {
   progressSteps?: string[]
   progressStepsConfig?: { key: string; label: string }[]
   filesCount?: number  // For Additional Context card
+  actionLabel?: string
+  onAction?: () => void
+  actionDisabled?: boolean
+  actionLoading?: boolean
 }
 
-function ResultCard({ title, icon, status, onClick, skipped, progressSteps = [], progressStepsConfig = [], filesCount }: ResultCardProps) {
+function ResultCard({
+  title,
+  icon,
+  status,
+  onClick,
+  skipped,
+  progressSteps = [],
+  progressStepsConfig = [],
+  filesCount,
+  actionLabel,
+  onAction,
+  actionDisabled,
+  actionLoading,
+}: ResultCardProps) {
   const statusConfig = {
     idle: {
       border: "border-slate-700",
@@ -1613,6 +1678,24 @@ function ResultCard({ title, icon, status, onClick, skipped, progressSteps = [],
                 {!isFilesCard && status === "complete" && "Click to view"}
                 {!isFilesCard && status === "error" && "Error occurred"}
               </p>
+            )}
+            {onAction && actionLabel && (
+              <div className="mt-3">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-7 px-2 text-xs border-slate-600 text-slate-300 hover:bg-slate-800 hover:text-white"
+                  disabled={actionDisabled}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onAction()
+                  }}
+                >
+                  {actionLoading ? <Spinner className="h-3 w-3 mr-1" /> : <RefreshCw className="h-3 w-3 mr-1" />}
+                  {actionLabel}
+                </Button>
+              </div>
             )}
           </div>
           {isClickable && (
