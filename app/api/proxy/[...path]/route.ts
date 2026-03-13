@@ -1,7 +1,8 @@
 import { type NextRequest, NextResponse } from "next/server"
 
-// The actual backend URL
-const BACKEND_URL = "https://arb-production-8438.up.railway.app"
+// The actual backend URL (from environment)
+const BACKEND_URL = process.env.BACKEND_URL!
+if (!BACKEND_URL) throw new Error('BACKEND_URL environment variable is required')
 
 async function handleRequest(request: NextRequest, params: { path: string[] }) {
   // Reconstruct the path (e.g., /clients, /clients/123)

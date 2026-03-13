@@ -4,7 +4,7 @@ import { cookies } from 'next/headers'
 export async function GET() {
   try {
     const cookieStore = await cookies()
-    const authCookie = cookieStore.get('arb-auth')
+    const authCookie = cookieStore.get('setsail-auth')
     
     if (!authCookie) {
       return NextResponse.json({ authenticated: false, user: null })

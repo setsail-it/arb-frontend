@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 
 // Use the same backend URL as the proxy route (server-side env vars don't use NEXT_PUBLIC_)
-const API_BASE_URL = process.env.BACKEND_URL || 'https://arb-production-8438.up.railway.app'
+const API_BASE_URL = process.env.BACKEND_URL!
+if (!API_BASE_URL) throw new Error('BACKEND_URL environment variable is required')
 
 export async function POST(request: Request) {
   try {
@@ -42,7 +43,7 @@ export async function POST(request: Request) {
     }
     
     const cookieStore = await cookies()
-    cookieStore.set('arb-auth', JSON.stringify(authData), {
+    cookieStore.set('setsail-auth', JSON.stringify(authData), {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
