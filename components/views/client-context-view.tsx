@@ -79,6 +79,9 @@ export function ClientContextView({ client, readOnly = false }: Props) {
   const [ddProgressSteps, setDdProgressSteps] = useState<string[]>([])
   const [regeneratingDiscoveryOnly, setRegeneratingDiscoveryOnly] = useState(false)
   const [regeneratingDeepDiveOnly, setRegeneratingDeepDiveOnly] = useState(false)
+  const [regeneratingGeneralContext, setRegeneratingGeneralContext] = useState(false)
+  const [regeneratingSitemap, setRegeneratingSitemap] = useState(false)
+  const [regeneratingKeywordSitemap, setRegeneratingKeywordSitemap] = useState(false)
   
   // Timer state - tracks elapsed seconds since pipeline started
   const [pipelineTimer, setPipelineTimer] = useState<number | null>(null)
@@ -811,6 +814,52 @@ export function ClientContextView({ client, readOnly = false }: Props) {
     }
   }
 
+  const handleRegenerateGeneralContext = async () => {
+    const domain = domainInput.trim()
+    if (!domain || readOnly) return
+    setRegeneratingGeneralContext(true)
+    try {
+      setFlowState(prev => ({ ...prev, generalContext: "processing" }))
+      await api.fetchContextFromSiteAsync(client.id, domain, locationCode)
+      pollGCStatus()
+    } catch (e) {
+      console.error("[General Context] Failed to regenerate:", e)
+      setFlowState(prev => ({ ...prev, generalContext: "error" }))
+    } finally {
+      setRegeneratingGeneralContext(false)
+    }
+  }
+
+  const handleRegenerateSitemap = async () => {
+    if (readOnly) return
+    setRegeneratingSitemap(true)
+    try {
+      setFlowState(prev => ({ ...prev, sitemap: "processing" }))
+      await api.startSitemapFetch(client.id)
+      pollSitemapStatus()
+    } catch (e) {
+      console.error("[Sitemap] Failed to regenerate:", e)
+      setFlowState(prev => ({ ...prev, sitemap: "error" }))
+    } finally {
+      setRegeneratingSitemap(false)
+    }
+  }
+
+  const handleRegenerateKeywordSitemap = async () => {
+    if (readOnly) return
+    setRegeneratingKeywordSitemap(true)
+    try {
+      setFlowState(prev => ({ ...prev, keywordEnhancedSitemap: "processing" }))
+      await api.retryKeywordEnhancedSitemap(client.id)
+      pollKeywordEnhancedSitemapStatus()
+    } catch (e) {
+      console.error("[Keyword Enhanced Sitemap] Failed to regenerate:", e)
+      setFlowState(prev => ({ ...prev, keywordEnhancedSitemap: "error" }))
+    } finally {
+      setRegeneratingKeywordSitemap(false)
+    }
+  }
+
   // File management functions
   const loadFiles = useCallback(async () => {
     setFilesLoading(true)
@@ -1216,18 +1265,30 @@ export function ClientContextView({ client, readOnly = false }: Props) {
                 icon={<Database className="h-5 w-5" />}
                 status={flowState.generalContext}
                 onClick={() => setActiveView("general")}
+                actionLabel="Regenerate"
+                onAction={handleRegenerateGeneralContext}
+                actionDisabled={readOnly || !domainInput.trim() || isPipelineRunning || regeneratingGeneralContext || flowState.generalContext === "processing"}
+                actionLoading={regeneratingGeneralContext || flowState.generalContext === "processing"}
               />
               <ResultCard
                 title="Sitemap"
                 icon={<Map className="h-5 w-5" />}
                 status={flowState.sitemap}
                 onClick={() => setActiveView("sitemap")}
+                actionLabel="Regenerate"
+                onAction={handleRegenerateSitemap}
+                actionDisabled={readOnly || isPipelineRunning || regeneratingSitemap || flowState.sitemap === "processing"}
+                actionLoading={regeneratingSitemap || flowState.sitemap === "processing"}
               />
               <ResultCard
                 title="Keyword Enhanced Sitemap"
                 icon={<TrendingUp className="h-5 w-5" />}
                 status={flowState.keywordEnhancedSitemap}
                 onClick={() => setActiveView("keyword-enhanced-sitemap")}
+                actionLabel="Regenerate"
+                onAction={handleRegenerateKeywordSitemap}
+                actionDisabled={readOnly || isPipelineRunning || regeneratingKeywordSitemap || flowState.keywordEnhancedSitemap === "processing"}
+                actionLoading={regeneratingKeywordSitemap || flowState.keywordEnhancedSitemap === "processing"}
               />
               <ResultCard
                 title="Additional Context"
