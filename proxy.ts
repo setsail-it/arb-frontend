@@ -24,7 +24,7 @@ export function proxy(request: NextRequest) {
   }
   
   // Check for auth cookie
-  const authCookie = request.cookies.get('arb-auth')
+  const authCookie = request.cookies.get('setsail-auth')
   
   if (!authCookie) {
     // Redirect to login
@@ -49,7 +49,7 @@ export function proxy(request: NextRequest) {
       loginUrl.searchParams.set('expired', 'true')
       
       const response = NextResponse.redirect(loginUrl)
-      response.cookies.delete('arb-auth')
+      response.cookies.delete('setsail-auth')
       return response
     }
     
@@ -61,7 +61,7 @@ export function proxy(request: NextRequest) {
     loginUrl.searchParams.set('redirect', pathname)
     
     const response = NextResponse.redirect(loginUrl)
-    response.cookies.delete('arb-auth')
+    response.cookies.delete('setsail-auth')
     return response
   }
 }

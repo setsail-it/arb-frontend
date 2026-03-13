@@ -1,4 +1,4 @@
-const backendUrl = "https://arb-production-8438.up.railway.app/health"
+const backendUrl = (process.env.BACKEND_URL || "http://localhost:8000") + "/health"
 
 async function checkHealth() {
   try {
